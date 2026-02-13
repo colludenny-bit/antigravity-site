@@ -124,3 +124,9 @@ websockets==15.0.1
 yarl==1.22.0
 yfinance==1.0
 zipp==3.23.0
+<<<<<<< HEAD
+=======
+APScheduler==3.10.4
+email-validator==2.2.0
+python-multipart==0.0.9
+>>>>>>> 503a7f1 (fix: API key logic, demo persistence, and dependencies)

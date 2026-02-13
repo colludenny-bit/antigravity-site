@@ -2117,6 +2117,81 @@ async def update_language(language: str, current_user: dict = Depends(get_curren
     await db.users.update_one({"id": current_user["id"]}, {"$set": {"language": language}})
     return {"status": "updated", "language": language}
 
+# ==================== MARKET ANALYSIS ====================
+
+@api_router.get("/market/analysis")
+async def get_latest_market_analysis():
+    """Get the latest AI market analysis"""
+    if DEMO_MODE:
+        # Check in-memory demo data
+        if demo_data.get("market_analysis"):
+             latest = demo_data["market_analysis"][-1]
+             return {"content": latest["content"], "timestamp": latest["timestamp"]}
+        # If no data yet, trigger and return placeholder
+        asyncio.create_task(auto_market_analysis_job())
+        return {"content": "Analysis generating (Demo)...", "timestamp": datetime.now(timezone.utc).isoformat()}
+    
+    analysis = await db.market_analysis.find_one({}, sort=[("timestamp", -1)])
+    if not analysis:
+        # Trigger one if missing
+        asyncio.create_task(auto_market_analysis_job())
+        return {"content": "Analysis generating...", "timestamp": datetime.now(timezone.utc).isoformat()}
+    
+    return {"content": analysis["content"], "timestamp": analysis["timestamp"]}
+
+@api_router.post("/market/analyze")
+async def trigger_market_analysis(current_user: dict = Depends(get_current_user)):
+    """Manually trigger AI market analysis"""
+    # Allow any user to trigger for now, or restrict to admin
+    asyncio.create_task(auto_market_analysis_job())
+    return {"status": "Analysis started"}
+
+# ==================== BACKGROUND JOBS ====================
+
+async def auto_market_analysis_job():
+    """Background job to analyze market every 3 hours"""
+    logger.info("🔄 Running 3-hour Auto Market Analysis...")
+    try:
+        # 1. Ensure fresh data
+        prices = await get_market_prices()
+        
+        # 2. Generate AI Analysis
+        content = "Analisi non disponibile (API Key mancante)"
+        
+        if GOOGLE_API_KEY:
+            try:
+                # Suppress deprecation warnings for this specific call if needed
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    model = genai.GenerativeModel("gemini-flash-latest")
+                    prompt = f"Analizza sinteticamente questi prezzi di mercato per un trader intraday: {prices}. Focus su trend, livelli chiave anomalie. Rispondi in italiano, max 100 parole."
+                    response = await model.generate_content_async(prompt)
+                    content = response.text
+            except Exception as e:
+                logger.error(f"Generate Content Error: {e}")
+                content = f"Errore generazione analisi: {str(e)}"
+        
+        # 3. Save to DB or Demo Storage
+        analysis_doc = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "content": content,
+            "prices_snapshot": prices
+        }
+        
+        if not DEMO_MODE and db is not None:
+            await db.market_analysis.insert_one(analysis_doc)
+            logger.info("✅ Auto-Analysis Saved to DB")
+        else:
+            # Save to in-memory demo data
+            if "market_analysis" not in demo_data:
+                demo_data["market_analysis"] = []
+            demo_data["market_analysis"].append(analysis_doc)
+            logger.info(f"✅ Auto-Analysis Saved to Demo Memory: {content[:50]}...")
+            
+    except Exception as e:
+        logger.error(f"❌ Auto-Analysis Failed: {e}")
+
 # ==================== ROOT ====================
 
 @api_router.get("/")
@@ -2134,13 +2209,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Startup Event
+@app.on_event("startup")
+async def startup_event():
+    # Start scheduler
+    if not scheduler.running:
+        scheduler.add_job(auto_market_analysis_job, 'interval', hours=3, id='market_analysis_3h')
+        scheduler.start()
+        logger.info("🕒 Background Scheduler started: Auto-Analysis every 3 hours")
+    
+    # Check if we need an initial analysis (if none in last 3 hours)
+    if not DEMO_MODE and db is not None:
+        last = await db.market_analysis.find_one({}, sort=[("timestamp", -1)])
+        if not last or (datetime.now(timezone.utc) - datetime.fromisoformat(last["timestamp"])).total_seconds() > 3600 * 3:
+            logger.info("🚀 Triggering initial market analysis on startup...")
+            asyncio.create_task(auto_market_analysis_job())
+    elif DEMO_MODE:
+        # In demo mode, always trigger one on startup
+        logger.info("🚀 Triggering demo market analysis on startup...")
+        asyncio.create_task(auto_market_analysis_job())
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    if not DEMO_MODE:
+    if scheduler.running:
+        scheduler.shutdown()
+    if not DEMO_MODE and client:
         client.close()
 
 if __name__ == "__main__":
     import uvicorn
+    # Suppress specific warnings
+    import warnings
+    warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+    warnings.filterwarnings("ignore", category=FutureWarning, module="google.api_core")
+    
     print("🚀 Starting Karion Trading OS Backend...")
     print(f"📊 Mode: {'DEMO (in-memory)' if DEMO_MODE else 'PRODUCTION (MongoDB)'}")
     print("🌐 Server running at http://localhost:8000")
