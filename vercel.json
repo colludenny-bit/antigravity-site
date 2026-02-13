@@ -1,0 +1,14 @@
+{
+    "rewrites": [
+        {
+            "source": "/api/(.*)",
+            "destination": "/backend/server.py"
+        }
+    ],
+    "crons": [
+        {
+            "path": "/api/engine/run",
+            "schedule": "0 7,10,13,16,19 * * *"
+        }
+    ]
+}
