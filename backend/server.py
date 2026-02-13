@@ -72,9 +72,31 @@ JWT_EXPIRATION_HOURS = 24
 # Emergent LLM Key
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
+# Gemini API Key
+import google.generativeai as genai
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
+
 app = FastAPI(title="TradingOS API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
+
+# Initialize Scheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+scheduler = AsyncIOScheduler()
+
+# Initialize Multi-Source Engine
+try:
+    from backend.multi_source_engine import MultiSourceEngine
+except ImportError:
+    try:
+        from multi_source_engine import MultiSourceEngine
+    except ImportError:
+        MultiSourceEngine = None
+
+multi_source_engine = MultiSourceEngine() if MultiSourceEngine else None
+latest_engine_cards = []
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -1295,68 +1317,62 @@ async def get_vix_data():
 
 @api_router.get("/market/prices")
 async def get_market_prices():
-    """Get real market prices from Yahoo Finance"""
+    """Get real-time market prices using Hybrid (TradingView + Yahoo) approach"""
     global _market_cache
     now = datetime.now(timezone.utc)
     
-    # Use cache if less than 2 minutes old
+    # Use cache if less than 10 seconds old (Scalper needs fast updates)
     if _market_cache["data"] and _market_cache["timestamp"]:
         age = (now - _market_cache["timestamp"]).total_seconds()
-        if age < 120:
+        if age < 10:
             return _market_cache["data"]
-    
-    # Yahoo Finance symbols mapping
-    symbols = {
-        "XAUUSD": "GC=F",      # Gold Futures
-        "NAS100": "NQ=F",      # Nasdaq Futures
-        "SP500": "ES=F",       # S&P 500 Futures
-        "EURUSD": "EURUSD=X",  # EUR/USD
-        "DOW": "YM=F"          # Dow Futures
-    }
     
     prices = {}
     
-    for display_name, yf_symbol in symbols.items():
-        try:
-            hist = get_yf_ticker_safe(yf_symbol, period="5d", interval="1d")
-            
-            if hist is not None and len(hist) >= 2:
-                current = float(hist['Close'].iloc[-1])
-                prev_close = float(hist['Close'].iloc[-2])
-                change_pct = ((current - prev_close) / prev_close) * 100
-                
-                # Calculate weekly high/low
-                weekly_high = float(hist['High'].max())
-                weekly_low = float(hist['Low'].min())
-                
-                prices[display_name] = {
-                    "symbol": display_name,
-                    "price": round(current, 2 if display_name != "EURUSD" else 5),
-                    "change": round(change_pct, 2),
-                    "prev_close": round(prev_close, 2 if display_name != "EURUSD" else 5),
-                    "weekly_high": round(weekly_high, 2 if display_name != "EURUSD" else 5),
-                    "weekly_low": round(weekly_low, 2 if display_name != "EURUSD" else 5),
-                    "source": "yahoo_finance"
-                }
-            else:
-                raise Exception(f"No data for {yf_symbol}")
-                
-        except Exception as e:
-            logger.warning(f"Price fetch error for {display_name}: {e}")
-            # Fallback prices
-            base_prices = {"XAUUSD": 2650, "NAS100": 21450, "SP500": 6050, "EURUSD": 1.085, "DOW": 44200}
-            base = base_prices.get(display_name, 100)
-            change = (random.random() - 0.5) * 2
-            prices[display_name] = {
-                "symbol": display_name,
-                "price": round(base * (1 + change/100), 2 if display_name != "EURUSD" else 5),
-                "change": round(change, 2),
-                "prev_close": round(base, 2 if display_name != "EURUSD" else 5),
-                "weekly_high": round(base * 1.02, 2 if display_name != "EURUSD" else 5),
-                "weekly_low": round(base * 0.98, 2 if display_name != "EURUSD" else 5),
-                "source": "simulated"
-            }
+    # 1. Yahoo Finance (Fastest Free Source)
+    # Scalper optimization: Use Spot/Cash tickers where possible for real-time data
+    yf_map = {
+        "XAUUSD": "GC=F",      # Gold Futures (XAUUSD=X failed)
+        "NAS100": "NQ=F",      # Javascript polling might need to handle delay, currently best free source
+        "SP500": "ES=F",       
+        "EURUSD": "EURUSD=X",  # Real-time
+        "DOW": "YM=F",
+        "VIX": "^VIX",
+        "DXY": "DX-Y.NYB"
+    }
     
+    for key, yf_symbol in yf_map.items():
+        if key not in prices:
+            try:
+                # Use 1m interval for better accuracy if available
+                ticker = yf.Ticker(yf_symbol)
+                # fast_info is often faster/realtime for forex
+                price = None
+                change = 0
+                
+                # Check fast_info first (often Real-time for Forex/Crypto)
+                if hasattr(ticker, 'fast_info') and ticker.fast_info.last_price:
+                    price = ticker.fast_info.last_price
+                    prev = ticker.fast_info.previous_close
+                    change = ((price - prev) / prev) * 100
+                else:
+                    # Fallback to history
+                    hist = ticker.history(period="1d", interval="1m")
+                    if not hist.empty:
+                        price = hist['Close'].iloc[-1]
+                        prev = hist['Open'].iloc[0] # Approx
+                        change = ((price - prev) / prev) * 100
+                
+                if price is not None:
+                    prices[key] = {
+                        "symbol": yf_symbol,
+                        "price": round(price, 2 if key != "EURUSD" else 5),
+                        "change": round(change, 2),
+                        "source": "yahoo_realtime"
+                    }
+            except Exception as e:
+                logger.warning(f"Yahoo fetch failed for {key}: {e}")
+
     _market_cache["data"] = prices
     _market_cache["timestamp"] = now
     return prices
@@ -2191,6 +2207,40 @@ async def auto_market_analysis_job():
             
     except Exception as e:
         logger.error(f"❌ Auto-Analysis Failed: {e}")
+
+# ==================== MULTI-SOURCE ENGINE ROUTES ====================
+
+@api_router.get("/engine/cards")
+async def get_engine_cards(current_user: dict = Depends(get_current_user)):
+    """Get the latest Multi-Source Engine cards."""
+    global latest_engine_cards
+    
+    if not multi_source_engine:
+        return []
+        
+    if not latest_engine_cards:
+        # If no cards, try to run once (async)
+        # Note: In production, we rely on scheduler
+        latest_engine_cards = await multi_source_engine.run_analysis()
+    return latest_engine_cards
+
+@api_router.post("/engine/run")
+async def run_engine_manual(current_user: dict = Depends(get_current_user)):
+    """Force run the engine."""
+    global latest_engine_cards
+    if not multi_source_engine:
+        raise HTTPException(status_code=503, detail="Engine not available")
+        
+    latest_engine_cards = await multi_source_engine.run_analysis()
+    return {"status": "success", "cards_generated": len(latest_engine_cards)}
+
+# Scheduled Job for Multi-Source Engine
+@scheduler.scheduled_job('cron', hour='7,10,13,16,19', minute=0) 
+async def scheduled_engine_run():
+    logger.info("⏰ Running Scheduled Multi-Source Engine...")
+    global latest_engine_cards
+    if multi_source_engine:
+        latest_engine_cards = await multi_source_engine.run_analysis()
 
 # ==================== ROOT ====================
 
