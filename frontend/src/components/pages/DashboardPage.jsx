@@ -75,7 +75,7 @@ const CountUp = ({ value, duration = 1500, delay = 0, prefix = '', suffix = '', 
       requestAnimationFrame(animate);
     }, delay);
     return () => clearTimeout(startTimer);
-  }, [numVal, duration, delay]);
+  }, [numVal, duration, delay, isDecimal]);
 
   return <span className={className}>{prefix}{display}{suffix}</span>;
 };

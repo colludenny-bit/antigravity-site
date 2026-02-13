@@ -74,8 +74,9 @@ const AnimatedDice = ({ isAnimating }) => {
 
 // Loading Animation Component
 const LoadingAnimation = ({ isLoading, progress }) => {
+  const progressReady = progress > 30;
   const lines = React.useMemo(() => {
-    if (isLoading && progress > 30) {
+    if (isLoading && progressReady) {
       const colors = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899'];
       return Array.from({ length: 10 }, (_, i) => ({
         id: i,
@@ -88,7 +89,7 @@ const LoadingAnimation = ({ isLoading, progress }) => {
       }));
     }
     return [];
-  }, [isLoading, progress > 30]);
+  }, [isLoading, progressReady]);
 
   if (!isLoading) return null;
 

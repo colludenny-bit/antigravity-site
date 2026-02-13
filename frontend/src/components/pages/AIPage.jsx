@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -140,7 +140,7 @@ export default function AIPage() {
     loadVoices();
     window.speechSynthesis?.addEventListener('voiceschanged', loadVoices);
     return () => window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices);
-  }, []);
+  }, [selectedVoice]);
 
   // Find best matching voice for preset
   const getVoiceForPreset = (presetId) => {
@@ -178,7 +178,7 @@ export default function AIPage() {
   };
 
   // Speak text function
-  const speakText = (text) => {
+  const speakText = useCallback((text) => {
     if (!voiceEnabled || !window.speechSynthesis) return;
 
     // Stop any current speech
@@ -197,7 +197,7 @@ export default function AIPage() {
     utterance.onerror = () => setIsSpeaking(false);
 
     window.speechSynthesis.speak(utterance);
-  };
+  }, [voiceEnabled, activePreset]);
 
   // Stop speaking
   const stopSpeaking = () => {
@@ -213,7 +213,7 @@ export default function AIPage() {
         speakText('Ciao, sono Karion, il tuo AI Coach personale. Come posso aiutarti oggi?');
       }, 1000);
     }
-  }, [messages, voiceGreeted, voiceEnabled]);
+  }, [messages, voiceGreeted, voiceEnabled, speakText]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -235,7 +235,7 @@ Ho accesso a tutto il tuo storico: journal, psicologia, performance, strategie. 
 Come posso aiutarti oggi?`
       }]);
     }
-  }, []);
+  }, [messages.length]);
 
   const sendMessage = async (text = input) => {
     if (!text.trim() || loading) return;

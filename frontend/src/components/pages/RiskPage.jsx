@@ -193,7 +193,7 @@ export default function RiskPage() {
     fetchRiskData();
     const interval = setInterval(() => fetchRiskData(true), 60000); // 1 min update
     return () => clearInterval(interval);
-  }, []); // Depend on empty array to mount only once, but fetchRiskData is stable enough or we ignore the lint warning for 'fetchRiskData' for now as it's a simulation
+  }, [fetchRiskData]);
 
   if (isLoading) {
     return (

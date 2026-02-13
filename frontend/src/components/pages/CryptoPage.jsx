@@ -956,7 +956,7 @@ export default function CryptoPage() {
     fetchCoins();
     const interval = setInterval(fetchCoins, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedId]);
 
   // Fetch chart data when coin changes
   useEffect(() => {
