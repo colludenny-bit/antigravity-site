@@ -97,6 +97,15 @@ const aiQuickTabs = [
   { id: 'performance', label: 'Stats', icon: TrendingUp, prompt: 'Analizza le mie performance' },
 ];
 
+// Available voice presets (mapped to Web Speech API voices)
+const voicePresets = [
+  { id: 'jarvis', label: 'JARVIS', gender: 'male', lang: 'en' },
+  { id: 'friday', label: 'FRIDAY', gender: 'female', lang: 'en' },
+  { id: 'italian-m', label: 'Marco (IT)', gender: 'male', lang: 'it' },
+  { id: 'italian-f', label: 'Lucia (IT)', gender: 'female', lang: 'it' },
+  { id: 'default', label: 'Default', gender: 'any', lang: 'any' }
+];
+
 export default function AIPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -115,14 +124,6 @@ export default function AIPage() {
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
   const [voiceGreeted, setVoiceGreeted] = useState(false);
 
-  // Available voice presets (mapped to Web Speech API voices)
-  const voicePresets = [
-    { id: 'jarvis', label: 'JARVIS', gender: 'male', lang: 'en' },
-    { id: 'friday', label: 'FRIDAY', gender: 'female', lang: 'en' },
-    { id: 'italian-m', label: 'Marco (IT)', gender: 'male', lang: 'it' },
-    { id: 'italian-f', label: 'Lucia (IT)', gender: 'female', lang: 'it' },
-    { id: 'default', label: 'Default', gender: 'any', lang: 'any' }
-  ];
   const [activePreset, setActivePreset] = useState('italian-m');
 
   // Load available voices
@@ -143,7 +144,7 @@ export default function AIPage() {
   }, [selectedVoice]);
 
   // Find best matching voice for preset
-  const getVoiceForPreset = (presetId) => {
+  const getVoiceForPreset = useCallback((presetId) => {
     const preset = voicePresets.find(p => p.id === presetId);
     if (!preset || voices.length === 0) return null;
 
@@ -175,7 +176,7 @@ export default function AIPage() {
     }
 
     return matchingVoices[0] || voices[0];
-  };
+  }, [voices]);
 
   // Speak text function
   const speakText = useCallback((text) => {
@@ -197,7 +198,7 @@ export default function AIPage() {
     utterance.onerror = () => setIsSpeaking(false);
 
     window.speechSynthesis.speak(utterance);
-  }, [voiceEnabled, activePreset]);
+  }, [voiceEnabled, activePreset, getVoiceForPreset]);
 
   // Stop speaking
   const stopSpeaking = () => {
