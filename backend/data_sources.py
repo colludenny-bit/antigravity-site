@@ -75,16 +75,38 @@ class MarketDataService:
                 except:
                     pass
             
-            # 2. History Loop
-            for interval in ["1m", "5m", "1h", "1d"]:
+            # 2. History Loop (Need enough data for ATR)
+            # We need at least 15 candles for 14-period ATR
+            for interval in ["1h", "1d"]:
                 try:
-                    p = "1d" if interval!="1d" else "5d"
+                    p = "5d" if interval=="1h" else "1mo"
                     hist = dat.history(period=p, interval=interval)
+                    
                     if not hist.empty:
                         price = hist["Close"].iloc[-1]
                         prev = hist["Open"].iloc[0] 
                         change = ((price - prev) / prev) * 100
-                        return {"price": float(price), "change": float(change)}
+                        
+                        # Calculate ATR (14)
+                        high = hist["High"]
+                        low = hist["Low"]
+                        close = hist["Close"]
+                        
+                        # True Range
+                        tr1 = high - low
+                        tr2 = (high - close.shift()).abs()
+                        tr3 = (low - close.shift()).abs()
+                        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+                        atr = tr.rolling(window=14).mean().iloc[-1]
+                        
+                        # If ATR is NaN (not enough data), fallback to %
+                        if pd.isna(atr): atr = price * 0.01
+
+                        return {
+                            "price": float(price), 
+                            "change": float(change),
+                            "atr": float(atr)
+                        }
                 except:
                     continue
                     

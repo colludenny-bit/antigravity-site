@@ -1,0 +1,26 @@
+{
+    "NAS100": {
+        "weekly_bias": "NEUTRAL",
+        "monthly_bias": "BULLISH",
+        "seasonal_score": 0.5,
+        "notes": "Strong seasonality in Q4"
+    },
+    "SP500": {
+        "weekly_bias": "BEARISH",
+        "monthly_bias": "NEUTRAL",
+        "seasonal_score": -0.3,
+        "notes": "Correction expected in September"
+    },
+    "XAUUSD": {
+        "weekly_bias": "NEUTRAL",
+        "monthly_bias": "NEUTRAL",
+        "seasonal_score": 0.0,
+        "notes": ""
+    },
+    "EURUSD": {
+        "weekly_bias": "NEUTRAL",
+        "monthly_bias": "NEUTRAL",
+        "seasonal_score": 0.0,
+        "notes": ""
+    }
+}

@@ -79,6 +79,18 @@ class MultiSourceEngine:
         
         return {"status": status, "confidence": min(100, abs(score) * 40)}
 
+    def _load_statistical_bias(self):
+        try:
+            import json
+            import os
+            path = os.path.join(os.path.dirname(__file__), "statistical_bias.json")
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    return json.load(f)
+        except Exception as e:
+            print(f"⚠️ Failed to load statistical bias: {e}")
+        return {}
+
     async def _analyze_asset(self, asset: str, vix: dict, macro: dict, regime: dict) -> AssetCard:
         # Fetch market data
         market_data = self.market.get_latest_data(asset)
@@ -96,19 +108,21 @@ class MultiSourceEngine:
             )
 
         price = market_data["price"]
+        atr = market_data.get("atr", price * 0.01) # Default to 1% if ATR missing
         
         # Fetch components
         cot = self.cot.get_cot_bias(asset)
         news = self.news.get_news_sentiment()
+        stat_bias = self._load_statistical_bias().get(asset, {})
         
         # Calculate Base Score (-1 to 1)
         score_vix = 0
         score_macro = 0
         score_cot = 0
-        score_tech = 0 # New technical score
+        score_tech = 0 
+        score_stat = stat_bias.get("seasonal_score", 0.0)
 
         # Technical Score from TradingView TA
-        # RECOMMENDATION can be "STRONG_BUY", "BUY", "NEUTRAL", "SELL", "STRONG_SELL"
         rec = market_data.get("recommendation", "NEUTRAL")
         if rec == "STRONG_BUY": score_tech = 1.0
         elif rec == "BUY": score_tech = 0.5
@@ -143,18 +157,31 @@ class MultiSourceEngine:
             dxy = macro.get("dxy", 100)
             if dxy > 104: score_macro = -0.7
             elif dxy < 101: score_macro = 0.7
-            # Tech score needs alignment (EURUSD long = weak DXY)
             
         # Weighted Sum
+        # Default Weights + Stat Bias Weight
         w = self.weights.get(asset, {"vix":0.2, "macro":0.2, "news":0.1, "cot":0.1})
-        # Add tech weight (implicitly 0.4 or remaining)
-        w_tech = 1.0 - sum(w.values())
+        w_stat = 0.15 # User Bias weight
         
-        total_score = (score_vix * w["vix"]) + (score_macro * w["macro"]) + (score_cot * w["cot"]) + (score_tech * w_tech)
+        # Normalize weights to sum to 1 (tech takes remainder)
+        current_sum = sum(w.values()) + w_stat
+        if current_sum >= 1.0:
+            # Scale down if > 1
+            factor = 0.9 / current_sum
+            w = {k: v*factor for k,v in w.items()}
+            w_stat *= factor
+            
+        w_tech = 1.0 - sum(w.values()) - w_stat
+        
+        total_score = (score_vix * w.get("vix",0)) + \
+                      (score_macro * w.get("macro",0)) + \
+                      (score_cot * w.get("cot",0)) + \
+                      (score_stat * w_stat) + \
+                      (score_tech * w_tech)
         
         # Convert to Direction & Probability
         direction = "NEUTRAL"
-        prob = 50 + (total_score * 40) # Scale roughly to 10-90%
+        prob = 50 + (total_score * 40) 
         prob = max(10, min(90, prob))
         
         if prob > 55: direction = "UP"
@@ -170,16 +197,21 @@ class MultiSourceEngine:
             if score_tech < -0.5: impulse = "PROSEGUE (Strong)"
             elif score_tech < 0: impulse = "PROSEGUE"
             elif score_tech > 0: impulse = "DIMINUISCE (Divergence)"
-
+ 
         drivers = []
+        if abs(score_stat) > 0.4: drivers.append(f"User Bias ({stat_bias.get('notes', 'Seasonal')})")
         if abs(score_vix) > 0.4: drivers.append("VIX Regime")
         if abs(score_macro) > 0.4: drivers.append("Macro Factors")
         if abs(score_cot) > 0.4: drivers.append("COT Positioning")
         if abs(score_tech) > 0.6: drivers.append("Technical Trend")
         
-        # Invalidation Level (Technical pivot or simple % for now)
-        # Using simple ATR proxy or %
-        inv_level = price * 0.99 if direction == "UP" else price * 1.01
+        # Invalidation Level using ATR
+        # Stop is placed 1.5 ATR away from current price
+        multiplier = 1.5
+        inv_level = price - (multiplier * atr) if direction == "UP" else price + (multiplier * atr)
+        
+        # Formatting for readability
+        inv_fmt = f"{inv_level:.2f}"
 
         return AssetCard(
             asset=asset,
@@ -187,12 +219,13 @@ class MultiSourceEngine:
             probability=round(prob, 1),
             impulse=impulse,
             drivers=drivers[:3],
-            invalidation_level=f"{inv_level:.2f}",
+            invalidation_level=inv_fmt,
             scores={
                 "vix": round(score_vix, 2), 
                 "macro": round(score_macro, 2), 
                 "cot": round(score_cot, 2),
-                "tech": round(score_tech, 2)
+                "tech": round(score_tech, 2),
+                "user_bias": round(score_stat, 2)
             },
             timestamp=datetime.now().isoformat()
         )
