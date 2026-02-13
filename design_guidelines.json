@@ -1,0 +1,187 @@
+{
+  "identity": {
+    "name": "TradingOS",
+    "aesthetic": "Dark Minimal Apple Style",
+    "emotional_tone": "Professional, Disciplined, High-Tech, Calm",
+    "archetype": "THE PERFORMANCE PRO"
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Plus Jakarta Sans, sans-serif",
+      "body": "Inter, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "weights": {
+      "light": 300,
+      "regular": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    },
+    "sizes": {
+      "h1": "text-4xl md:text-5xl tracking-tight font-bold",
+      "h2": "text-3xl md:text-4xl tracking-tight font-semibold",
+      "h3": "text-2xl md:text-3xl tracking-tight font-semibold",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm text-muted-foreground",
+      "tiny": "text-xs uppercase tracking-wider"
+    }
+  },
+  "colors": {
+    "mode": "dark",
+    "palette": {
+      "background": {
+        "dark": "#0A0A0A",
+        "light": "#FFFFFF"
+      },
+      "foreground": {
+        "dark": "#F5F5F7",
+        "light": "#171717"
+      },
+      "card": {
+        "dark": "#121212",
+        "light": "#F5F5F5"
+      },
+      "primary": {
+        "default": "#22C55E",
+        "foreground": "#FFFFFF"
+      },
+      "secondary": {
+        "default": "#27272A",
+        "foreground": "#FAFAFA"
+      },
+      "accent": {
+        "default": "#22C55E",
+        "glow": "rgba(34, 197, 94, 0.5)"
+      },
+      "border": {
+        "dark": "rgba(255, 255, 255, 0.1)",
+        "light": "rgba(0, 0, 0, 0.1)"
+      },
+      "chart": {
+        "up": "#22C55E",
+        "down": "#EF4444",
+        "neutral": "#A3A3A3"
+      }
+    }
+  },
+  "layout": {
+    "grid_system": "Bento Grid (Mode B: High Density)",
+    "spacing": {
+      "container_padding": "p-4 md:p-8",
+      "gap": "gap-4 md:gap-6",
+      "section_spacing": "py-12 md:py-20"
+    },
+    "sidebar": {
+      "width": "w-64",
+      "collapsed_width": "w-16",
+      "mobile_behavior": "Sheet/Drawer"
+    },
+    "border_radius": {
+      "card": "rounded-2xl",
+      "button": "rounded-full",
+      "input": "rounded-xl"
+    }
+  },
+  "components": {
+    "cards": {
+      "style": "Flat background with subtle 1px border, no shadow in dark mode, soft shadow in light mode.",
+      "hover": "border-primary/50 transition-colors duration-300"
+    },
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-6 py-2 font-medium transition-all active:scale-95",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-full px-6 py-2 font-medium transition-all active:scale-95",
+      "ghost": "hover:bg-accent hover:text-accent-foreground rounded-full px-4 py-2 transition-all"
+    },
+    "inputs": {
+      "style": "bg-background border-input focus:ring-2 focus:ring-primary/20 focus:border-primary rounded-xl h-10 px-4"
+    },
+    "charts": {
+      "library": "Recharts",
+      "style": "Minimalist, thin lines (strokeWidth={2}), gradient fills, custom tooltips with glassmorphism."
+    },
+    "navigation": {
+      "sidebar": "Fixed left, glassmorphism effect on mobile, solid dark on desktop.",
+      "bottom_nav": "Mobile only, fixed bottom, glassmorphism."
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-xl bg-background/70 border border-white/10",
+    "gradients": "Subtle radial gradients for backgrounds, linear gradients for text highlights.",
+    "shadows": "shadow-lg shadow-black/20 (Light Mode only), none for Dark Mode (rely on borders).",
+    "animations": {
+      "library": "framer-motion",
+      "page_transition": "initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}",
+      "hover_scale": "whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}"
+    }
+  },
+  "image_urls": {
+    "hero_bull": {
+      "url": "https://images.unsplash.com/photo-1727883384683-231453ce29a7",
+      "description": "Statue of bull on city street, representing market strength.",
+      "category": "Dashboard/Market Overview"
+    },
+    "meditation_zen": {
+      "url": "https://images.unsplash.com/photo-1764109799223-d9deddd939e8",
+      "description": "Ripples on dark water, representing calm and focus.",
+      "category": "Psychology/Meditation"
+    },
+    "brain_ai": {
+      "url": "https://images.unsplash.com/photo-1744324472890-d4cac1650e2e",
+      "description": "Glowing brain in geometric structure, representing AI and psychology.",
+      "category": "AI Coach/Psychology"
+    },
+    "community_avatars": {
+      "url": "https://images.pexels.com/photos/34987125/pexels-photo-34987125.jpeg",
+      "description": "Professional avatars for community feed.",
+      "category": "Community"
+    }
+  },
+  "functionalities": {
+    "dashboard": ["Greeting ('Buonasera trader')", "Market Overview Cards (XAUUSD, NAS100, SP500, DOW)", "Live Activity Feed", "Confidence Bars", "Win Rate %", "Drawdown %"],
+    "strategy": ["Strategy Editor", "AI Optimization"],
+    "charts": ["TradingView Integration (use 'react-ts-tradingview-widgets' or iframe)", "Symbol Search"],
+    "psychology": ["Daily Check-in", "Discipline Checklist", "Emotional State Tracking"],
+    "journal": ["Trade Logging", "Error Analysis", "AI Suggestions", "Lessons Learned"],
+    "community": ["Instagram-style Feed", "Stories", "Posts", "Likes/Comments"],
+    "ai_coach": ["Chat Interface", "8 Specialized AI Tabs", "Market Analysis"],
+    "monte_carlo": ["Simulation Parameters", "Outcome Visualization"],
+    "ascension_tracker": ["Gamification Levels", "Progress Bars", "Achievements"],
+    "settings": ["Theme Toggle (Light/Dark)", "Language Switch (IT/EN/FR)"]
+  },
+  "instructions_to_main_agent": [
+    "Install 'framer-motion' for animations.",
+    "Install 'react-circular-progressbar' for confidence/stats visualization.",
+    "Use 'lucide-react' for all icons.",
+    "Ensure all text is legible with proper contrast ratios.",
+    "Implement the Sidebar as a collapsible component on desktop and a sheet/drawer on mobile.",
+    "Use the 'Bento Grid' layout for the Dashboard Home.",
+    "Apply the 'Glassmorphism' style to the mobile bottom navigation and any floating overlays.",
+    "Strictly follow the 'Dark Minimal Apple Style' - avoid clutter, use whitespace effectively.",
+    "Use the provided image URLs for their respective sections.",
+    "Mock data for charts and feeds where real API is not available, but structure it realistically.",
+    "Ensure 'data-testid' attributes are added to all interactive elements."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: 'transition: all'. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms.",
+    "You MUST NOT center align the app container, ie do not add '.App { text-align: center; }' in the css file. This disrupts the human natural reading flow of text.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN.",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Create new components that match the style and conventions of existing components when needed.",
+    "Examine existing components to understand the project's component patterns before creating new ones.",
+    "Components MUST use named exports (export const ComponentName = ...).",
+    "Pages MUST use default exports (export default function PageName() {...}).",
+    "Use 'sonner' for toasts.",
+    "Sonner component are located in '/app/src/components/ui/sonner.tsx'."
+  ]
+}

@@ -1,0 +1,262 @@
+/* TradingOS Main Styles */
+
+/* Layout */
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  margin-left: 0;
+  transition: margin-left 0.3s ease;
+}
+
+@media (min-width: 1024px) {
+  .main-content {
+    margin-left: 256px;
+  }
+
+  .sidebar-collapsed .main-content {
+    margin-left: 80px;
+  }
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 40;
+  transition: width 0.3s ease, transform 0.3s ease;
+}
+
+/* Price Ticker */
+.price-ticker {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+
+.price-ticker::-webkit-scrollbar {
+  display: none;
+}
+
+/* Market Cards */
+.market-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.market-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.market-card:hover::before {
+  opacity: 1;
+}
+
+/* Confidence Bar */
+.confidence-bar {
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease-out;
+}
+
+/* Activity Feed */
+.activity-item {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  transition: background-color 0.2s ease;
+}
+
+.activity-item:hover {
+  background-color: hsl(var(--secondary) / 0.5);
+}
+
+/* Charts */
+.chart-container {
+  width: 100%;
+  height: 500px;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+/* AI Chat */
+.ai-chat {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 200px);
+}
+
+.ai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.ai-message {
+  max-width: 80%;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.ai-message.user {
+  margin-left: auto;
+  background: hsl(var(--primary));
+  color: white;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.ai-message.assistant {
+  background: hsl(var(--secondary));
+  border-bottom-left-radius: 0.25rem;
+}
+
+/* Loading States */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted-foreground) / 0.1) 50%,
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Tabs */
+.ai-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .ai-tabs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Monte Carlo Chart */
+.equity-curve {
+  stroke-width: 1;
+  fill: none;
+  opacity: 0.5;
+}
+
+/* PDF Upload */
+.pdf-dropzone {
+  border: 2px dashed hsl(var(--border));
+  border-radius: 1rem;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.pdf-dropzone:hover,
+.pdf-dropzone.drag-over {
+  border-color: hsl(var(--primary));
+  background-color: hsl(var(--primary) / 0.05);
+}
+
+/* Journal Layout */
+.journal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .journal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Community Cards */
+.community-card {
+  overflow: hidden;
+}
+
+.community-image {
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+/* Ascension Tracker */
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+/* Settings */
+.settings-section {
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: hsl(var(--card));
+  margin-bottom: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none;
+  }
+
+  .show-mobile {
+    display: block;
+  }
+}
+
+@media (min-width: 769px) {
+  .hide-desktop {
+    display: none;
+  }
+
+  .show-desktop {
+    display: block;
+  }
+}
+
+/* Print styles */
+@media print {
+  .sidebar,
+  .bottom-nav {
+    display: none !important;
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+  }
+}

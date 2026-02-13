@@ -1,0 +1,2198 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Premium Light Theme - Clean & Elegant */
+    --background: 220 20% 97%;
+    /* Soft off-white #F5F7FA */
+    --foreground: 220 30% 15%;
+    /* Dark navy text #1E2A3B */
+    --card: 0 0% 100%;
+    /* Pure white cards */
+    --card-foreground: 220 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 15%;
+    --primary: 162 100% 32%;
+    /* Darker teal for contrast #00A37A */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 93%;
+    /* Light cool gray #EBEEF2 */
+    --secondary-foreground: 220 25% 25%;
+    --muted: 220 15% 90%;
+    /* Muted gray */
+    --muted-foreground: 220 10% 45%;
+    --accent: 162 100% 32%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 15% 88%;
+    /* Subtle border */
+    --input: 220 15% 93%;
+    --ring: 162 100% 32%;
+    --chart-up: 162 100% 32%;
+    --chart-down: 0 84% 55%;
+    --radius: 0.75rem;
+
+    /* Light theme specific */
+    --teal: 162 100% 32%;
+    --teal-dim: 162 30% 90%;
+    --shadow-color: 220 30% 15%;
+  }
+
+  .dark {
+    /* Technical Staking Dashboard Theme - Ultra Dark */
+    --background: 0 0% 2%;
+    /* Pure deep black #050505 */
+    --foreground: 0 0% 92%;
+    /* Clean white */
+    --card: 180 8% 5%;
+    /* Very dark card #0a0d0d */
+    --card-foreground: 0 0% 92%;
+    --popover: 180 8% 4%;
+    --popover-foreground: 0 0% 92%;
+    --primary: 162 100% 42%;
+    /* Teal #00D9A5 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 180 5% 8%;
+    /* Subtle dark secondary */
+    --secondary-foreground: 0 0% 85%;
+    --muted: 180 5% 12%;
+    --muted-foreground: 0 0% 50%;
+    --accent: 162 100% 42%;
+    /* Teal accent (unified) */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    /* Red for errors */
+    --destructive-foreground: 0 0% 98%;
+    --border: 180 8% 12%;
+    /* Very subtle border */
+    --input: 180 5% 8%;
+    --ring: 162 100% 42%;
+    /* Teal focus ring */
+
+    /* Unified accent colors */
+    --teal: 162 100% 42%;
+    /* Primary teal #00D9A5 */
+    --teal-dim: 162 60% 25%;
+    /* Dimmed teal for backgrounds */
+    --chart-up: 162 100% 42%;
+    /* Teal for bullish */
+    --chart-down: 0 72% 51%;
+    /* Red for bearish */
+  }
+}
+
+/* Carbon Black Theme Variables - MUST be outside @layer for proper specificity */
+html.dark.carbon-black {
+  /* Deep carbon backgrounds with subtle blue undertone */
+  --background: 215 15% 6%;
+  /* Deep carbon #0C0F14 */
+  --foreground: 0 0% 95%;
+  /* Bright white text */
+
+  /* Cards with carbon fiber gradient feel */
+  --card: 215 12% 10%;
+  /* Carbon card #151A22 */
+  --card-foreground: 0 0% 95%;
+
+  --popover: 215 15% 8%;
+  --popover-foreground: 0 0% 95%;
+
+  /* Aggressive orange/amber accent replacing teal */
+  --primary: 25 100% 50%;
+  /* Aggressive orange #FF6B00 */
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary with metallic gray */
+  --secondary: 215 10% 15%;
+  /* Metallic dark gray */
+  --secondary-foreground: 0 0% 90%;
+
+  /* Muted elements */
+  --muted: 215 10% 18%;
+  --muted-foreground: 215 5% 55%;
+
+  /* Sharp visible borders */
+  --border: 215 15% 20%;
+  --input: 215 12% 12%;
+
+  /* Orange ring and accents */
+  --ring: 25 100% 50%;
+  --accent: 25 100% 50%;
+  --accent-foreground: 0 0% 100%;
+
+  /* Charts with aggressive colors */
+  --teal: 25 100% 50%;
+  --teal-dim: 25 60% 30%;
+  --chart-up: 145 80% 45%;
+  /* Aggressive green */
+  --chart-down: 0 85% 55%;
+  /* Aggressive red */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CARBON ORANGE THEME - Aggressive Carbon Fiber + Orange Sidebar Design
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Main background - deep carbon black */
+html.dark.carbon-black {
+  background: #0A0A0A !important;
+}
+
+html.dark.carbon-black body {
+  background: transparent !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR - SOLID ORANGE with BLACK ICONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Override hardcoded Tailwind gradients with ultra-specific selectors */
+html.dark.carbon-black aside[data-testid="sidebar-desktop"],
+html.dark.carbon-black aside.fixed.left-0,
+html.dark.carbon-black aside[class*="fixed"][class*="left-0"],
+html.dark.carbon-black aside[class*="from-"][class*="to-"],
+html.dark.carbon-black aside,
+html.dark.carbon-black nav[class*="sidebar"],
+html.dark.carbon-black [class*="sidebar"],
+html.dark.carbon-black .fixed.left-0.h-full {
+  background: linear-gradient(180deg, #FF6B00 0%, #E55A00 100%) !important;
+  background-image: linear-gradient(180deg, #FF6B00 0%, #E55A00 100%) !important;
+  border-right: none !important;
+  border-color: transparent !important;
+  box-shadow: 4px 0 20px rgba(255, 107, 0, 0.3) !important;
+}
+
+
+/* Sidebar icons - BLACK */
+html.dark.carbon-black aside svg,
+html.dark.carbon-black nav[class*="sidebar"] svg,
+html.dark.carbon-black [class*="sidebar"] svg,
+html.dark.carbon-black .fixed.left-0 svg {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
+
+/* Sidebar icon hover - slightly lighter black */
+html.dark.carbon-black aside a:hover svg,
+html.dark.carbon-black [class*="sidebar"] a:hover svg {
+  color: #1A1A1A !important;
+  stroke: #1A1A1A !important;
+}
+
+/* Sidebar active indicator */
+html.dark.carbon-black aside a.active,
+html.dark.carbon-black [class*="sidebar"] a.active {
+  background: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Sidebar text/tooltips - black */
+html.dark.carbon-black aside span,
+html.dark.carbon-black [class*="sidebar"] span {
+  color: #000000 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN CARDS/TABS - PURE CARBON FIBER TEXTURE with visible filaments
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark.carbon-black .tech-card,
+html.dark.carbon-black [class*="bg-card"],
+html.dark.carbon-black [class*="rounded-xl"][class*="bg-"],
+html.dark.carbon-black [class*="backdrop-blur"] {
+  background:
+    /* Carbon fiber weave pattern */
+    repeating-linear-gradient(0deg,
+      transparent,
+      transparent 2px,
+      rgba(30, 30, 30, 0.6) 2px,
+      rgba(30, 30, 30, 0.6) 4px),
+    repeating-linear-gradient(90deg,
+      transparent,
+      transparent 2px,
+      rgba(30, 30, 30, 0.6) 2px,
+      rgba(30, 30, 30, 0.6) 4px),
+    repeating-linear-gradient(45deg,
+      transparent,
+      transparent 5px,
+      rgba(50, 50, 50, 0.3) 5px,
+      rgba(50, 50, 50, 0.3) 10px),
+    repeating-linear-gradient(-45deg,
+      transparent,
+      transparent 5px,
+      rgba(50, 50, 50, 0.3) 5px,
+      rgba(50, 50, 50, 0.3) 10px),
+    linear-gradient(135deg, #1A1A1A 0%, #0F0F0F 50%, #1A1A1A 100%) !important;
+  background-size: 4px 4px, 4px 4px, 14px 14px, 14px 14px, 100% 100% !important;
+  border: 1px solid rgba(60, 60, 60, 0.5) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Card hover - subtle orange glow */
+html.dark.carbon-black .tech-card:hover,
+html.dark.carbon-black [class*="bg-card"]:hover {
+  border-color: rgba(255, 107, 0, 0.4) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 20px rgba(255, 107, 0, 0.15),
+    0 8px 30px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INNER TABS - DARK ORANGE with BLACK TEXT
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark.carbon-black [role="tablist"] {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border-radius: 8px;
+  padding: 4px;
+}
+
+html.dark.carbon-black [role="tab"] {
+  color: rgba(255, 255, 255, 0.6) !important;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+
+
+html.dark.carbon-black [role="tab"]:hover {
+  background: rgba(255, 107, 0, 0.2) !important;
+  color: #FF8C33 !important;
+}
+
+/* Active inner tab - DARK ORANGE with BLACK TEXT */
+html.dark.carbon-black [role="tab"][data-state="active"] {
+  background: linear-gradient(135deg, #CC5500 0%, #994400 100%) !important;
+  color: #000000 !important;
+  font-weight: 600;
+  box-shadow:
+    0 2px 10px rgba(255, 107, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark.carbon-black [role="tab"][data-state="active"] * {
+  color: #000000 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELECTORS/DROPDOWNS - ORANGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark.carbon-black select,
+html.dark.carbon-black [class*="select-trigger"] {
+  background: linear-gradient(135deg, #FF6B00 0%, #CC5500 100%) !important;
+  color: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  font-weight: 500;
+}
+
+html.dark.carbon-black select:focus,
+html.dark.carbon-black [class*="select-trigger"]:focus {
+  box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.3) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUTTONS - Metallic Orange
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark.carbon-black button[class*="primary"],
+html.dark.carbon-black .btn-primary {
+  background: linear-gradient(135deg, #FF6B00 0%, #CC5500 100%) !important;
+  color: #000000 !important;
+  font-weight: 600;
+  box-shadow:
+    0 4px 15px rgba(255, 107, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+html.dark.carbon-black button[class*="primary"]:hover,
+html.dark.carbon-black .btn-primary:hover {
+  background: linear-gradient(135deg, #FF7F00 0%, #E55A00 100%) !important;
+  box-shadow:
+    0 6px 25px rgba(255, 107, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INPUT FIELDS - Carbon texture
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark.carbon-black input,
+html.dark.carbon-black textarea {
+  background: #0F0F0F !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #FFFFFF !important;
+}
+
+html.dark.carbon-black input:focus,
+html.dark.carbon-black textarea:focus {
+  border-color: #FF6B00 !important;
+  box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.2) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLE HEADERS - Carbon with orange accent
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark.carbon-black th,
+html.dark.carbon-black thead {
+  background: linear-gradient(180deg, #1A1A1A 0%, #0F0F0F 100%) !important;
+  border-bottom: 2px solid #FF6B00 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SWITCHES AND TOGGLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark.carbon-black [role="switch"][data-state="checked"] {
+  background: linear-gradient(135deg, #FF6B00 0%, #CC5500 100%) !important;
+  box-shadow: 0 0 15px rgba(255, 107, 0, 0.5) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCROLLBARS - Orange accent
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark.carbon-black ::-webkit-scrollbar-track {
+  background: #0A0A0A;
+}
+
+html.dark.carbon-black ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #FF6B00 0%, #CC5500 100%);
+  border-radius: 4px;
+}
+
+html.dark.carbon-black ::-webkit-scrollbar-thumb:hover {
+  background: #FF7F00;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TEXT COLORS - Keep white for readability
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark.carbon-black h1,
+html.dark.carbon-black h2,
+html.dark.carbon-black h3,
+html.dark.carbon-black h4 {
+  color: #F5F5F5 !important;
+}
+
+html.dark.carbon-black .text-primary {
+  color: #FF6B00 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CARBON BLACK - HARDCODED TEAL COLOR OVERRIDES
+   Replaces all #00D9A5 (teal) with #FF6B00 (aggressive orange)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Override ALL hardcoded teal text colors */
+html.dark.carbon-black .text-\[\#00D9A5\],
+html.dark.carbon-black .text-\[\#00D9A5\]\/80,
+html.dark.carbon-black [class*="text-[#00D9A5]"] {
+  color: #FF6B00 !important;
+}
+
+/* Override hardcoded teal backgrounds */
+html.dark.carbon-black .bg-\[\#00D9A5\],
+html.dark.carbon-black .bg-\[\#00D9A5\]\/5,
+html.dark.carbon-black .bg-\[\#00D9A5\]\/10,
+html.dark.carbon-black .bg-\[\#00D9A5\]\/15,
+html.dark.carbon-black .bg-\[\#00D9A5\]\/20,
+html.dark.carbon-black [class*="bg-[#00D9A5]"] {
+  background-color: rgba(255, 107, 0, 0.15) !important;
+}
+
+/* Override hardcoded teal borders */
+html.dark.carbon-black .border-\[\#00D9A5\],
+html.dark.carbon-black .border-\[\#00D9A5\]\/20,
+html.dark.carbon-black .border-\[\#00D9A5\]\/30,
+html.dark.carbon-black .border-\[\#00D9A5\]\/40,
+html.dark.carbon-black [class*="border-[#00D9A5]"] {
+  border-color: rgba(255, 107, 0, 0.4) !important;
+}
+
+/* Override any inline SVG icons with teal colors */
+html.dark.carbon-black svg[class*="text-[#00D9A5]"],
+html.dark.carbon-black [class*="text-[#00D9A5]"] svg {
+  color: #FF6B00 !important;
+}
+
+/* Override sidebar and navigation active states */
+html.dark.carbon-black nav a.active,
+html.dark.carbon-black [class*="active"] .text-primary,
+html.dark.carbon-black .sidebar-active {
+  color: #FF6B00 !important;
+}
+
+/* Force all primary color elements to orange */
+html.dark.carbon-black [class*="primary"] {
+  --tw-text-opacity: 1;
+  color: hsl(25 100% 50% / var(--tw-text-opacity)) !important;
+}
+
+/* Override Recharts and other chart libraries */
+html.dark.carbon-black .recharts-text,
+html.dark.carbon-black .recharts-cartesian-axis-tick-value {
+  fill: #F5F5F5 !important;
+}
+
+html.dark.carbon-black .recharts-line[stroke="#00D9A5"],
+html.dark.carbon-black .recharts-bar-rectangle[fill="#00D9A5"] {
+  stroke: #FF6B00 !important;
+  fill: #FF6B00 !important;
+}
+
+/* Accent badges and indicators */
+html.dark.carbon-black .badge-success,
+html.dark.carbon-black [class*="success"] {
+  background-color: rgba(255, 107, 0, 0.15) !important;
+  color: #FF6B00 !important;
+  border-color: rgba(255, 107, 0, 0.3) !important;
+}
+
+/* Focus rings */
+html.dark.carbon-black *:focus-visible {
+  outline-color: #FF6B00 !important;
+  box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.3) !important;
+}
+
+/* Link colors */
+html.dark.carbon-black a:not([class*="text-"]):hover {
+  color: #FF6B00 !important;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    zoom: 1;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  code,
+  pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Dashboard Text Layer - Premium Styling */
+  .dashboard-text {
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .dashboard-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    font-feature-settings: 'tnum' on, 'lnum' on;
+  }
+
+  .dashboard-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .dashboard-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .dashboard-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .dashboard-value-lg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 24px;
+    font-weight: 600;
+    color: #00D9A5;
+  }
+
+  .dashboard-value-xl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    font-weight: 700;
+    color: #00D9A5;
+    letter-spacing: -0.03em;
+  }
+
+  /* Apple-style font for clean UI */
+  .font-apple {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply backdrop-blur-xl bg-background/70 border border-white/10;
+  }
+
+  .glass-card {
+    @apply backdrop-blur-xl bg-card/80 border border-white/5 rounded-2xl;
+  }
+
+  .glass-apple {
+    @apply backdrop-blur-lg bg-card/60 border border-white/10 shadow-xl;
+  }
+
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(142 71% 35%) 100%);
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-emerald-400;
+  }
+
+  .text-gold {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FFD700 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+  }
+
+  .glow {
+    box-shadow: 0 0 25px rgba(0, 217, 165, 0.4);
+  }
+
+  .glow-sm {
+    box-shadow: 0 0 12px rgba(0, 217, 165, 0.25);
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.25);
+  }
+
+  .glow-violet {
+    box-shadow: 0 0 25px rgba(168, 85, 247, 0.4);
+  }
+
+  .glow-magenta {
+    box-shadow: 0 0 25px rgba(236, 72, 153, 0.4);
+  }
+
+  .glow-cyan {
+    box-shadow: 0 0 25px rgba(6, 182, 212, 0.4);
+  }
+
+  .glow-white {
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+  }
+
+  .gradient-premium {
+    background: linear-gradient(135deg,
+        rgba(0, 217, 165, 0.15) 0%,
+        rgba(168, 85, 247, 0.1) 50%,
+        rgba(6, 182, 212, 0.12) 100%);
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Fine Contrast Utilities V2 */
+  .fine-gray-border {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 4px 12px rgba(0, 0, 0, 0.4),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .subtle-divider {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .tab-border-highlight {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-edge {
+    position: relative;
+  }
+
+  .glass-edge::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: inherit;
+    mask-image: linear-gradient(to bottom, black, transparent 30%);
+  }
+}
+
+/* Particles Background */
+.particles-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(34, 197, 94, 0.3);
+  border-radius: 50%;
+  animation: particle-float 20s linear infinite;
+}
+
+@keyframes particle-float {
+  0% {
+    transform: translateY(100vh) translateX(0);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  90% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(-100vh) translateX(100px);
+    opacity: 0;
+  }
+}
+
+/* Custom Animations */
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Progress bar animations */
+.progress-bar {
+  transition: width 0.5s ease-out;
+}
+
+/* Card hover effects */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 40px -10px rgba(34, 197, 94, 0.2);
+  border-color: hsl(var(--primary) / 0.5);
+}
+
+/* Button press effect */
+.btn-press {
+  transition: transform 0.1s ease;
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Market card trend indicators */
+.trend-bullish {
+  @apply bg-emerald-500/20 text-emerald-400 border-emerald-500/30;
+}
+
+.trend-bearish {
+  @apply bg-red-500/20 text-red-400 border-red-500/30;
+}
+
+.trend-neutral {
+  @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/30;
+}
+
+/* Enhanced Glassmorphism with better contrast */
+.glass-enhanced {
+  @apply backdrop-blur-2xl border rounded-2xl;
+  background: linear-gradient(135deg,
+      hsl(var(--card) / 0.85) 0%,
+      hsl(var(--card) / 0.70) 100%);
+  border-color: hsl(var(--border) / 0.5);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark .glass-enhanced {
+  background: linear-gradient(135deg,
+      rgba(20, 20, 25, 0.9) 0%,
+      rgba(15, 15, 20, 0.85) 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass-tab {
+  @apply backdrop-blur-xl rounded-xl transition-all duration-300;
+  background: linear-gradient(135deg,
+      hsl(var(--card) / 0.7) 0%,
+      hsl(var(--card) / 0.5) 100%);
+  border: 1px solid hsl(var(--border) / 0.3);
+}
+
+.dark .glass-tab {
+  background: linear-gradient(135deg,
+      rgba(25, 25, 32, 0.85) 0%,
+      rgba(18, 18, 25, 0.75) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-tab:hover {
+  border-color: hsl(var(--primary) / 0.4);
+  box-shadow: 0 4px 20px rgba(34, 197, 94, 0.1);
+}
+
+.glass-tab-active {
+  border-color: hsl(var(--primary) / 0.5) !important;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.15) !important;
+}
+
+/* Sidebar Icon Colors per Page */
+.icon-home {
+  @apply text-emerald-400;
+}
+
+.icon-crypto {
+  background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FFD700 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
+}
+
+.icon-report {
+  color: #ef4444;
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.3));
+}
+
+.icon-news {
+  background: linear-gradient(135deg, #1a1a1a 0%, #333 50%, #1a1a1a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.dark .icon-news {
+  background: linear-gradient(135deg, #e5e5e5 0%, #a3a3a3 50%, #e5e5e5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.icon-macro {
+  background: linear-gradient(135deg, #3B82F6 0%, #1E3A5F 50%, #3B82F6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3));
+}
+
+.icon-risk {
+  color: #ef4444;
+  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.4));
+}
+
+.icon-cot {
+  background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.icon-options {
+  background: linear-gradient(135deg, #A855F7 0%, #7C3AED 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.3));
+}
+
+.icon-stats {
+  background: linear-gradient(135deg, #06B6D4 0%, #0891B2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.icon-strategy {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.3));
+}
+
+.icon-montecarlo {
+  background: linear-gradient(135deg, #EC4899 0%, #DB2777 50%, #BE185D 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(236, 72, 153, 0.3));
+}
+
+.icon-calculator {
+  background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.icon-journal {
+  background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.icon-psychology {
+  background: linear-gradient(135deg, #F472B6 0%, #EC4899 50%, #DB2777 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(244, 114, 182, 0.3));
+}
+
+.icon-ai {
+  background: linear-gradient(135deg, #22D3EE 0%, #06B6D4 50%, #0891B2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.4));
+  animation: ai-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes ai-glow {
+  0% {
+    filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.3));
+  }
+
+  100% {
+    filter: drop-shadow(0 0 16px rgba(34, 211, 238, 0.6));
+  }
+}
+
+.icon-community {
+  background: linear-gradient(135deg, #818CF8 0%, #6366F1 50%, #4F46E5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.icon-performance {
+  background: linear-gradient(135deg, #F59E0B 0%, #EF4444 50%, #DC2626 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.4));
+}
+
+.icon-settings {
+  @apply text-gray-400;
+}
+
+/* Sidebar icon animation on click */
+.sidebar-icon-animate {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sidebar-icon-animate:active {
+  transform: scale(0.85) rotate(-10deg);
+}
+
+/* Larger numbers and percentages */
+.stat-number {
+  @apply text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight;
+}
+
+.stat-percentage {
+  @apply text-lg md:text-xl lg:text-2xl font-semibold;
+}
+
+/* Tab selection improved visibility */
+.tab-selector {
+  @apply px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.tab-selector:hover {
+  background: hsl(var(--secondary) / 0.5);
+}
+
+.tab-selector-active {
+  background: hsl(var(--primary) / 0.15) !important;
+  border-color: hsl(var(--primary) / 0.3) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+/* TradingView widget container */
+.tradingview-widget-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* Mobile bottom nav */
+.bottom-nav {
+  @apply fixed bottom-0 left-0 right-0 glass border-t border-white/10 z-50;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Hide debug wrapper */
+[data-debug-wrapper="true"] {
+  display: contents !important;
+}
+
+/* ============================================
+   TECHNICAL STAKING DASHBOARD STYLES
+   ============================================ */
+
+/* Tech Card - Minimal card with subtle border */
+.tech-card {
+  background: rgba(10, 13, 13, 0.6);
+  border: 1px solid rgba(0, 217, 165, 0.12);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.tech-card:hover {
+  border-color: rgba(0, 217, 165, 0.35);
+  box-shadow: 0 0 20px rgba(0, 217, 165, 0.08);
+}
+
+/* Tech Card - Active/Selected State */
+.tech-card-active {
+  border-color: rgba(0, 217, 165, 0.5);
+  box-shadow: 0 0 25px rgba(0, 217, 165, 0.12);
+}
+
+/* Tech Table - Clean data table */
+.tech-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.tech-table thead th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(0, 217, 165, 0.1);
+}
+
+.tech-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.tech-table tbody tr:hover {
+  background-color: rgba(0, 217, 165, 0.04);
+}
+
+.tech-table tbody td {
+  padding: 14px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.tech-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Tech Metric - Inline metric with label */
+.tech-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tech-metric-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tech-metric-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #00D9A5;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Tech Badge - Small status badge */
+.tech-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 6px;
+  background: rgba(0, 217, 165, 0.1);
+  color: #00D9A5;
+  border: 1px solid rgba(0, 217, 165, 0.2);
+}
+
+.tech-badge-red {
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.tech-badge-yellow {
+  background: rgba(245, 158, 11, 0.1);
+  color: #F59E0B;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+/* Sparkline Container */
+.sparkline-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Section Title - Clean heading */
+.tech-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Tech Tabs - Minimal tab selector */
+.tech-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tech-tab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tech-tab:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tech-tab-active {
+  color: #00D9A5;
+  background: rgba(0, 217, 165, 0.1);
+}
+
+/* ============================================
+   LIGHT THEME SPECIFIC OVERRIDES
+   Only apply when html does NOT have .dark class
+   ============================================ */
+
+/* Light theme - Tech Card */
+html:not(.dark) .tech-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 163, 122, 0.15);
+  box-shadow: 0 4px 15px rgba(30, 42, 59, 0.08);
+}
+
+html:not(.dark) .tech-card:hover {
+  border-color: rgba(0, 163, 122, 0.35);
+  box-shadow: 0 8px 25px rgba(30, 42, 59, 0.12);
+}
+
+/* Light theme - Dashboard Labels */
+html:not(.dark) .dashboard-label {
+  color: rgba(30, 42, 59, 0.6);
+}
+
+/* Light theme - TechCard shadow only (safe, no conflicts) */
+html:not(.dark) .tech-card {
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow:
+    0 0 0 1px rgba(30, 42, 59, 0.06),
+    0 2px 10px rgba(30, 42, 59, 0.08),
+    0 10px 30px rgba(30, 42, 59, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+  border: 1px solid rgba(30, 42, 59, 0.08) !important;
+}
+
+/* Light theme - Risk Page & Card component fixes */
+html:not(.dark) [data-testid="risk-page"] [class*="bg-card"],
+html:not(.dark) [data-testid="risk-page"] .bg-card\/80 {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: rgba(30, 42, 59, 0.9) !important;
+  box-shadow:
+    0 0 0 1px rgba(30, 42, 59, 0.05),
+    0 2px 8px rgba(30, 42, 59, 0.06),
+    0 8px 20px rgba(30, 42, 59, 0.04) !important;
+  border: 1px solid rgba(30, 42, 59, 0.08) !important;
+}
+
+/* Risk page card content text */
+html:not(.dark) [data-testid="risk-page"] [class*="CardContent"],
+html:not(.dark) [data-testid="risk-page"] [class*="CardHeader"] {
+  color: rgba(30, 42, 59, 0.85) !important;
+}
+
+html:not(.dark) [data-testid="risk-page"] .text-muted-foreground {
+  color: rgba(30, 42, 59, 0.6) !important;
+}
+
+/* Risk page tabs - make them stand out */
+html:not(.dark) [data-testid="risk-page"] [role="tablist"] {
+  background: rgba(245, 248, 252, 0.9) !important;
+  border-radius: 12px;
+  padding: 4px;
+}
+
+html:not(.dark) [data-testid="risk-page"] [role="tab"] {
+  background: transparent !important;
+  color: rgba(30, 42, 59, 0.6) !important;
+  border-radius: 8px;
+}
+
+html:not(.dark) [data-testid="risk-page"] [role="tab"][data-state="active"] {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #00875F !important;
+  box-shadow:
+    0 2px 8px rgba(30, 42, 59, 0.08),
+    0 4px 15px rgba(30, 42, 59, 0.04) !important;
+}
+
+/* Risk gauge and colored elements */
+html:not(.dark) [data-testid="risk-page"] .text-primary {
+  color: #00875F !important;
+}
+
+/* Risk inner panels */
+html:not(.dark) [data-testid="risk-page"] .bg-white\/5 {
+  background: rgba(245, 248, 252, 0.8) !important;
+}
+
+html:not(.dark) .dashboard-value {
+  color: rgba(30, 42, 59, 0.95);
+}
+
+html:not(.dark) .dashboard-value-lg,
+html:not(.dark) .dashboard-value-xl {
+  color: #00A37A;
+}
+
+/* Light theme - Tech Table - Enhanced with subtle grays and gradient borders */
+html:not(.dark) .tech-table {
+  background: linear-gradient(180deg,
+      rgba(250, 252, 255, 0.95) 0%,
+      rgba(245, 248, 252, 0.9) 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 4px 15px rgba(30, 42, 59, 0.06),
+    0 1px 3px rgba(30, 42, 59, 0.08);
+  border: 1px solid rgba(30, 42, 59, 0.08);
+}
+
+html:not(.dark) .tech-table thead th {
+  color: rgba(30, 42, 59, 0.7);
+  background: linear-gradient(180deg,
+      rgba(240, 244, 250, 0.98) 0%,
+      rgba(235, 240, 248, 0.95) 100%);
+  border-bottom: none;
+  box-shadow:
+    0 2px 8px rgba(30, 42, 59, 0.04),
+    inset 0 -1px 0 rgba(30, 42, 59, 0.08);
+  font-weight: 600;
+}
+
+html:not(.dark) .tech-table tbody tr {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+html:not(.dark) .tech-table tbody tr:nth-child(even) {
+  background-color: rgba(245, 248, 252, 0.8);
+}
+
+html:not(.dark) .tech-table tbody tr:nth-child(odd) {
+  background-color: rgba(250, 252, 255, 0.9);
+}
+
+html:not(.dark) .tech-table tbody tr:hover {
+  background: linear-gradient(90deg,
+      rgba(0, 163, 122, 0.06) 0%,
+      rgba(0, 163, 122, 0.08) 50%,
+      rgba(0, 163, 122, 0.06) 100%);
+}
+
+html:not(.dark) .tech-table tbody td {
+  color: rgba(30, 42, 59, 0.85);
+  border-bottom: none;
+  box-shadow: inset 0 -1px 0 rgba(30, 42, 59, 0.05);
+  position: relative;
+}
+
+html:not(.dark) .tech-table tbody tr:last-child td {
+  box-shadow: none;
+}
+
+/* General table styling for light theme */
+html:not(.dark) table {
+  background: linear-gradient(180deg,
+      rgba(252, 253, 255, 0.95) 0%,
+      rgba(248, 250, 253, 0.9) 100%);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+html:not(.dark) table thead th {
+  background: linear-gradient(180deg,
+      rgba(242, 246, 252, 0.98) 0%,
+      rgba(238, 242, 250, 0.95) 100%);
+  color: rgba(30, 42, 59, 0.75);
+  border-bottom: none !important;
+  box-shadow:
+    0 2px 6px rgba(30, 42, 59, 0.03),
+    inset 0 -1px 0 rgba(30, 42, 59, 0.06);
+}
+
+html:not(.dark) table tbody tr:nth-child(even) {
+  background-color: rgba(245, 248, 253, 0.7);
+}
+
+html:not(.dark) table tbody tr:nth-child(odd) {
+  background-color: rgba(252, 253, 255, 0.85);
+}
+
+html:not(.dark) table tbody tr:hover {
+  background: linear-gradient(90deg,
+      rgba(0, 163, 122, 0.04) 0%,
+      rgba(0, 163, 122, 0.06) 50%,
+      rgba(0, 163, 122, 0.04) 100%);
+}
+
+html:not(.dark) table tbody td {
+  border-bottom: none !important;
+  box-shadow: inset 0 -1px 0 rgba(30, 42, 59, 0.04);
+}
+
+html:not(.dark) table tbody tr:last-child td {
+  box-shadow: none;
+}
+
+/* Table container with gradient border effect */
+html:not(.dark) .rounded-xl:has(table),
+html:not(.dark) .rounded-lg:has(table) {
+  position: relative;
+  overflow: hidden;
+}
+
+html:not(.dark) .rounded-xl:has(table)::after,
+html:not(.dark) .rounded-lg:has(table)::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(30, 42, 59, 0.08) 20%,
+      rgba(30, 42, 59, 0.12) 50%,
+      rgba(30, 42, 59, 0.08) 80%,
+      transparent 100%);
+  pointer-events: none;
+}
+
+/* Light theme - Tech Badge */
+html:not(.dark) .tech-badge {
+  background: rgba(0, 163, 122, 0.1);
+  color: #00A37A;
+  border: 1px solid rgba(0, 163, 122, 0.25);
+}
+
+/* Light theme - Tech Tabs */
+html:not(.dark) .tech-tabs {
+  background: rgba(30, 42, 59, 0.04);
+  border: 1px solid rgba(30, 42, 59, 0.08);
+}
+
+html:not(.dark) .tech-tab {
+  color: rgba(30, 42, 59, 0.6);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(30, 42, 59, 0.1);
+  border-radius: 12px;
+  box-shadow:
+    0 3px 8px rgba(30, 42, 59, 0.08),
+    0 6px 16px rgba(30, 42, 59, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+/* Subtle gray gradient shadow under each tab */
+html:not(.dark) .tech-tab::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 10%;
+  right: 10%;
+  height: 4px;
+  background: linear-gradient(180deg,
+      rgba(30, 42, 59, 0.06) 0%,
+      transparent 100%);
+  border-radius: 0 0 8px 8px;
+  pointer-events: none;
+}
+
+html:not(.dark) .tech-tab:hover {
+  color: rgba(30, 42, 59, 0.9);
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(0, 180, 160, 0.4);
+  box-shadow:
+    0 4px 12px rgba(0, 180, 160, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+}
+
+html:not(.dark) .tech-tab-active {
+  color: #007A5E;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid rgba(0, 180, 160, 0.5);
+  box-shadow:
+    0 4px 16px rgba(0, 180, 160, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* Light theme - Tech Metric */
+html:not(.dark) .tech-metric-label {
+  color: rgba(30, 42, 59, 0.5);
+}
+
+html:not(.dark) .tech-metric-value {
+  color: #00A37A;
+}
+
+/* Light theme - Section Title */
+html:not(.dark) .tech-section-title {
+  color: rgba(30, 42, 59, 0.9);
+}
+
+/* Light theme - Glass effects */
+html:not(.dark) .glass-enhanced {
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 255, 255, 0.85) 100%);
+  border-color: rgba(0, 163, 122, 0.1);
+  box-shadow:
+    0 4px 20px rgba(30, 42, 59, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* Light theme - Glow effects (subtle version) */
+html:not(.dark) .glow {
+  box-shadow: 0 4px 20px rgba(0, 163, 122, 0.2);
+}
+
+html:not(.dark) .glow-sm {
+  box-shadow: 0 2px 10px rgba(0, 163, 122, 0.15);
+}
+
+/* Light theme - Sidebar */
+html:not(.dark) .glass {
+  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(30, 42, 59, 0.08);
+}
+
+/* Light theme - Card hover */
+html:not(.dark) .card-hover:hover {
+  box-shadow: 0 10px 40px -10px rgba(0, 163, 122, 0.2);
+  border-color: rgba(0, 163, 122, 0.4);
+}
+
+/* Light theme scrollbar */
+html:not(.dark) .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(30, 42, 59, 0.2);
+}
+
+/* Light theme - Trend indicators */
+html:not(.dark) .trend-bullish {
+  background: rgba(0, 163, 122, 0.12);
+  color: #00875F;
+  border-color: rgba(0, 163, 122, 0.3);
+}
+
+html:not(.dark) .trend-bearish {
+  background: rgba(220, 38, 38, 0.1);
+  color: #DC2626;
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+/* ============================================
+   LIGHT THEME - TEXT COLOR OVERRIDES
+   Fix white/transparent text to be dark for readability
+   ============================================ */
+
+/* Generic text-white overrides for light mode */
+html:not(.dark) .text-white {
+  color: #1E2A3B !important;
+}
+
+html:not(.dark) .text-white\/95,
+html:not(.dark) .text-white\/90,
+html:not(.dark) .text-white\/85,
+html:not(.dark) .text-white\/80 {
+  color: rgba(30, 42, 59, 0.95) !important;
+}
+
+html:not(.dark) .text-white\/70,
+html:not(.dark) .text-white\/60,
+html:not(.dark) .text-white\/50 {
+  color: rgba(30, 42, 59, 0.7) !important;
+}
+
+html:not(.dark) .text-white\/40,
+html:not(.dark) .text-white\/30 {
+  color: rgba(30, 42, 59, 0.5) !important;
+}
+
+/* Muted foreground for light mode */
+html:not(.dark) .text-muted-foreground {
+  color: rgba(30, 42, 59, 0.6) !important;
+}
+
+/* Foreground text */
+html:not(.dark) .text-foreground {
+  color: #1E2A3B !important;
+}
+
+/* ============================================
+   LIGHT THEME - BACKGROUND OVERRIDES
+   ============================================ */
+
+/* White/opacity backgrounds */
+html:not(.dark) .bg-white\/5,
+html:not(.dark) .bg-white\/10 {
+  background-color: rgba(30, 42, 59, 0.04) !important;
+}
+
+html:not(.dark) .bg-white\/15,
+html:not(.dark) .bg-white\/20 {
+  background-color: rgba(30, 42, 59, 0.06) !important;
+}
+
+/* Card backgrounds - Bottle Glass Effect */
+html:not(.dark) .bg-card,
+html:not(.dark) .bg-card\/80,
+html:not(.dark) .bg-card\/90 {
+  position: relative !important;
+  /* Layer 1: Base - light gray transparent */
+  background: linear-gradient(180deg,
+      rgba(250, 252, 255, 0.85) 0%,
+      rgba(245, 248, 252, 0.75) 50%,
+      rgba(240, 245, 250, 0.7) 100%) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+
+  /* Layer 2: Border - dark gray fading effect */
+  border: 1px solid transparent !important;
+  border-image: linear-gradient(180deg,
+      rgba(120, 130, 145, 0.3) 0%,
+      rgba(80, 90, 105, 0.2) 50%,
+      rgba(60, 70, 85, 0.35) 100%) 1 !important;
+  border-radius: 16px !important;
+
+  /* Shadow layers for depth - clean neutral shadows */
+  box-shadow:
+    /* Main shadow */
+    0 4px 20px rgba(50, 60, 75, 0.08),
+    /* Inner highlight */
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    /* Bottom edge - darker */
+    inset 0 -1px 0 rgba(60, 70, 85, 0.08) !important;
+
+  overflow: visible !important;
+}
+
+/* Removed: Cyan tint and gray edge glow pseudo-elements */
+/* Clean card styling without gradient overlays */
+
+/* Background */
+html:not(.dark) .bg-background {
+  background-color: hsl(220 20% 97%) !important;
+}
+
+html:not(.dark) .bg-background\/80,
+html:not(.dark) .bg-background\/70 {
+  background-color: rgba(245, 247, 250, 0.95) !important;
+}
+
+/* Secondary backgrounds */
+html:not(.dark) .bg-secondary {
+  background-color: rgba(235, 238, 242, 0.9) !important;
+}
+
+html:not(.dark) .bg-secondary\/50 {
+  background-color: rgba(235, 238, 242, 0.5) !important;
+}
+
+/* ============================================
+   LIGHT THEME - BORDER OVERRIDES
+   ============================================ */
+
+html:not(.dark) .border-white\/5,
+html:not(.dark) .border-white\/10,
+html:not(.dark) .border-white\/15,
+html:not(.dark) .border-white\/20 {
+  border-color: rgba(30, 42, 59, 0.1) !important;
+}
+
+html:not(.dark) .border-border {
+  border-color: rgba(30, 42, 59, 0.12) !important;
+}
+
+html:not(.dark) .border-border\/30,
+html:not(.dark) .border-border\/50 {
+  border-color: rgba(30, 42, 59, 0.08) !important;
+}
+
+/* ============================================
+   LIGHT THEME - BUTTON OVERRIDES
+   ============================================ */
+
+/* Primary buttons remain teal */
+html:not(.dark) .bg-primary {
+  background-color: #00A37A !important;
+  color: white !important;
+}
+
+/* Secondary/ghost buttons */
+html:not(.dark) button.bg-white\/5,
+html:not(.dark) button.bg-white\/10 {
+  background-color: rgba(30, 42, 59, 0.06) !important;
+  color: #1E2A3B !important;
+}
+
+html:not(.dark) button.bg-white\/5:hover,
+html:not(.dark) button.bg-white\/10:hover {
+  background-color: rgba(30, 42, 59, 0.1) !important;
+}
+
+/* ============================================
+   LIGHT THEME - STATUS BADGES
+   ============================================ */
+
+/* Emerald/Green badges */
+html:not(.dark) .bg-emerald-500\/10,
+html:not(.dark) .bg-emerald-500\/15,
+html:not(.dark) .bg-emerald-500\/20 {
+  background-color: rgba(0, 163, 122, 0.12) !important;
+}
+
+html:not(.dark) .text-emerald-400,
+html:not(.dark) .text-emerald-500 {
+  color: #00875F !important;
+}
+
+/* Red badges */
+html:not(.dark) .bg-red-500\/10,
+html:not(.dark) .bg-red-500\/15,
+html:not(.dark) .bg-red-500\/20 {
+  background-color: rgba(220, 38, 38, 0.1) !important;
+}
+
+html:not(.dark) .text-red-400,
+html:not(.dark) .text-red-500 {
+  color: #DC2626 !important;
+}
+
+/* Yellow/Amber badges */
+html:not(.dark) .bg-yellow-500\/10,
+html:not(.dark) .bg-yellow-500\/15,
+html:not(.dark) .bg-yellow-500\/20,
+html:not(.dark) .bg-amber-500\/10 {
+  background-color: rgba(217, 119, 6, 0.1) !important;
+}
+
+html:not(.dark) .text-yellow-400,
+html:not(.dark) .text-yellow-500,
+html:not(.dark) .text-amber-400,
+html:not(.dark) .text-amber-500 {
+  color: #B45309 !important;
+}
+
+/* Blue badges */
+html:not(.dark) .bg-blue-500\/10,
+html:not(.dark) .bg-blue-500\/15 {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+}
+
+html:not(.dark) .text-blue-400,
+html:not(.dark) .text-blue-500 {
+  color: #1D4ED8 !important;
+}
+
+/* Teal color for light mode */
+html:not(.dark) .text-\[\#00D9A5\] {
+  color: #00875F !important;
+}
+
+/* ============================================
+   LIGHT THEME - SPECIFIC COMPONENT FIXES
+   ============================================ */
+
+/* Sidebar - light background in light mode */
+html:not(.dark) aside {
+  background: linear-gradient(180deg,
+      rgba(250, 252, 255, 0.98) 0%,
+      rgba(245, 247, 250, 0.98) 100%) !important;
+  border-color: rgba(30, 42, 59, 0.1) !important;
+  box-shadow: 2px 0 15px rgba(30, 42, 59, 0.06) !important;
+}
+
+html:not(.dark) aside .text-muted-foreground {
+  color: rgba(30, 42, 59, 0.6) !important;
+}
+
+html:not(.dark) aside .text-primary {
+  color: #00875F !important;
+}
+
+html:not(.dark) aside .bg-primary\/20,
+html:not(.dark) aside .bg-primary\/10 {
+  background-color: rgba(0, 163, 122, 0.1) !important;
+}
+
+html:not(.dark) aside nav a:hover {
+  background-color: rgba(0, 163, 122, 0.08) !important;
+}
+
+/* Sidebar icons in light mode */
+html:not(.dark) aside .sidebar-icon-animate {
+  color: rgba(30, 42, 59, 0.7) !important;
+}
+
+html:not(.dark) aside .icon-home,
+html:not(.dark) aside .icon-crypto,
+html:not(.dark) aside .icon-report {
+  color: #00875F !important;
+}
+
+/* Mobile header glass */
+html:not(.dark) header.glass {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(30, 42, 59, 0.1) !important;
+}
+
+/* Footer */
+html:not(.dark) footer {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(30, 42, 59, 0.08) !important;
+}
+
+html:not(.dark) footer p {
+  color: rgba(30, 42, 59, 0.6) !important;
+}
+
+/* Cards with rounded corners */
+html:not(.dark) .rounded-2xl,
+html:not(.dark) .rounded-xl {
+  box-shadow: 0 2px 12px rgba(30, 42, 59, 0.08);
+}
+
+/* Input fields */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(30, 42, 59, 0.15) !important;
+  color: #1E2A3B !important;
+}
+
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: rgba(30, 42, 59, 0.5) !important;
+}
+
+/* Dropdown menus */
+html:not(.dark) .bg-popover {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 8px 30px rgba(30, 42, 59, 0.15) !important;
+}
+
+/* Strategy cards specific */
+html:not(.dark) .border-\[\#00D9A5\]\/40,
+html:not(.dark) .border-\[\#00D9A5\]\/20 {
+  border-color: rgba(0, 163, 122, 0.3) !important;
+}
+
+/* Price boxes */
+html:not(.dark) .bg-emerald-500\/5,
+html:not(.dark) .bg-green-500\/5 {
+  background-color: rgba(0, 163, 122, 0.08) !important;
+}
+
+html:not(.dark) .bg-red-500\/5 {
+  background-color: rgba(220, 38, 38, 0.08) !important;
+}
+
+/* Particles - hide in light mode */
+html:not(.dark) .particle {
+  opacity: 0.3;
+  background: rgba(0, 163, 122, 0.3) !important;
+}
+
+/* Corner glow - subtle in light mode */
+html:not(.dark) [style*="radial-gradient"] {
+  opacity: 0.03 !important;
+}
+
+/* Gray text variations */
+html:not(.dark) .text-gray-400,
+html:not(.dark) .text-gray-500 {
+  color: rgba(30, 42, 59, 0.6) !important;
+}
+
+html:not(.dark) .text-gray-300 {
+  color: rgba(30, 42, 59, 0.5) !important;
+}
+
+/* ============================================
+   LIGHT THEME - DIVIDER LINES & SEPARATORS
+   ============================================ */
+
+/* Visible dividers between list items (news, strategies, etc) */
+html:not(.dark) .divide-y>*+*,
+html:not(.dark) .divide-border>*+* {
+  border-top-color: rgba(30, 42, 59, 0.12) !important;
+}
+
+/* Card internal borders and separators */
+html:not(.dark) .border-border\/30,
+html:not(.dark) .border-border\/50 {
+  border-color: rgba(30, 42, 59, 0.1) !important;
+}
+
+/* Visible border between news/strategy items */
+html:not(.dark) [class*="border-b"] {
+  border-bottom-color: rgba(30, 42, 59, 0.1) !important;
+}
+
+html:not(.dark) [class*="border-t"] {
+  border-top-color: rgba(30, 42, 59, 0.1) !important;
+}
+
+/* Subtle separator lines in cards */
+html:not(.dark) .space-y-2>*+*,
+html:not(.dark) .space-y-3>*+*,
+html:not(.dark) .space-y-4>*+* {
+  position: relative;
+}
+
+/* Inner card items with visible separation */
+html:not(.dark) .bg-secondary\/30,
+html:not(.dark) .bg-secondary\/50 {
+  background-color: rgba(30, 42, 59, 0.04) !important;
+  border: 1px solid rgba(30, 42, 59, 0.08) !important;
+}
+
+/* Tab underline/border more subtle */
+html:not(.dark) .tech-tab {
+  border-bottom: 2px solid transparent;
+}
+
+/* ============================================
+   LIGHT THEME - ENHANCED CARD & SIGNAL VISIBILITY
+   ============================================ */
+
+/* Stronger gray backgrounds for inner cards/sections */
+html:not(.dark) .bg-white\/5 {
+  background-color: rgba(235, 240, 248, 0.95) !important;
+  border: 1.5px solid rgba(30, 42, 59, 0.22) !important;
+  border-radius: 12px;
+}
+
+html:not(.dark) .bg-white\/10 {
+  background-color: rgba(230, 235, 245, 0.95) !important;
+  border: 1.5px solid rgba(30, 42, 59, 0.28) !important;
+  border-radius: 12px;
+}
+
+/* Signal items in "Segnali Oggi" section - clear delineation */
+html:not(.dark) .rounded-lg.bg-white\/5,
+html:not(.dark) .p-2\.5.rounded-lg {
+  background-color: rgba(242, 245, 250, 0.98) !important;
+  border: 1.5px solid rgba(30, 42, 59, 0.25) !important;
+  box-shadow: 0 1px 4px rgba(30, 42, 59, 0.08) !important;
+  margin-bottom: 4px;
+}
+
+html:not(.dark) .rounded-lg.bg-white\/5:hover,
+html:not(.dark) .p-2\.5.rounded-lg:hover {
+  background-color: rgba(248, 250, 255, 0.98) !important;
+  border-color: rgba(0, 163, 122, 0.5) !important;
+}
+
+/* Screening cards - more visible border separation */
+html:not(.dark) button.p-3.bg-white\/5,
+html:not(.dark) .p-3.bg-white\/5 {
+  background-color: rgba(240, 244, 250, 0.98) !important;
+  border: 1.5px solid rgba(30, 42, 59, 0.28) !important;
+  box-shadow: 0 2px 8px rgba(30, 42, 59, 0.08) !important;
+}
+
+html:not(.dark) button.p-3.bg-white\/5:hover,
+html:not(.dark) .p-3.bg-white\/5:hover {
+  border-color: rgba(0, 163, 122, 0.5) !important;
+  box-shadow: 0 4px 12px rgba(0, 163, 122, 0.15) !important;
+}
+
+/* COT and Options panel inner sections */
+html:not(.dark) .p-4.rounded-xl.bg-white\/5,
+html:not(.dark) .grid.grid-cols-3.gap-3.mb-3.p-4.bg-white\/5 {
+  background-color: rgba(242, 246, 252, 0.98) !important;
+  border: 1.5px solid rgba(30, 42, 59, 0.20) !important;
+}
+
+/* News items - clearer separation */
+html:not(.dark) .space-y-2>.p-2\.5.rounded-lg {
+  border: 1.5px solid rgba(30, 42, 59, 0.22) !important;
+  background-color: rgba(245, 248, 253, 0.98) !important;
+  box-shadow: 0 1px 4px rgba(30, 42, 59, 0.06) !important;
+}
+
+/* Strategy signals - visible card borders */
+html:not(.dark) .space-y-2>div.p-2\.5 {
+  border: 1.5px solid rgba(30, 42, 59, 0.25) !important;
+  background-color: rgba(242, 246, 252, 0.98) !important;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+/* Progress bars visibility */
+html:not(.dark) .h-1.bg-white\/10,
+html:not(.dark) .w-12.h-1.bg-white\/10 {
+  background-color: rgba(30, 42, 59, 0.20) !important;
+}
+
+/* ============================================
+   LIGHT THEME - DROPDOWN/POPOVER FIXES
+   Dark backgrounds in click-opened menus
+   ============================================ */
+
+/* Fix dark dropdown backgrounds */
+html:not(.dark) .bg-black\/90,
+html:not(.dark) .bg-black\/80,
+html:not(.dark) .bg-black\/70 {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(30, 42, 59, 0.15) !important;
+  box-shadow: 0 4px 20px rgba(30, 42, 59, 0.15) !important;
+}
+
+/* Popover and modal backgrounds */
+html:not(.dark) [class*="bg-black"] {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+}
+
+/* Fix dropdown items */
+html:not(.dark) .bg-black\/90 button,
+html:not(.dark) .bg-black\/80 button {
+  color: #1E2A3B !important;
+}
+
+html:not(.dark) .bg-black\/90 button:hover,
+html:not(.dark) .bg-black\/80 button:hover {
+  background-color: rgba(0, 163, 122, 0.1) !important;
+}
+
+html:not(.dark) .tech-tab-active {
+  border-bottom: 2px solid #00A37A !important;
+}
+
+/* Softer shadow under tabs container */
+html:not(.dark) [class*="flex"][class*="gap"] {
+  /* Adds subtle bottom shadow */
+}
+
+/* News item rows with subtle border */
+html:not(.dark) .hover\:bg-secondary\/50:hover {
+  background-color: rgba(30, 42, 59, 0.05) !important;
+}
+
+/* Strategy signal cards - visible separation */
+html:not(.dark) .rounded-xl.border {
+  border-color: rgba(30, 42, 59, 0.12) !important;
+  box-shadow: 0 1px 3px rgba(30, 42, 59, 0.04) !important;
+}
+
+/* Horizontal rules and dividers */
+html:not(.dark) hr,
+html:not(.dark) .border-b {
+  border-color: rgba(30, 42, 59, 0.1) !important;
+}
+
+/* Card sections with slight visual separation */
+html:not(.dark) .py-2.border-b,
+html:not(.dark) .py-3.border-b,
+html:not(.dark) .px-3.py-2.border-b,
+html:not(.dark) .px-4.py-3.border-b {
+  border-bottom: 1px solid rgba(30, 42, 59, 0.08) !important;
+}
+
+/* ============================================
+   LIGHT THEME - GLOBAL TAB SHADOW STYLES
+   Applies subtle gray shadows to all tab types
+   ============================================ */
+
+/* Glass Tab - Light Theme with shadow */
+html:not(.dark) .glass-tab {
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.85) 0%,
+      rgba(250, 252, 255, 0.75) 100%);
+  border: 1.5px solid rgba(30, 42, 59, 0.1);
+  border-radius: 12px;
+  box-shadow:
+    0 3px 10px rgba(30, 42, 59, 0.08),
+    0 6px 20px rgba(30, 42, 59, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  position: relative;
+}
+
+html:not(.dark) .glass-tab::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 8%;
+  right: 8%;
+  height: 5px;
+  background: linear-gradient(180deg,
+      rgba(30, 42, 59, 0.07) 0%,
+      transparent 100%);
+  border-radius: 0 0 10px 10px;
+  pointer-events: none;
+}
+
+html:not(.dark) .glass-tab:hover {
+  border-color: rgba(0, 163, 122, 0.35);
+  box-shadow:
+    0 4px 15px rgba(30, 42, 59, 0.1),
+    0 8px 25px rgba(0, 163, 122, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  transform: translateY(-1px);
+}
+
+html:not(.dark) .glass-tab-active {
+  border-color: rgba(0, 163, 122, 0.5) !important;
+  box-shadow:
+    0 4px 18px rgba(0, 163, 122, 0.15),
+    0 8px 30px rgba(30, 42, 59, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+}
+
+/* Tab Selector - Light Theme with shadow */
+html:not(.dark) .tab-selector {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1.5px solid rgba(30, 42, 59, 0.08);
+  border-radius: 10px;
+  box-shadow:
+    0 2px 8px rgba(30, 42, 59, 0.06),
+    0 4px 15px rgba(30, 42, 59, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  position: relative;
+  color: rgba(30, 42, 59, 0.7);
+}
+
+html:not(.dark) .tab-selector::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 10%;
+  right: 10%;
+  height: 4px;
+  background: linear-gradient(180deg,
+      rgba(30, 42, 59, 0.05) 0%,
+      transparent 100%);
+  border-radius: 0 0 8px 8px;
+  pointer-events: none;
+}
+
+html:not(.dark) .tab-selector:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(30, 42, 59, 0.12);
+  box-shadow:
+    0 3px 12px rgba(30, 42, 59, 0.08),
+    0 6px 20px rgba(30, 42, 59, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  color: rgba(30, 42, 59, 0.9);
+}
+
+html:not(.dark) .tab-selector-active {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(0, 163, 122, 0.4) !important;
+  color: #00875F !important;
+  box-shadow:
+    0 4px 15px rgba(0, 163, 122, 0.12),
+    0 6px 25px rgba(30, 42, 59, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+}
+
+/* Generic button-style tabs in light mode */
+html:not(.dark) button[class*="px-"][class*="py-"][class*="rounded"] {
+  position: relative;
+}
+
+/* Radix UI Tabs - Light Theme with shadow */
+html:not(.dark) [role="tablist"] {
+  background: rgba(245, 248, 252, 0.8);
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: inset 0 1px 3px rgba(30, 42, 59, 0.06);
+}
+
+html:not(.dark) [role="tab"] {
+  background: transparent;
+  border-radius: 8px;
+  color: rgba(30, 42, 59, 0.6);
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+html:not(.dark) [role="tab"]:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: rgba(30, 42, 59, 0.85);
+}
+
+html:not(.dark) [role="tab"][data-state="active"],
+html:not(.dark) [role="tab"][aria-selected="true"] {
+  background: rgba(255, 255, 255, 0.95);
+  color: #00875F;
+  box-shadow:
+    0 2px 8px rgba(30, 42, 59, 0.08),
+    0 4px 15px rgba(30, 42, 59, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* Card-style panels with subtle shadow underneath */
+html:not(.dark) [class*="p-4"][class*="rounded-xl"],
+html:not(.dark) [class*="p-5"][class*="rounded-xl"],
+html:not(.dark) [class*="p-6"][class*="rounded-xl"] {
+  position: relative;
+}
+
+html:not(.dark) .bg-card[class*="rounded-xl"]::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 5%;
+  right: 5%;
+  height: 6px;
+  background: linear-gradient(180deg,
+      rgba(30, 42, 59, 0.05) 0%,
+      transparent 100%);
+  border-radius: 0 0 12px 12px;
+  pointer-events: none;
+  z-index: -1;
+}
