@@ -7,11 +7,5 @@
             "source": "/api/(.*)",
             "destination": "/api/index.py"
         }
-    ],
-    "crons": [
-        {
-            "path": "/api/engine/run",
-            "schedule": "0 7,10,13,16,19 * * *"
-        }
     ]
 }
