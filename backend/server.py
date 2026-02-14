@@ -83,11 +83,16 @@ app = FastAPI(title="TradingOS API")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now (Vercel/Localhost)
+    allow_origins=["http://localhost:3000"],  # Explicit local
+    allow_origin_regex="https://.*\.vercel\.app",  # All Vercel deployments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "message": "Karion Backend operational"}
 
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
