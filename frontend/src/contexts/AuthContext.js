@@ -6,7 +6,7 @@ const AuthContext = createContext(null);
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // Demo mode - set to true to bypass authentication
-const DEMO_MODE = true;
+const DEMO_MODE = false;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(DEMO_MODE ? { id: 'demo', name: 'Demo Trader', email: 'trader@karion.io' } : null);

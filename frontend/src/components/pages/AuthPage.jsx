@@ -43,6 +43,36 @@ export default function AuthPage() {
     }
   };
 
+  const handleSocialLogin = async (provider) => {
+    setLoading(true);
+    try {
+      // Simulate Social Login by using a dedicated demo account
+      const socialEmail = provider === 'google' ? 'google_user@karion.io' : 'apple_user@karion.io';
+      const socialPass = 'social_login_pass';
+      const socialName = provider === 'google' ? 'Google User' : 'Apple User';
+
+      if (isLogin) {
+        try {
+          await login(socialEmail, socialPass);
+          toast.success(`Accesso con ${provider === 'google' ? 'Google' : 'Apple'} riuscito!`);
+        } catch (e) {
+          toast.error("Utente non trovato. Devi prima registrarti.");
+        }
+      } else {
+        try {
+          await register(socialEmail, socialPass, socialName);
+          toast.success(`Registrazione con ${provider === 'google' ? 'Google' : 'Apple'} completata!`);
+        } catch (e) {
+          toast.error("Utente già registrato. Effettua il login.");
+        }
+      }
+    } catch (error) {
+      toast.error('Errore durante il social login');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background Effects */}
@@ -186,7 +216,8 @@ export default function AuthPage() {
                 type="button"
                 variant="outline"
                 className="w-full h-12 rounded-xl border-border/50 hover:bg-white/5"
-                disabled
+                onClick={() => handleSocialLogin('google')}
+                disabled={loading}
                 data-testid="google-login-btn"
               >
                 <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -202,7 +233,8 @@ export default function AuthPage() {
                 type="button"
                 variant="outline"
                 className="w-full h-12 rounded-xl border-border/50 hover:bg-white/5"
-                disabled
+                onClick={() => handleSocialLogin('apple')}
+                disabled={loading}
                 data-testid="apple-login-btn"
               >
                 <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
