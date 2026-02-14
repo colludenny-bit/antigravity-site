@@ -1,0 +1,46 @@
+{
+    "weeks": {
+        "1": {
+            "bias": "RANGE",
+            "score_modifier": 0.0,
+            "description": "Poco direzionale"
+        },
+        "2": {
+            "bias": "ACCUMULATION",
+            "score_modifier": 0.3,
+            "description": "Accumula e inizia lo slancio"
+        },
+        "3": {
+            "bias": "TREND",
+            "score_modifier": 0.6,
+            "description": "Continua lo slancio"
+        },
+        "4": {
+            "bias": "EXPANSION",
+            "score_modifier": 0.8,
+            "description": "Molto direzionale"
+        }
+    },
+    "days": {
+        "Monday": {
+            "bias": "RANGE_EXPANSION",
+            "note": "Ranging ed espansione solo dopo sbilanciamenti"
+        },
+        "Tuesday": {
+            "bias": "ACCUMULATION",
+            "note": "Accumulo o ribilanciamento"
+        },
+        "Wednesday": {
+            "bias": "EXPANSION",
+            "note": "Espansione in ribilanciamento"
+        },
+        "Thursday": {
+            "bias": "ACCUMULATION",
+            "note": "Accumulo o ribilanciamento"
+        },
+        "Friday": {
+            "bias": "REVERSAL_RISK",
+            "note": "Espansione, possibile inversione su zone importanti"
+        }
+    }
+}

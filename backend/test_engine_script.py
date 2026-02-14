@@ -16,6 +16,7 @@ async def run_test():
         print(f"Impulse: {card.impulse}")
         print(f"Drivers: {', '.join(card.drivers)}")
         print(f"Scores: {card.scores}")
+        print(f"Invalidation Level: {card.invalidation_level}")
 
 if __name__ == "__main__":
     asyncio.run(run_test())

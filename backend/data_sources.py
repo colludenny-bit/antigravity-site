@@ -2,8 +2,6 @@ import yfinance as yf
 from tradingview_ta import TA_Handler, Interval, Exchange
 import pandas as pd
 import logging
-import time
-import random
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -102,10 +100,24 @@ class MarketDataService:
                         # If ATR is NaN (not enough data), fallback to %
                         if pd.isna(atr): atr = price * 0.01
 
+                        # Hourly Volatility (Mataf Proxy)
+                        # Calculate avg range for the current hour over the fetched period
+                        current_hour = datetime.now().hour
+                        # Filter by current hour
+                        hist['hour'] = hist.index.hour
+                        hourly_data = hist[hist['hour'] == current_hour]
+                        
+                        hourly_vol = 0.0
+                        if not hourly_data.empty:
+                            # Avg High - Low for this hour
+                            hourly_ranges = (hourly_data["High"] - hourly_data["Low"])
+                            hourly_vol = hourly_ranges.mean()
+
                         return {
                             "price": float(price), 
                             "change": float(change),
-                            "atr": float(atr)
+                            "atr": float(atr),
+                            "hourly_vol_avg": float(hourly_vol) if not pd.isna(hourly_vol) else 0.0
                         }
                 except:
                     continue

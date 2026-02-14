@@ -79,6 +79,39 @@ class MultiSourceEngine:
         
         return {"status": status, "confidence": min(100, abs(score) * 40)}
 
+    def _get_seasonality_data(self) -> dict:
+        """Determines current week/day and loads rules."""
+        now = datetime.now()
+        day_name = now.strftime("%A")
+        
+        # Calculate Week of Month (1-4)
+        dom = now.day
+        week_num = (dom - 1) // 7 + 1
+        if week_num > 4: week_num = 4 # Cap at 4
+        
+        try:
+            import json
+            import os
+            path = os.path.join(os.path.dirname(__file__), "hidden_strategies/seasonality_rules.json")
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    rules = json.load(f)
+                    
+                w_rule = rules["weeks"].get(str(week_num), {})
+                d_rule = rules["days"].get(day_name, {})
+                
+                return {
+                    "week": week_num,
+                    "day": day_name,
+                    "week_desc": w_rule.get("description", ""),
+                    "week_mod": w_rule.get("score_modifier", 0),
+                    "day_note": d_rule.get("note", "")
+                }
+        except Exception as e:
+            print(f"⚠️ Seasonality Load Error: {e}")
+            
+        return {"week": 1, "day": day_name, "week_mod": 0, "day_note": "No Data"}
+
     def _load_statistical_bias(self):
         try:
             import json
@@ -163,21 +196,35 @@ class MultiSourceEngine:
         w = self.weights.get(asset, {"vix":0.2, "macro":0.2, "news":0.1, "cot":0.1})
         w_stat = 0.15 # User Bias weight
         
-        # Normalize weights to sum to 1 (tech takes remainder)
+        # Normalize weights
         current_sum = sum(w.values()) + w_stat
         if current_sum >= 1.0:
-            # Scale down if > 1
             factor = 0.9 / current_sum
             w = {k: v*factor for k,v in w.items()}
             w_stat *= factor
             
         w_tech = 1.0 - sum(w.values()) - w_stat
         
+        # SEASONALITY AMPLIFIER
+        # Week 1 (Range) -> Score Tech reduced
+        # Week 4 (Trend) -> Score Tech amplified
+        season = self._get_seasonality_data()
+        seas_mod = season.get("week_mod", 0.0) # 0.0 to 0.8
+        
+        # If Week 1 (Low Vol), we dampen the technical trend score
+        # If Week 4 (High Trend), we boost it
+        # Base modifier is 1.0. 
+        # Week 1: mod=0.0 -> multiplier = 0.8 (Dampen)
+        # Week 4: mod=0.8 -> multiplier = 1.2 (Boost)
+        seas_multiplier = 0.8 + (seas_mod * 0.5) 
+        
+        score_tech_adjusted = score_tech * seas_multiplier
+
         total_score = (score_vix * w.get("vix",0)) + \
                       (score_macro * w.get("macro",0)) + \
                       (score_cot * w.get("cot",0)) + \
                       (score_stat * w_stat) + \
-                      (score_tech * w_tech)
+                      (score_tech_adjusted * w_tech)
         
         # Convert to Direction & Probability
         direction = "NEUTRAL"
@@ -199,26 +246,41 @@ class MultiSourceEngine:
             elif score_tech > 0: impulse = "DIMINUISCE (Divergence)"
  
         drivers = []
+        # Add Seasonality Driver
+        drivers.append(f"Seasonality: Week {season['week']} ({season['week_desc']})")
+        if season['day_note']: drivers.append(f"Day Bias: {season['day_note']}")
+
+        # Hourly Volatility Check
+        hourly_vol = market_data.get("hourly_vol_avg", 0.0)
+        if hourly_vol > 0:
+            # Check if current range is exhausted? For now just report typical range
+            pass
+            
         if abs(score_stat) > 0.4: drivers.append(f"User Bias ({stat_bias.get('notes', 'Seasonal')})")
         if abs(score_vix) > 0.4: drivers.append("VIX Regime")
         if abs(score_macro) > 0.4: drivers.append("Macro Factors")
         if abs(score_cot) > 0.4: drivers.append("COT Positioning")
         if abs(score_tech) > 0.6: drivers.append("Technical Trend")
         
-        # Invalidation Level using ATR
-        # Stop is placed 1.5 ATR away from current price
+        # Invalidation Level using ATR + Hourly Vol
+        # If hourly vol is high, maybe widen stop? 
+        # For now, let's keep it simple: 1.5 ATR.
         multiplier = 1.5
         inv_level = price - (multiplier * atr) if direction == "UP" else price + (multiplier * atr)
         
         # Formatting for readability
         inv_fmt = f"{inv_level:.2f}"
+        
+        # Append Volatility Info to drivers for visibility
+        if hourly_vol > 0:
+            drivers.append(f"Hourly Vol (Avg): {hourly_vol:.2f}")
 
         return AssetCard(
             asset=asset,
             direction=direction,
             probability=round(prob, 1),
             impulse=impulse,
-            drivers=drivers[:3],
+            drivers=drivers[:5],
             invalidation_level=inv_fmt,
             scores={
                 "vix": round(score_vix, 2), 
