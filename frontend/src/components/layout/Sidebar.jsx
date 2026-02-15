@@ -31,7 +31,6 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { path: '/', icon: Globe, label: 'Hub', iconClass: 'icon-hub' },
   { path: '/app', icon: LayoutDashboard, label: 'Dashboard', iconClass: 'icon-home' },
   { path: '/app/crypto', icon: Bitcoin, label: 'Crypto', iconClass: 'icon-crypto' },
   { path: '/app/news', icon: Newspaper, label: 'News', iconClass: 'icon-news' },
@@ -47,7 +46,6 @@ const navItems = [
   { path: '/app/journal', icon: BookOpen, label: 'Journal', iconClass: 'icon-journal' },
   { path: '/app/psychology', icon: Brain, label: 'Psicologia', iconClass: 'icon-psychology' },
   { path: '/app/ai', icon: Sparkles, label: 'Karion AI', iconClass: 'icon-ai' },
-  { path: '/app/community', icon: Users, label: 'Community', iconClass: 'icon-community' },
 ];
 
 

@@ -136,12 +136,79 @@ app = FastAPI(title="Karion API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://0.0.0.0:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
     allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.karion\.it|https://www\.karion\.it",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/api/market/prices")
+async def get_market_prices():
+    """
+    Returns market prices for crypto overview.
+    In a real scenario, this would fetch from an external API (like CoinGecko) via backend
+    to avoid CORS issues, or return cached data.
+    For now, we return the mock/simulated data matching the frontend expectations.
+    """
+    return [
+        {
+            "id": "bitcoin",
+            "symbol": "btc",
+            "name": "Bitcoin",
+            "current_price": 48234.50,
+            "price_change_percentage_24h": 2.4,
+            "total_volume": 25000000000,
+            "market_cap": 900000000000,
+            "sparkline_in_7d": {"price": [47000, 47500, 47200, 48000, 48500, 48100, 48234]}
+        },
+        {
+            "id": "ethereum",
+            "symbol": "eth",
+            "name": "Ethereum",
+            "current_price": 2650.12,
+            "price_change_percentage_24h": 1.8,
+            "total_volume": 12000000000,
+            "market_cap": 300000000000,
+            "sparkline_in_7d": {"price": [2500, 2550, 2520, 2600, 2650, 2620, 2650]}
+        },
+        {
+            "id": "solana",
+            "symbol": "sol",
+            "name": "Solana",
+            "current_price": 98.45,
+            "price_change_percentage_24h": 5.2,
+            "total_volume": 2000000000,
+            "market_cap": 40000000000,
+            "sparkline_in_7d": {"price": [90, 92, 91, 95, 98, 97, 98.45]}
+        },
+        {
+            "id": "cardano",
+            "symbol": "ada",
+            "name": "Cardano",
+            "current_price": 0.55,
+            "price_change_percentage_24h": -0.5,
+            "total_volume": 500000000,
+            "market_cap": 18000000000,
+            "sparkline_in_7d": {"price": [0.54, 0.56, 0.55, 0.56, 0.55, 0.54, 0.55]}
+        },
+        {
+            "id": "ripple",
+            "symbol": "xrp",
+            "name": "XRP",
+            "current_price": 0.62,
+            "price_change_percentage_24h": 1.1,
+            "total_volume": 800000000,
+            "market_cap": 30000000000,
+            "sparkline_in_7d": {"price": [0.60, 0.61, 0.61, 0.63, 0.62, 0.62, 0.62]}
+        }
+    ]
 
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()

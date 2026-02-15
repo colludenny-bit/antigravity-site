@@ -24,7 +24,7 @@ export default function SettingsPage() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { logout, user } = useAuth();
-  const [activeTab, setActiveTab] = useState('abbonamenti');
+  const [activeTab, setActiveTab] = useState('account');
 
   // Modals state
   const [isSupportOpen, setIsSupportOpen] = useState(false);
@@ -123,14 +123,14 @@ export default function SettingsPage() {
                         Dettagli del piano <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
-                    <p className="text-white/40 text-sm font-medium">
+                    <p className="text-white/70 text-base font-medium">
                       Mensile • Prossimo pagamento: €20.68 il Mar 10, 2026
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
                       <div className="w-6 h-4 bg-orange-500 rounded-sm" /> {/* Mock Mastercard logo */}
-                      <span className="text-sm font-mono text-white/60">••2643</span>
+                      <span className="text-base font-mono text-white/80">••2643</span>
                     </div>
                     <button className="text-white/40 hover:text-white transition-colors">
                       <Pencil className="w-4 h-4" />
@@ -161,7 +161,7 @@ export default function SettingsPage() {
               <h3 className="text-lg font-bold text-white mb-6">Aggiungi una carta</h3>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-white/40 uppercase tracking-widest">Numero della carta</Label>
+                  <Label className="text-sm font-bold text-white/70 uppercase tracking-widest">Numero della carta</Label>
                   <div className="relative">
                     <Input className="bg-white/5 border-white/10 h-12 rounded-xl text-white placeholder:text-white/20 pl-4 pr-12" placeholder="0000 0000 0000 0000" />
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1">
@@ -173,11 +173,11 @@ export default function SettingsPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-white/40 uppercase tracking-widest">Scadenza</Label>
+                    <Label className="text-sm font-bold text-white/70 uppercase tracking-widest">Scadenza</Label>
                     <Input className="bg-white/5 border-white/10 h-12 rounded-xl text-white placeholder:text-white/20" placeholder="MM / YY" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-white/40 uppercase tracking-widest">CVC</Label>
+                    <Label className="text-sm font-bold text-white/70 uppercase tracking-widest">CVC</Label>
                     <Input className="bg-white/5 border-white/10 h-12 rounded-xl text-white placeholder:text-white/20" placeholder="123" />
                   </div>
                 </div>
@@ -190,7 +190,7 @@ export default function SettingsPage() {
 
             <div className="pt-8 border-t border-white/5">
               <h3 className="text-lg font-bold text-white mb-4">Declinazione di responsabilità</h3>
-              <p className="text-white/40 text-sm leading-relaxed font-medium">
+              <p className="text-white/60 text-base leading-relaxed font-medium">
                 I dati della tua carta vengono elaborati in modo sicuro tramite i nostri partner di pagamento certificati PCI. Karion Trading OS non memorizza mai i dettagli completi della tua carta sui propri server.
               </p>
             </div>
@@ -205,7 +205,7 @@ export default function SettingsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="text-white text-sm uppercase font-black tracking-widest border-b border-white/10">
+                  <tr className="text-white text-base uppercase font-black tracking-widest border-b border-white/10">
                     <th className="pb-6 font-black">Data</th>
                     <th className="pb-6 font-black">Azione</th>
                     <th className="pb-6 font-black">ID transazione</th>
@@ -219,7 +219,7 @@ export default function SettingsPage() {
                   ))}
                   {historyData.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="py-20 text-center text-white/20 font-medium">
+                      <td colSpan={4} className="py-20 text-center text-white/50 font-medium text-base">
                         Nessuna fattura disponibile al momento.
                       </td>
                     </tr>
@@ -247,12 +247,12 @@ export default function SettingsPage() {
 
             <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 overflow-hidden relative">
               <div className="absolute top-0 right-0 p-6">
-                <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20">Attivo</span>
+                <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-bold uppercase tracking-widest border border-emerald-500/20">Attivo</span>
               </div>
 
               <div className="mb-8">
                 <h3 className="text-xl font-bold text-white mb-2">Benefit Inclusi</h3>
-                <p className="text-white/40 text-sm font-medium">Lista completa dei vantaggi attivi sul tuo account.</p>
+                <p className="text-white/70 text-base font-medium">Lista completa dei vantaggi attivi sul tuo account.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
@@ -261,7 +261,7 @@ export default function SettingsPage() {
                     <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
                       <Check className="w-3 h-3 text-emerald-500" />
                     </div>
-                    <span className="text-white/70 text-sm font-medium group-hover:text-white transition-colors">{benefit}</span>
+                    <span className="text-white/90 text-base font-medium group-hover:text-white transition-colors">{benefit}</span>
                   </div>
                 ))}
               </div>
@@ -269,7 +269,7 @@ export default function SettingsPage() {
 
             <div className="flex gap-4">
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex-1">
-                <p className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] mb-2">Membro dal</p>
+                <p className="text-xs font-bold text-white/50 uppercase tracking-[0.2em] mb-2">Membro dal</p>
                 <p className="text-white font-black text-xl">Gennaio 2026</p>
               </div>
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex-1">
@@ -322,7 +322,7 @@ export default function SettingsPage() {
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <Label className="text-xs font-bold text-white/40 uppercase tracking-widest">E-mail</Label>
+                    <Label className="text-sm font-bold text-white/70 uppercase tracking-widest">E-mail</Label>
                     <p className="text-white font-bold mt-1">{user?.email || 'co•••••@gm•••••'}</p>
                   </div>
                   <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5">Cambia email</Button>
@@ -336,7 +336,7 @@ export default function SettingsPage() {
             {/* 2FA */}
             <section>
               <h3 className="text-xl font-bold text-white mb-6">Autenticazione a due fattori</h3>
-              <p className="text-white/40 text-sm mb-6 leading-relaxed">
+              <p className="text-white/70 text-base mb-6 leading-relaxed">
                 Proteggi il tuo account con l'autenticazione a due fattori. Scegli una delle opzioni riportate di seguito.
               </p>
               <div className="space-y-4">
@@ -347,7 +347,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <h4 className="font-bold text-white">App di autenticazione</h4>
-                      <p className="text-white/40 text-xs">Utilizza Google Authenticator, Duo Mobile o Authy.</p>
+                      <p className="text-white/60 text-sm">Utilizza Google Authenticator, Duo Mobile o Authy.</p>
                     </div>
                   </div>
                   <Switch />
@@ -359,7 +359,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <h4 className="font-bold text-white">Messaggio di testo</h4>
-                      <p className="text-white/40 text-xs">Ricevi un codice via SMS sul tuo dispositivo mobile.</p>
+                      <p className="text-white/60 text-sm">Ricevi un codice via SMS sul tuo dispositivo mobile.</p>
                     </div>
                   </div>
                   <Switch />
@@ -371,7 +371,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <h4 className="font-bold text-white">Codici backup</h4>
-                      <p className="text-white/40 text-xs">Utilizzali se non puoi accedere al tuo telefono.</p>
+                      <p className="text-white/60 text-sm">Utilizzali se non puoi accedere al tuo telefono.</p>
                     </div>
                   </div>
                   <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5">Genera nuovi codici</Button>
@@ -399,7 +399,7 @@ export default function SettingsPage() {
                       </div>
                       <div>
                         <h4 className="font-bold text-white">Google</h4>
-                        <p className="text-white/40 text-xs">Aggiunto il 1 giu 2021</p>
+                        <p className="text-white/60 text-sm">Aggiunto il 1 giu 2021</p>
                       </div>
                     </div>
                     <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5 hover:text-red-500 hover:border-red-500/30">Elimina</Button>
@@ -414,14 +414,14 @@ export default function SettingsPage() {
                 <h3 className="text-xl font-bold text-white">Eliminazione dell'account</h3>
                 <Info className="w-4 h-4 text-white/20" />
               </div>
-              <p className="text-white/40 text-sm mb-6 max-w-lg leading-relaxed">
+              <p className="text-white/70 text-base mb-6 max-w-lg leading-relaxed">
                 Se desideri cancellare il tuo account, puoi farlo. Il processo richiederà 30 giorni, potrai richiedere la riattivazione entro questo periodo.
               </p>
               <Button variant="destructive" className="rounded-xl h-12 px-8 font-bold bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20">
                 Elimina account
               </Button>
             </section>
-          </div>
+          </div >
         );
 
       default:
@@ -449,7 +449,7 @@ export default function SettingsPage() {
         <aside className="space-y-10 px-4 md:px-0">
           {menuSections.map((section, idx) => (
             <div key={idx} className="space-y-4">
-              <h5 className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] px-4">
+              <h5 className="text-xs font-black text-white/50 uppercase tracking-[0.2em] px-4">
                 {section.title}
               </h5>
               <nav className="space-y-1">
@@ -458,15 +458,15 @@ export default function SettingsPage() {
                     key={item.id}
                     onClick={item.action ? item.action : () => setActiveTab(item.id)}
                     className={cn(
-                      "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-bold group",
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-base font-bold group",
                       activeTab === item.id
                         ? "bg-white/10 text-white shadow-lg"
-                        : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
+                        : "text-white/60 hover:text-white hover:bg-white/[0.03]"
                     )}
                   >
                     <item.icon className={cn(
-                      "w-4 h-4 transition-colors",
-                      activeTab === item.id ? "text-primary" : "text-white/20 group-hover:text-white/40"
+                      "w-5 h-5 transition-colors",
+                      activeTab === item.id ? "text-primary" : "text-white/50 group-hover:text-white"
                     )} />
                     {item.label}
                   </button>

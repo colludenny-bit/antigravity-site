@@ -13,7 +13,6 @@ import Layout from './components/layout/Layout';
 import { LockScreen } from './components/layout/LockScreen';
 
 // Pages
-import LandingPage from './components/pages/LandingPage';
 import AuthPage from './components/pages/AuthPage';
 import DashboardPage from './components/pages/DashboardPage';
 import ProfilePage from './components/pages/ProfilePage';
@@ -21,7 +20,6 @@ import StrategyPage from './components/pages/StrategyPage';
 import ChartsPage from './components/pages/ChartsPage';
 import PsychologyPage from './components/pages/PsychologyPage';
 import JournalPage from './components/pages/JournalPage';
-import CommunityPage from './components/pages/CommunityPage';
 import AIPage from './components/pages/AIPage';
 import MonteCarloPage from './components/pages/MonteCarloPage';
 import StatisticsPage from './components/pages/StatisticsPage';
@@ -90,9 +88,7 @@ function AppRoutes() {
       <Route
         path="/"
         element={
-          <PublicRoute isHome>
-            <LandingPage />
-          </PublicRoute>
+          <Navigate to="/auth" replace />
         }
       />
       <Route
@@ -138,7 +134,6 @@ function AppRoutes() {
         <Route path="crypto" element={<CryptoPage />} />
         <Route path="psychology" element={<PsychologyPage />} />
         <Route path="journal" element={<JournalPage />} />
-        <Route path="community" element={<CommunityPage />} />
         <Route path="ai" element={<AIPage />} />
         <Route path="ascension" element={<AscensionPage />} />
         <Route path="settings" element={<SettingsPage />} />
