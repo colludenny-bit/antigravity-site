@@ -12,12 +12,25 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(DEMO_MODE ? { id: 'demo', name: 'Demo Trader', email: 'trader@karion.io' } : null);
   const [token, setToken] = useState(DEMO_MODE ? 'demo-token' : localStorage.getItem('token'));
   const [loading, setLoading] = useState(!DEMO_MODE);
-  const [isInitialized, setIsInitialized] = useState(DEMO_MODE); // Auth is ready immediately in DEMO_MODE
+  const [isInitialized, setIsInitialized] = useState(DEMO_MODE);
+  const [subscription, setSubscription] = useState(null);
+
+  const fetchSubscription = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/subscription/status`);
+      setSubscription(response.data);
+    } catch (error) {
+      console.error('Failed to fetch subscription:', error);
+      setSubscription(null);
+    }
+  }, []);
 
   const fetchUser = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/auth/me`);
       setUser(response.data);
+      // Also fetch subscription after user is loaded
+      await fetchSubscription();
     } catch (error) {
       console.error('Failed to fetch user:', error);
       logout();
@@ -25,11 +38,10 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       setIsInitialized(true);
     }
-  }, []);
+  }, [fetchSubscription]);
 
   useEffect(() => {
     if (DEMO_MODE) {
-      // In demo mode, user is already set synchronously, no loading needed
       setIsInitialized(true);
       return;
     }
@@ -49,6 +61,8 @@ export const AuthProvider = ({ children }) => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
     setToken(access_token);
     setUser(userData);
+    // Fetch subscription after login
+    setTimeout(() => fetchSubscription(), 100);
     return userData;
   };
 
@@ -67,6 +81,7 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
     setToken(null);
     setUser(null);
+    setSubscription(null);
   };
 
   const refreshUser = async () => {
@@ -75,8 +90,33 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const checkoutPlan = async (planSlug, annual, couponCode = null) => {
+    try {
+      const { data } = await axios.post(`${API}/create-checkout`, {
+        plan_slug: planSlug,
+        annual,
+        coupon_code: couponCode
+      });
+      const { checkout_url } = data;
+      // If demo mode returns a relative URL, navigate within app
+      if (checkout_url.startsWith('/')) {
+        window.location.href = checkout_url;
+      } else {
+        // Real Stripe — redirect to external checkout
+        window.location.href = checkout_url;
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, isInitialized, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{
+      user, token, loading, isInitialized,
+      subscription, fetchSubscription,
+      login, register, logout, refreshUser, checkoutPlan
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -89,3 +129,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

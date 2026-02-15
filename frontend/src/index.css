@@ -1054,6 +1054,30 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
   box-shadow: 0 0 25px rgba(0, 217, 165, 0.12);
 }
 
+/* Engine Card - High conviction glow */
+.engine-card-glow {
+  border-color: rgba(0, 217, 165, 0.25) !important;
+  box-shadow:
+    0 0 20px rgba(0, 217, 165, 0.06),
+    0 0 40px rgba(0, 217, 165, 0.03),
+    inset 0 1px 0 rgba(0, 217, 165, 0.08) !important;
+}
+
+.engine-card-glow:hover {
+  box-shadow:
+    0 0 30px rgba(0, 217, 165, 0.1),
+    0 0 60px rgba(0, 217, 165, 0.05),
+    inset 0 1px 0 rgba(0, 217, 165, 0.12) !important;
+}
+
+html:not(.dark) .engine-card-glow {
+  border-color: rgba(0, 163, 122, 0.3) !important;
+  box-shadow:
+    0 4px 20px rgba(0, 163, 122, 0.08),
+    0 8px 40px rgba(0, 163, 122, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+}
+
 /* Tech Table - Clean data table */
 .tech-table {
   width: 100%;

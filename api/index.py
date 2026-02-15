@@ -1,18 +1,20 @@
 """
 Vercel Serverless Function Entry Point
-Lightweight API handler for auth, profile, and basic operations.
+Lightweight API handler for auth, profile, subscriptions, and Stripe payments.
 Heavy operations (engine, AI, market data) run on the local/dedicated backend.
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import Optional
+from typing import Optional, Dict, List
 import os
 import uuid
 import bcrypt
 import jwt
+import json
 from datetime import datetime, timezone, timedelta
 
 # Load env
@@ -25,9 +27,89 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'tradingos-secret-key-2024')
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
+# Stripe Config
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+STRIPE_MODE = bool(STRIPE_SECRET_KEY)
+
+if STRIPE_MODE:
+    import stripe
+    stripe.api_key = STRIPE_SECRET_KEY
+
+# ==================== PLANS CONFIG ====================
+PLANS = {
+    'essential-monthly': {
+        'name': 'Essential', 'period': 'monthly', 'price_eur': 14.99,
+        'stripe_price_id': os.environ.get('STRIPE_PRICE_ESSENTIAL_MONTHLY', ''),
+        'feature_flags': {
+            'access_dashboard': True, 'market_screening': 2,
+            'news_feed': True, 'charts': True, 'calculator': True,
+            'journal': 50, 'statistics': True,
+            'cot': False, 'options_flow': False, 'macro': False,
+            'ai_copilot': False, 'monte_carlo': False, 'report': False,
+        },
+    },
+    'essential-annual': {
+        'name': 'Essential', 'period': 'annual', 'price_eur': 152.90,
+        'stripe_price_id': os.environ.get('STRIPE_PRICE_ESSENTIAL_ANNUAL', ''),
+        'feature_flags': {
+            'access_dashboard': True, 'market_screening': 2,
+            'news_feed': True, 'charts': True, 'calculator': True,
+            'journal': 50, 'statistics': True,
+            'cot': False, 'options_flow': False, 'macro': False,
+            'ai_copilot': False, 'monte_carlo': False, 'report': False,
+        },
+    },
+    'plus-monthly': {
+        'name': 'Plus', 'period': 'monthly', 'price_eur': 29.99,
+        'stripe_price_id': os.environ.get('STRIPE_PRICE_PLUS_MONTHLY', ''),
+        'feature_flags': {
+            'access_dashboard': True, 'market_screening': -1,
+            'news_feed': True, 'charts': True, 'calculator': True,
+            'journal': -1, 'statistics': True,
+            'cot': True, 'options_flow': True, 'macro': True,
+            'ai_copilot': 50, 'monte_carlo': False, 'report': False,
+        },
+    },
+    'plus-annual': {
+        'name': 'Plus', 'period': 'annual', 'price_eur': 287.90,
+        'stripe_price_id': os.environ.get('STRIPE_PRICE_PLUS_ANNUAL', ''),
+        'feature_flags': {
+            'access_dashboard': True, 'market_screening': -1,
+            'news_feed': True, 'charts': True, 'calculator': True,
+            'journal': -1, 'statistics': True,
+            'cot': True, 'options_flow': True, 'macro': True,
+            'ai_copilot': 50, 'monte_carlo': False, 'report': False,
+        },
+    },
+    'pro-monthly': {
+        'name': 'Pro', 'period': 'monthly', 'price_eur': 49.99,
+        'stripe_price_id': os.environ.get('STRIPE_PRICE_PRO_MONTHLY', ''),
+        'feature_flags': {
+            'access_dashboard': True, 'market_screening': -1,
+            'news_feed': True, 'charts': True, 'calculator': True,
+            'journal': -1, 'statistics': True,
+            'cot': True, 'options_flow': True, 'macro': True,
+            'ai_copilot': -1, 'monte_carlo': True, 'report': True,
+        },
+    },
+    'pro-annual': {
+        'name': 'Pro', 'period': 'annual', 'price_eur': 449.91,
+        'stripe_price_id': os.environ.get('STRIPE_PRICE_PRO_ANNUAL', ''),
+        'feature_flags': {
+            'access_dashboard': True, 'market_screening': -1,
+            'news_feed': True, 'charts': True, 'calculator': True,
+            'journal': -1, 'statistics': True,
+            'cot': True, 'options_flow': True, 'macro': True,
+            'ai_copilot': -1, 'monte_carlo': True, 'report': True,
+        },
+    },
+}
+
 # Demo Mode
 DEMO_MODE = False
 demo_users = {}
+demo_subscriptions = {}
 
 # MongoDB
 try:
@@ -87,6 +169,22 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+class CheckoutRequest(BaseModel):
+    plan_slug: str
+    coupon_code: Optional[str] = None
+
+class CheckoutResponse(BaseModel):
+    checkout_url: str
+    session_id: str
+
+class SubscriptionResponse(BaseModel):
+    plan_slug: Optional[str] = None
+    plan_name: Optional[str] = None
+    status: str = "none"  # none | active | cancelled | expired
+    feature_flags: dict = {}
+    expires_at: Optional[str] = None
+    cancel_at_period_end: bool = False
 
 # ==================== AUTH HELPERS ====================
 def hash_password(password: str) -> str:
@@ -174,6 +272,239 @@ async def login(credentials: UserLogin):
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
     return UserResponse(**current_user)
+
+# ==================== STRIPE ROUTES ====================
+@api_router.post("/create-checkout", response_model=CheckoutResponse)
+async def create_checkout(req: CheckoutRequest, current_user: dict = Depends(get_current_user)):
+    """Create a Stripe Checkout Session for the given plan."""
+    plan = PLANS.get(req.plan_slug)
+    if not plan:
+        raise HTTPException(status_code=400, detail=f"Unknown plan: {req.plan_slug}")
+
+    user_id = current_user["id"]
+    user_email = current_user["email"]
+
+    # Apply coupon if provided (for both demo and real mode logic)
+    applied_coupon = req.coupon_code if req.coupon_code else None
+
+    if not STRIPE_MODE:
+        # Demo mode: simulate checkout
+        fake_session_id = f"demo_session_{uuid.uuid4().hex[:12]}"
+        
+        # If it's a 100% discount code, we can acknowledge it in metadata or logs
+        # For now, demo mode always "activates" immediately
+        
+        # Auto-activate subscription in demo mode
+        sub_data = {
+            "user_id": user_id,
+            "plan_slug": req.plan_slug,
+            "plan_name": plan["name"],
+            "status": "active",
+            "feature_flags": plan["feature_flags"],
+            "stripe_customer_id": f"demo_cus_{uuid.uuid4().hex[:8]}",
+            "stripe_subscription_id": f"demo_sub_{uuid.uuid4().hex[:8]}",
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=30 if 'monthly' in req.plan_slug else 365)).isoformat(),
+            "cancel_at_period_end": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "coupon_applied": applied_coupon
+        }
+        if DEMO_MODE:
+            demo_subscriptions[user_id] = sub_data
+        else:
+            await db.subscriptions.update_one(
+                {"user_id": user_id}, {"$set": sub_data}, upsert=True
+            )
+        return CheckoutResponse(
+            checkout_url=f"/checkout/success?session_id={fake_session_id}&plan={req.plan_slug}&discount=100" if applied_coupon == 'KARION100' else f"/checkout/success?session_id={fake_session_id}&plan={req.plan_slug}",
+            session_id=fake_session_id,
+        )
+
+    # Real Stripe mode
+    try:
+        # Get or create Stripe customer
+        if not DEMO_MODE:
+            user_doc = await db.users.find_one({"id": user_id})
+            customer_id = user_doc.get("stripe_customer_id") if user_doc else None
+        else:
+            customer_id = None
+
+        if not customer_id:
+            customer = stripe.Customer.create(email=user_email, metadata={"karion_user_id": user_id})
+            customer_id = customer.id
+            if not DEMO_MODE:
+                await db.users.update_one({"id": user_id}, {"$set": {"stripe_customer_id": customer_id}})
+
+        # Build checkout session params
+        checkout_params = {
+            "customer": customer_id,
+            "payment_method_types": ["card"],
+            "line_items": [{"price": plan["stripe_price_id"], "quantity": 1}],
+            "mode": "subscription",
+            "success_url": os.environ.get("FRONTEND_URL", "http://localhost:3000") + "/checkout/success?session_id={CHECKOUT_SESSION_ID}&plan=" + req.plan_slug,
+            "cancel_url": os.environ.get("FRONTEND_URL", "http://localhost:3000") + "/pricing",
+            "metadata": {"karion_user_id": user_id, "plan_slug": req.plan_slug},
+            "allow_promotion_codes": True, # Allow users to also enter codes in Stripe UI
+        }
+
+        # Apply specific coupon if provided directly from our UI
+        if applied_coupon:
+            checkout_params["discounts"] = [{"coupon": applied_coupon}]
+            # Note: For Stripe, the 'coupon' ID must exist in Stripe dashboard.
+            # If the user enters a 'promotion code', it's different in Stripe.
+            # But the 'discounts' array expects a COUPON ID.
+
+        session = stripe.checkout.Session.create(**checkout_params)
+        return CheckoutResponse(checkout_url=session.url, session_id=session.id)
+
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events."""
+    payload = await request.body()
+
+    if STRIPE_MODE and STRIPE_WEBHOOK_SECRET:
+        sig_header = request.headers.get("stripe-signature", "")
+        try:
+            event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        except (ValueError, stripe.error.SignatureVerificationError):
+            raise HTTPException(status_code=400, detail="Invalid webhook signature")
+    else:
+        # Demo mode: parse JSON directly
+        try:
+            event = json.loads(payload)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    event_type = event.get("type", "")
+
+    if event_type == "checkout.session.completed":
+        session = event["data"]["object"]
+        user_id = session.get("metadata", {}).get("karion_user_id")
+        plan_slug = session.get("metadata", {}).get("plan_slug")
+        if user_id and plan_slug:
+            plan = PLANS.get(plan_slug, {})
+            sub_data = {
+                "user_id": user_id,
+                "plan_slug": plan_slug,
+                "plan_name": plan.get("name", plan_slug),
+                "status": "active",
+                "feature_flags": plan.get("feature_flags", {}),
+                "stripe_customer_id": session.get("customer", ""),
+                "stripe_subscription_id": session.get("subscription", ""),
+                "expires_at": (datetime.now(timezone.utc) + timedelta(days=30 if 'monthly' in plan_slug else 365)).isoformat(),
+                "cancel_at_period_end": False,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if DEMO_MODE:
+                demo_subscriptions[user_id] = sub_data
+            else:
+                await db.subscriptions.update_one(
+                    {"user_id": user_id}, {"$set": sub_data}, upsert=True
+                )
+
+    elif event_type == "invoice.payment_succeeded":
+        invoice = event["data"]["object"]
+        customer_id = invoice.get("customer", "")
+        if not DEMO_MODE and customer_id:
+            user = await db.users.find_one({"stripe_customer_id": customer_id})
+            if user:
+                sub = await db.subscriptions.find_one({"user_id": user["id"]})
+                if sub:
+                    new_expiry = (datetime.now(timezone.utc) + timedelta(
+                        days=30 if 'monthly' in sub.get('plan_slug', '') else 365
+                    )).isoformat()
+                    await db.subscriptions.update_one(
+                        {"user_id": user["id"]},
+                        {"$set": {"status": "active", "expires_at": new_expiry}}
+                    )
+
+    elif event_type == "customer.subscription.deleted":
+        sub_obj = event["data"]["object"]
+        customer_id = sub_obj.get("customer", "")
+        if not DEMO_MODE and customer_id:
+            user = await db.users.find_one({"stripe_customer_id": customer_id})
+            if user:
+                await db.subscriptions.update_one(
+                    {"user_id": user["id"]},
+                    {"$set": {"status": "expired", "feature_flags": {}}}
+                )
+
+    return JSONResponse(content={"received": True})
+
+
+@api_router.get("/subscription/status", response_model=SubscriptionResponse)
+async def subscription_status(current_user: dict = Depends(get_current_user)):
+    """Get the current user's subscription status."""
+    user_id = current_user["id"]
+
+    if DEMO_MODE:
+        sub = demo_subscriptions.get(user_id)
+    else:
+        sub = await db.subscriptions.find_one({"user_id": user_id}, {"_id": 0})
+
+    if not sub:
+        return SubscriptionResponse()
+
+    return SubscriptionResponse(
+        plan_slug=sub.get("plan_slug"),
+        plan_name=sub.get("plan_name"),
+        status=sub.get("status", "none"),
+        feature_flags=sub.get("feature_flags", {}),
+        expires_at=sub.get("expires_at"),
+        cancel_at_period_end=sub.get("cancel_at_period_end", False),
+    )
+
+
+@api_router.post("/subscription/cancel")
+async def cancel_subscription(current_user: dict = Depends(get_current_user)):
+    """Cancel the current user's subscription at period end."""
+    user_id = current_user["id"]
+
+    if DEMO_MODE:
+        sub = demo_subscriptions.get(user_id)
+        if not sub:
+            raise HTTPException(status_code=404, detail="No active subscription")
+        sub["cancel_at_period_end"] = True
+        sub["status"] = "cancelled"
+        return {"message": "Subscription will cancel at period end", "expires_at": sub["expires_at"]}
+
+    sub = await db.subscriptions.find_one({"user_id": user_id})
+    if not sub:
+        raise HTTPException(status_code=404, detail="No active subscription")
+
+    if STRIPE_MODE and sub.get("stripe_subscription_id"):
+        try:
+            stripe.Subscription.modify(
+                sub["stripe_subscription_id"],
+                cancel_at_period_end=True
+            )
+        except stripe.error.StripeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    await db.subscriptions.update_one(
+        {"user_id": user_id},
+        {"$set": {"cancel_at_period_end": True, "status": "cancelled"}}
+    )
+    return {"message": "Subscription will cancel at period end", "expires_at": sub.get("expires_at")}
+
+
+@api_router.get("/plans")
+async def get_plans():
+    """Return available plans (without Stripe price IDs)."""
+    return [
+        {
+            "slug": slug,
+            "name": p["name"],
+            "period": p["period"],
+            "price_eur": p["price_eur"],
+            "feature_flags": p["feature_flags"],
+        }
+        for slug, p in PLANS.items()
+    ]
+
 
 # Mount router
 app.include_router(api_router)

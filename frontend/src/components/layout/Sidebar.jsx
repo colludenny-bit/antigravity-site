@@ -26,13 +26,14 @@ import {
   Globe,
   Bitcoin,
   Calculator,
-  Gauge
+  Gauge,
+  LayoutDashboard
 } from 'lucide-react';
 
 const navItems = [
-  { path: '/app', icon: Home, label: 'Home', iconClass: 'icon-home' },
+  { path: '/', icon: Globe, label: 'Hub', iconClass: 'icon-hub' },
+  { path: '/app', icon: LayoutDashboard, label: 'Dashboard', iconClass: 'icon-home' },
   { path: '/app/crypto', icon: Bitcoin, label: 'Crypto', iconClass: 'icon-crypto' },
-  { path: '/app/report', icon: BarChart3, label: 'Report', iconClass: 'icon-report' },
   { path: '/app/news', icon: Newspaper, label: 'News', iconClass: 'icon-news' },
   { path: '/app/macro', icon: Globe, label: 'Macro', iconClass: 'icon-macro' },
   { path: '/app/risk', icon: AlertTriangle, label: 'Risk', iconClass: 'icon-risk' },

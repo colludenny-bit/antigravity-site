@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useTheme } from '../../contexts/ThemeContext';
 import { toast } from 'sonner';
@@ -12,538 +13,480 @@ import { cn } from '../../lib/utils';
 import {
   Settings, Moon, Sun, Globe, User, Bell, Shield, Palette,
   Lock, Key, ExternalLink, Check, X, Eye, EyeOff,
-  TrendingUp, Download, Trash2, Volume2, Zap, Database, LogOut
+  TrendingUp, Download, Trash2, Volume2, Zap, Database, LogOut,
+  CreditCard, FileText, Activity, Mail, Smartphone, Plus, Pencil, Share2, Info,
+  MessageSquare, Sparkles, Heart
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { SupportModal, WhatsNewModal, InviteFriendModal } from '../ui/SupportModals';
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
-  const { theme, toggleTheme, darkVariant, setDarkVariant } = useTheme();
-  const { logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { logout, user } = useAuth();
+  const [activeTab, setActiveTab] = useState('abbonamenti');
 
-  // State for modals and forms
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showTVModal, setShowTVModal] = useState(false);
-  const [showAPIModal, setShowAPIModal] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
-  const [showPasswords, setShowPasswords] = useState({});
-  const [tvConnected, setTVConnected] = useState(false);
-  const [tvUsername, setTVUsername] = useState('');
+  // Modals state
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
 
-  // Notification preferences with persistence
-  const [notifications, setNotifications] = useState({
-    dailyCheckin: true,
-    revengeAlert: true,
-    weeklyReport: false,
-    communityUpdates: false,
-    priceAlerts: true,
-    aiInsights: true
-  });
+  // Subscriptions Tab State
+  const [timeRemaining, setTimeRemaining] = useState({ days: 1, hours: 3, mins: 34, secs: 24 });
 
-  // API Keys
-  const [apiKeys, setApiKeys] = useState({
-    tradingview: '',
-    coingecko: '',
-    openai: ''
-  });
-
-  // Load saved keys on mount
-  React.useEffect(() => {
-    const savedKeys = localStorage.getItem('karion_api_keys');
-    if (savedKeys) {
-      setApiKeys(JSON.parse(savedKeys));
-    }
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeRemaining(prev => {
+        let { days, hours, mins, secs } = prev;
+        if (secs > 0) secs--;
+        else {
+          secs = 59;
+          if (mins > 0) mins--;
+          else {
+            mins = 59;
+            if (hours > 0) hours--;
+            else {
+              hours = 23;
+              if (days > 0) days--;
+            }
+          }
+        }
+        return { days, hours, mins, secs };
+      });
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  const saveApiKeys = () => {
-    localStorage.setItem('karion_api_keys', JSON.stringify(apiKeys));
-    toast.success('API keys salvate con successo!');
-    setShowAPIModal(false);
-  };
-
-  const changeLanguage = (lang) => {
-    i18n.changeLanguage(lang);
-    localStorage.setItem('language', lang);
-    toast.success(`Lingua cambiata in ${lang === 'it' ? 'Italiano' : lang === 'en' ? 'English' : 'Français'}`);
-  };
-
-  const handlePasswordChange = () => {
-    if (passwordForm.new !== passwordForm.confirm) {
-      toast.error('Le password non coincidono');
-      return;
+  const menuSections = [
+    {
+      title: 'ACCOUNT E SICUREZZA',
+      items: [
+        { id: 'account', label: 'Impostazioni account', icon: Settings },
+      ]
+    },
+    {
+      title: 'PAGAMENTO',
+      items: [
+        { id: 'abbonamenti', label: 'Abbonamenti', icon: Zap },
+        { id: 'metodi_pagamento', label: 'Metodi di pagamento', icon: CreditCard },
+        { id: 'storico_fatturazione', label: 'Storico fatturazione', icon: FileText },
+        { id: 'stato_abbonato', label: 'Stato dell\'abbonato', icon: Activity },
+      ]
+    },
+    {
+      title: 'NOTIFICHE',
+      items: [
+        { id: 'consegna_alert', label: 'Consegna degli alert', icon: Bell },
+        { id: 'abbonamenti_email', label: 'Abbonamenti e-mail', icon: Mail },
+      ]
+    },
+    {
+      title: 'SUPPORTO E RISORSE',
+      items: [
+        { id: 'modal_supporto', label: 'Centro di supporto', icon: MessageSquare, action: () => setIsSupportOpen(true) },
+        { id: 'modal_novita', label: 'Cosa c\'è di nuovo', icon: Sparkles, action: () => setIsWhatsNewOpen(true) },
+        { id: 'modal_invita', label: 'Invita un amico', icon: Heart, action: () => setIsInviteOpen(true) },
+      ]
     }
-    if (passwordForm.new.length < 8) {
-      toast.error('La password deve essere almeno 8 caratteri');
-      return;
-    }
-    toast.success('Password aggiornata con successo!');
-    setShowPasswordModal(false);
-    setPasswordForm({ current: '', new: '', confirm: '' });
-  };
+  ];
 
-  const handleTVConnect = () => {
-    if (!tvUsername.trim()) {
-      toast.error('Inserisci il tuo username TradingView');
-      return;
-    }
-    setTVConnected(true);
-    toast.success(`TradingView collegato: @${tvUsername}`);
-    setShowTVModal(false);
-  };
-
-  const handleExportData = () => {
-    toast.loading('Preparando export...');
-    setTimeout(() => {
-      toast.dismiss();
-      toast.success('Dati esportati! Download in corso...');
-    }, 2000);
-  };
-
-  const toggleNotification = (key) => {
-    setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
-    toast.success(notifications[key] ? 'Notifica disattivata' : 'Notifica attivata');
-  };
-
-  return (
-    <div className="space-y-6 fade-in max-w-2xl" data-testid="settings-page">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <Settings className="w-8 h-8 text-primary" />
-          {t('settings.title')}
-        </h1>
-        <p className="text-muted-foreground mt-1">Personalizza la tua esperienza Karion</p>
-      </motion.div>
-
-      {/* Appearance */}
-      <Card className="bg-card/80 border-border/50" data-testid="appearance-settings">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="w-5 h-5 text-primary" />
-            Aspetto
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Theme */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {theme === 'dark' ? (
-                <Moon className="w-5 h-5 text-primary" />
-              ) : (
-                <Sun className="w-5 h-5 text-yellow-500" />
-              )}
-              <div>
-                <p className="font-medium">{t('settings.theme')}</p>
-                <p className="text-sm text-muted-foreground">
-                  {theme === 'dark' ? 'Dark Mode attivo' : 'Light Mode attivo'}
-                </p>
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'abbonamenti':
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {/* Promo Card */}
+            <div className="relative group overflow-hidden rounded-3xl bg-black border border-white/10 h-[220px]">
+              {/* Background Glow */}
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-blue-900/20 to-pink-900/30 opacity-60" />
+              <div className="absolute top-0 right-0 w-full h-full overflow-hidden">
+                <div className="absolute top-10 right-10 w-64 h-64 bg-blue-500/20 rounded-full blur-[100px] animate-pulse" />
+                <div className="absolute bottom-10 right-40 w-48 h-48 bg-purple-500/20 rounded-full blur-[80px]" />
               </div>
-            </div>
-            <Switch
-              checked={theme === 'dark'}
-              onCheckedChange={toggleTheme}
-              data-testid="theme-switch"
-            />
-          </div>
 
-          {/* Dark Theme Variant - Only visible when dark mode is active */}
-
-
-          {/* Language */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Globe className="w-5 h-5 text-primary" />
-              <div>
-                <p className="font-medium">{t('settings.language')}</p>
-                <p className="text-sm text-muted-foreground">
-                  {i18n.language === 'it' ? 'Italiano' : i18n.language === 'en' ? 'English' : 'Français'}
-                </p>
-              </div>
-            </div>
-            <Select value={i18n.language} onValueChange={changeLanguage}>
-              <SelectTrigger className="w-[140px]" data-testid="language-select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="it">🇮🇹 Italiano</SelectItem>
-                <SelectItem value="en">🇬🇧 English</SelectItem>
-                <SelectItem value="fr">🇫🇷 Français</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Integrations */}
-      <Card className="bg-card/80 border-border/50" data-testid="integrations-settings">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-yellow-500" />
-            Integrazioni
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* TradingView */}
-          <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-blue-400" />
-              </div>
-              <div>
-                <p className="font-medium">TradingView</p>
-                <p className="text-sm text-muted-foreground">
-                  {tvConnected ? `Collegato: @${tvUsername}` : 'Sincronizza grafici e idee'}
-                </p>
-              </div>
-            </div>
-            <Button
-              variant={tvConnected ? "secondary" : "outline"}
-              className="rounded-xl"
-              onClick={() => tvConnected ? setTVConnected(false) : setShowTVModal(true)}
-            >
-              {tvConnected ? (
-                <><Check className="w-4 h-4 mr-2 text-emerald-400" /> Collegato</>
-              ) : (
-                <><ExternalLink className="w-4 h-4 mr-2" /> Collega</>
-              )}
-            </Button>
-          </div>
-
-          {/* API Keys */}
-          <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                <Key className="w-5 h-5 text-purple-400" />
-              </div>
-              <div>
-                <p className="font-medium">API Keys</p>
-                <p className="text-sm text-muted-foreground">Configura chiavi esterne</p>
-              </div>
-            </div>
-            <Button variant="outline" className="rounded-xl" onClick={() => setShowAPIModal(true)}>
-              Configura
-            </Button>
-          </div>
-
-          {/* Export Data */}
-          <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                <Database className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <p className="font-medium">Esporta Dati</p>
-                <p className="text-sm text-muted-foreground">Scarica journal, trades, psicologia</p>
-              </div>
-            </div>
-            <Button variant="outline" className="rounded-xl" onClick={handleExportData}>
-              <Download className="w-4 h-4 mr-2" /> Export
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Account */}
-      <Card className="bg-card/80 border-border/50" data-testid="account-settings">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="w-5 h-5 text-primary" />
-            Account
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-            <div className="flex items-center gap-3">
-              <Lock className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">Cambia Password</p>
-                <p className="text-sm text-muted-foreground">Ultima modifica: mai</p>
-              </div>
-            </div>
-            <Button variant="outline" className="rounded-xl" onClick={() => setShowPasswordModal(true)}>
-              Modifica
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Notifications */}
-      <Card className="bg-card/80 border-border/50" data-testid="notification-settings">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="w-5 h-5 text-primary" />
-            Notifiche
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {[
-            { key: 'dailyCheckin', label: 'Daily Check-in', description: 'Reminder alle 18:00', icon: Bell },
-            { key: 'revengeAlert', label: 'Revenge Trading Alert', description: 'Avviso pattern pericolosi', icon: Shield },
-            { key: 'priceAlerts', label: 'Price Alerts', description: 'Notifiche su livelli chiave', icon: TrendingUp },
-            { key: 'aiInsights', label: 'AI Insights', description: 'Suggerimenti da Karion AI', icon: Zap },
-            { key: 'weeklyReport', label: 'Weekly Report', description: 'Report ogni domenica', icon: Download },
-            { key: 'communityUpdates', label: 'Community', description: 'Nuovi post e commenti', icon: User },
-          ].map((notif) => (
-            <div key={notif.key} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-              <div className="flex items-center gap-3">
-                <notif.icon className="w-4 h-4 text-muted-foreground" />
+              <div className="relative h-full p-10 flex flex-col justify-center">
                 <div>
-                  <p className="font-medium">{notif.label}</p>
-                  <p className="text-sm text-muted-foreground">{notif.description}</p>
+                  <h2 className="text-4xl font-black text-white mb-2 tracking-tight">Nuove offerte a breve disponibili</h2>
                 </div>
               </div>
-              <Switch
-                checked={notifications[notif.key]}
-                onCheckedChange={() => toggleNotification(notif.key)}
-                data-testid={`notif-${notif.key}`}
-              />
             </div>
-          ))}
-        </CardContent>
-      </Card>
 
-      {/* Privacy */}
-      <Card className="bg-card/80 border-border/50" data-testid="privacy-settings">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
-            Privacy
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-            <div>
-              <p className="font-medium">Profilo Pubblico</p>
-              <p className="text-sm text-muted-foreground">Visibile nella community</p>
-            </div>
-            <Switch data-testid="public-profile" />
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-            <div>
-              <p className="font-medium">Mostra Statistiche</p>
-              <p className="text-sm text-muted-foreground">Win rate e P&L visibili</p>
-            </div>
-            <Switch data-testid="show-stats" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Danger Zone */}
-      <Card className="bg-card/80 border-red-500/20" data-testid="danger-zone">
-        <CardHeader>
-          <CardTitle className="text-red-400 flex items-center gap-2">
-            <Trash2 className="w-5 h-5" />
-            Zona Pericolo
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 group hover:bg-white/10 transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <LogOut className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Esci dal tuo account</p>
-                <p className="text-sm text-muted-foreground">Termina la sessione corrente</p>
-              </div>
-            </div>
-            <Button variant="outline" className="rounded-xl border-primary/20 hover:bg-primary/10" onClick={logout}>
-              Esci
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-red-500/5 rounded-xl border border-red-500/20">
-            <div>
-              <p className="font-medium">Elimina Account</p>
-              <p className="text-sm text-muted-foreground">Azione irreversibile</p>
-            </div>
-            <Button variant="destructive" className="rounded-xl">
-              Elimina
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Password Modal */}
-      <AnimatePresence>
-        {showPasswordModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowPasswordModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="bg-card border border-border rounded-2xl max-w-md w-full p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Lock className="w-5 h-5 text-primary" />
-                Cambia Password
-              </h3>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Password Attuale</label>
-                  <div className="relative">
-                    <Input
-                      type={showPasswords.current ? 'text' : 'password'}
-                      value={passwordForm.current}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
-                      className="absolute right-3 top-1/2 -translate-y-1/2"
-                    >
-                      {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {/* Current Subscription */}
+            <section>
+              <h3 className="text-xl font-bold text-white mb-6">Sottoscrizione attuale</h3>
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+                <div className="flex items-start justify-between mb-8">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-2xl font-bold text-white">Essential</span>
+                      <a href="#" className="text-blue-400 hover:text-blue-300 flex items-center gap-1 text-sm font-medium">
+                        Dettagli del piano <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                    <p className="text-white/40 text-sm font-medium">
+                      Mensile • Prossimo pagamento: €20.68 il Mar 10, 2026
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
+                      <div className="w-6 h-4 bg-orange-500 rounded-sm" /> {/* Mock Mastercard logo */}
+                      <span className="text-sm font-mono text-white/60">••2643</span>
+                    </div>
+                    <button className="text-white/40 hover:text-white transition-colors">
+                      <Pencil className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Nuova Password</label>
-                  <Input
-                    type="password"
-                    value={passwordForm.new}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Conferma Password</label>
-                  <Input
-                    type="password"
-                    value={passwordForm.confirm}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-                  />
-                </div>
-
-                <div className="flex gap-2 pt-4">
-                  <Button variant="ghost" onClick={() => setShowPasswordModal(false)} className="flex-1">
-                    Annulla
+                <div className="flex gap-3">
+                  <Button variant="secondary" className="rounded-xl h-11 px-6 font-bold bg-white/10 hover:bg-white/15 text-white">
+                    Cambia abbonamento
                   </Button>
-                  <Button onClick={handlePasswordChange} className="flex-1">
-                    Salva
+                  <Button variant="outline" className="rounded-xl h-11 px-6 font-bold border-white/10 hover:bg-white/5 text-white/60">
+                    Cancella l'abbonamento
                   </Button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </section>
 
-      {/* TradingView Modal */}
-      <AnimatePresence>
-        {showTVModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowTVModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="bg-card border border-border rounded-2xl max-w-md w-full p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-blue-400" />
-                Collega TradingView
-              </h3>
+          </div>
+        );
 
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Inserisci il tuo username TradingView per sincronizzare grafici e idee.
-                </p>
+      case 'metodi_pagamento':
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <h2 className="text-3xl font-bold text-white">Metodi di pagamento</h2>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Username</label>
-                  <Input
-                    value={tvUsername}
-                    onChange={(e) => setTVUsername(e.target.value)}
-                    placeholder="@username"
-                  />
-                </div>
-
-                <div className="flex gap-2 pt-4">
-                  <Button variant="ghost" onClick={() => setShowTVModal(false)} className="flex-1">
-                    Annulla
-                  </Button>
-                  <Button onClick={handleTVConnect} className="flex-1 bg-blue-500 hover:bg-blue-600">
-                    Collega
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* API Keys Modal */}
-      <AnimatePresence>
-        {showAPIModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowAPIModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="bg-card border border-border rounded-2xl max-w-md w-full p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Key className="w-5 h-5 text-purple-400" />
-                API Keys
-              </h3>
-
+            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-8">
+              <h3 className="text-lg font-bold text-white mb-6">Aggiungi una carta</h3>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">CoinGecko API</label>
-                  <Input
-                    type="password"
-                    value={apiKeys.coingecko}
-                    onChange={(e) => setApiKeys({ ...apiKeys, coingecko: e.target.value })}
-                    placeholder="cg-xxxxx..."
-                  />
+                  <Label className="text-xs font-bold text-white/40 uppercase tracking-widest">Numero della carta</Label>
+                  <div className="relative">
+                    <Input className="bg-white/5 border-white/10 h-12 rounded-xl text-white placeholder:text-white/20 pl-4 pr-12" placeholder="0000 0000 0000 0000" />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1">
+                      <div className="w-8 h-5 bg-white/10 rounded-sm" />
+                      <div className="w-8 h-5 bg-white/10 rounded-sm" />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">OpenAI API</label>
-                  <Input
-                    type="password"
-                    value={apiKeys.openai}
-                    onChange={(e) => setApiKeys({ ...apiKeys, openai: e.target.value })}
-                    placeholder="sk-xxxxx..."
-                  />
-                  <p className="text-xs text-muted-foreground">Necessaria per Karion AI Insights</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-white/40 uppercase tracking-widest">Scadenza</Label>
+                    <Input className="bg-white/5 border-white/10 h-12 rounded-xl text-white placeholder:text-white/20" placeholder="MM / YY" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-white/40 uppercase tracking-widest">CVC</Label>
+                    <Input className="bg-white/5 border-white/10 h-12 rounded-xl text-white placeholder:text-white/20" placeholder="123" />
+                  </div>
                 </div>
 
-                <div className="flex gap-2 pt-4">
-                  <Button variant="ghost" onClick={() => setShowAPIModal(false)} className="flex-1">
-                    Annulla
-                  </Button>
-                  <Button onClick={saveApiKeys} className="flex-1">
-                    Salva
-                  </Button>
+                <Button className="w-full h-14 bg-white text-black hover:bg-white/90 rounded-2xl font-black text-lg mt-4">
+                  Salva carta
+                </Button>
+              </div>
+            </div>
+
+            <div className="pt-8 border-t border-white/5">
+              <h3 className="text-lg font-bold text-white mb-4">Declinazione di responsabilità</h3>
+              <p className="text-white/40 text-sm leading-relaxed font-medium">
+                I dati della tua carta vengono elaborati in modo sicuro tramite i nostri partner di pagamento certificati PCI. Karion Trading OS non memorizza mai i dettagli completi della tua carta sui propri server.
+              </p>
+            </div>
+          </div>
+        );
+
+      case 'storico_fatturazione':
+        const historyData = [];
+        return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <h2 className="text-3xl font-bold text-white">Storico fatturazione</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-white text-sm uppercase font-black tracking-widest border-b border-white/10">
+                    <th className="pb-6 font-black">Data</th>
+                    <th className="pb-6 font-black">Azione</th>
+                    <th className="pb-6 font-black">ID transazione</th>
+                    <th className="pb-6 font-black text-right">Totale</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-sm">
+                  {historyData.map((row, i) => (
+                    // ... existing row mapping (will render nothing since historyData is empty)
+                    <tr key={i} />
+                  ))}
+                  {historyData.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-20 text-center text-white/20 font-medium">
+                        Nessuna fattura disponibile al momento.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case 'stato_abbonato': {
+        const benefits = [
+          "Dati di mercato in tempo reale",
+          "Allarmi tecnici avanzati",
+          "Screener azionario e crypto",
+          "Copilot AI Personale (Smarter Analysis)",
+          "Analisi COT e Options Flow",
+          "Trading Journal illimitato",
+          "Backtesting e Monte Carlo Analysis",
+          "Accesso alla Community Pro"
+        ];
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <h2 className="text-3xl font-bold text-white">Stato dell'abbonamento</h2>
+
+            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-6">
+                <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20">Attivo</span>
+              </div>
+
+              <div className="mb-8">
+                <h3 className="text-xl font-bold text-white mb-2">Benefit Inclusi</h3>
+                <p className="text-white/40 text-sm font-medium">Lista completa dei vantaggi attivi sul tuo account.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+                {benefits.map((benefit, i) => (
+                  <div key={i} className="flex items-center gap-3 group">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                      <Check className="w-3 h-3 text-emerald-500" />
+                    </div>
+                    <span className="text-white/70 text-sm font-medium group-hover:text-white transition-colors">{benefit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex-1">
+                <p className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] mb-2">Membro dal</p>
+                <p className="text-white font-black text-xl">Gennaio 2026</p>
+              </div>
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex-1">
+                <p className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] mb-2">Prossimo rinnovo</p>
+                <p className="text-white font-black text-xl">10 Mar 2026</p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      case 'abbonamenti_email':
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <h2 className="text-3xl font-bold text-white">Abbonamenti e-mail</h2>
+            <div className="space-y-6">
+              {[
+                { title: 'Materiale di supporto', desc: 'Suggerimenti e trucchi per ottenere il massimo da TradingView.', icon: Mail },
+                { title: 'Aggiornamenti sui prodotti', desc: 'Scopri gli ultimi aggiornamenti e miglioramenti di TradingView.', icon: TrendingUp },
+                { title: 'Sconti e promozioni', desc: 'Diventa il primo a ricevere promozioni ed offerte esclusive', icon: Zap },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center justify-between group p-2 rounded-xl hover:bg-white/[0.02] transition-colors">
+                  <div className="flex items-center gap-6">
+                    <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                      <item.icon className="w-6 h-6 text-white/60" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white">{item.title}</h4>
+                      <p className="text-white/40 text-sm font-medium">{item.desc}</p>
+                    </div>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+              ))}
+            </div>
+            <div className="pt-8 border-t border-white/5 flex justify-end">
+              <Button variant="outline" className="h-12 rounded-xl border-white/10 hover:bg-white/5 text-white/60 font-bold px-6">
+                Disiscriviti da tutto
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'account':
+        return (
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {/* Credentials */}
+            <section>
+              <h3 className="text-xl font-bold text-white mb-6">Credenziali di accesso</h3>
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <Label className="text-xs font-bold text-white/40 uppercase tracking-widest">E-mail</Label>
+                    <p className="text-white font-bold mt-1">{user?.email || 'co•••••@gm•••••'}</p>
+                  </div>
+                  <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5">Cambia email</Button>
+                </div>
+                <div className="flex justify-start">
+                  <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5">Aggiungi password</Button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
+            </section>
+
+            {/* 2FA */}
+            <section>
+              <h3 className="text-xl font-bold text-white mb-6">Autenticazione a due fattori</h3>
+              <p className="text-white/40 text-sm mb-6 leading-relaxed">
+                Proteggi il tuo account con l'autenticazione a due fattori. Scegli una delle opzioni riportate di seguito.
+              </p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                      <Smartphone className="w-5 h-5 text-white/60" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white">App di autenticazione</h4>
+                      <p className="text-white/40 text-xs">Utilizza Google Authenticator, Duo Mobile o Authy.</p>
+                    </div>
+                  </div>
+                  <Switch />
+                </div>
+                <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                      <Mail className="w-5 h-5 text-white/60" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white">Messaggio di testo</h4>
+                      <p className="text-white/40 text-xs">Ricevi un codice via SMS sul tuo dispositivo mobile.</p>
+                    </div>
+                  </div>
+                  <Switch />
+                </div>
+                <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                      <Key className="w-5 h-5 text-white/60" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white">Codici backup</h4>
+                      <p className="text-white/40 text-xs">Utilizzali se non puoi accedere al tuo telefono.</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5">Genera nuovi codici</Button>
+                </div>
+              </div>
+            </section>
+
+            {/* Phone Management */}
+            <section>
+              <h3 className="text-xl font-bold text-white mb-6">Verifica del telefono</h3>
+              <Button variant="outline" className="rounded-xl h-12 border-white/10 hover:bg-white/5 px-6 font-bold">
+                Aggiungi telefono
+              </Button>
+            </section>
+
+            {/* External Accounts */}
+            <section>
+              <h3 className="text-xl font-bold text-white mb-6">Account esterni collegati</h3>
+              <div className="space-y-4">
+                {[1, 2].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                        <TrendingUp className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white">Google</h4>
+                        <p className="text-white/40 text-xs">Aggiunto il 1 giu 2021</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5 hover:text-red-500 hover:border-red-500/30">Elimina</Button>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Account Deletion */}
+            <section className="pt-10 border-t border-white/5">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-xl font-bold text-white">Eliminazione dell'account</h3>
+                <Info className="w-4 h-4 text-white/20" />
+              </div>
+              <p className="text-white/40 text-sm mb-6 max-w-lg leading-relaxed">
+                Se desideri cancellare il tuo account, puoi farlo. Il processo richiederà 30 giorni, potrai richiedere la riattivazione entro questo periodo.
+              </p>
+              <Button variant="destructive" className="rounded-xl h-12 px-8 font-bold bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20">
+                Elimina account
+              </Button>
+            </section>
+          </div>
+        );
+
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center h-full text-center py-20 animate-in fade-in duration-500">
+            <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center border border-white/10 mb-6">
+              <Settings className="w-10 h-10 text-white/20" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">Work in Progress</h3>
+            <p className="text-white/40 max-w-xs font-medium">Questa sezione è in fase di sviluppo. Torna a visitarci presto!</p>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="max-w-[1200px] mx-auto min-h-screen bg-black font-apple" data-testid="settings-page">
+      {/* Page Header */}
+      <header className="py-12 px-4 md:px-0">
+        <h1 className="text-4xl font-black text-white tracking-tight">Impostazioni</h1>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-12 pb-20">
+        {/* Side Navigation */}
+        <aside className="space-y-10 px-4 md:px-0">
+          {menuSections.map((section, idx) => (
+            <div key={idx} className="space-y-4">
+              <h5 className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] px-4">
+                {section.title}
+              </h5>
+              <nav className="space-y-1">
+                {section.items.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={item.action ? item.action : () => setActiveTab(item.id)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-bold group",
+                      activeTab === item.id
+                        ? "bg-white/10 text-white shadow-lg"
+                        : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
+                    )}
+                  >
+                    <item.icon className={cn(
+                      "w-4 h-4 transition-colors",
+                      activeTab === item.id ? "text-primary" : "text-white/20 group-hover:text-white/40"
+                    )} />
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          ))}
+        </aside>
+
+        {/* Tab Content Area */}
+        <main className="px-4 md:px-0 min-h-[600px] pb-20">
+          {renderTabContent()}
+        </main>
+      </div>
+
+      {/* Persistence / Action Logic */}
+      <AnimatePresence>
+        <SupportModal isOpen={isSupportOpen} onClose={() => setIsSupportOpen(false)} />
+        <WhatsNewModal isOpen={isWhatsNewOpen} onClose={() => setIsWhatsNewOpen(false)} />
+        <InviteFriendModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
       </AnimatePresence>
     </div>
   );

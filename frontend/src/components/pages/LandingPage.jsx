@@ -5,9 +5,12 @@ import {
     ArrowRight, BarChart3, Shield, Zap, Target, TrendingUp,
     ChevronRight, Brain, LineChart, Globe, Calculator, BookOpen,
     Activity, Newspaper, PieChart, Sparkles, CheckCircle2, Eye,
-    LayoutDashboard, Cpu, Crosshair, Flame, Lock, Smartphone
+    LayoutDashboard, Cpu, Crosshair, Flame, Lock, Smartphone,
+    Menu, Settings, Users, Moon, Sun, LogOut
 } from 'lucide-react';
 import kairongBull from '../../assets/kairon-bull.png';
+import { cn } from '../../lib/utils';
+import { useTranslation } from 'react-i18next';
 
 /* ═══════════════════════════════════════════════════════════════════
    ANIMATED COUNTER HOOK
@@ -360,7 +363,147 @@ const gridFeatures = [
 /* ═══════════════════════════════════════════════════════════════════
    MAIN LANDING PAGE
    ═══════════════════════════════════════════════════════════════════ */
+import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
+
+/* ═══ USER MENU COMPONENT (TradingView Style) ═══ */
+const UserMenu = ({ user, subscription, logout, theme, toggleTheme }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef(null);
+    const { t, i18n } = useTranslation();
+
+    const planName = subscription?.plan?.name || 'ESSENTIAL';
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const languages = [
+        { code: 'it', name: 'Italiano' },
+        { code: 'en', name: 'English' }
+    ];
+
+    const currentLang = languages.find(l => l.code === i18n.language) || languages[0];
+
+    return (
+        <div className="relative" ref={menuRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-3 p-1 rounded-full hover:bg-white/[0.05] transition-colors"
+                title="Menu Utente"
+            >
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
+                    {user.name?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex flex-col items-start mr-2">
+                    <span className="text-white flex items-center gap-2">
+                        <Menu className="w-4 h-4 text-white/40" />
+                    </span>
+                </div>
+            </button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute right-0 mt-2 w-72 bg-[#121517] border border-white/[0.08] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden z-[60]"
+                    >
+                        {/* Header */}
+                        <div className="p-4 border-b border-white/[0.05] flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-lg">
+                                {user.name?.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <Link to="/app/profile" className="font-bold text-white hover:text-primary transition-colors block truncate">
+                                    {user.name}
+                                </Link>
+                                <span className="bg-white/10 text-white/60 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest mt-0.5 inline-block">
+                                    {planName}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Menu Items */}
+                        <div className="py-2">
+                            <Link to="/app/settings" className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors">
+                                <Settings className="w-4 h-4" /> Impostazioni e fatturazione
+                            </Link>
+                            <button onClick={() => { }} className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <Users className="w-4 h-4" /> Invita un amico
+                                </div>
+                                <span className="text-white/30 text-xs">$0</span>
+                            </button>
+                        </div>
+
+                        <div className="py-2 border-t border-white/[0.05]">
+                            <button onClick={() => { }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors">
+                                <BookOpen className="w-4 h-4" /> Centro di supporto
+                            </button>
+                            <button onClick={() => { }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors">
+                                <Sparkles className="w-4 h-4" /> Novità
+                            </button>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="py-2 border-t border-white/[0.05]">
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors">
+                                <div className="flex items-center gap-3">
+                                    {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />} Tema scuro
+                                </div>
+                                <button
+                                    onClick={toggleTheme}
+                                    className={cn(
+                                        "w-9 h-5 rounded-full transition-colors relative",
+                                        theme === 'dark' ? "bg-primary" : "bg-white/10"
+                                    )}
+                                >
+                                    <div className={cn(
+                                        "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+                                        theme === 'dark' ? "translate-x-4" : "translate-x-0"
+                                    )} />
+                                </button>
+                            </div>
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <Globe className="w-4 h-4" /> Lingua
+                                </div>
+                                <div className="flex items-center gap-1 text-white/30 text-xs">
+                                    {currentLang.name} <ChevronRight className="w-3 h-3" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Exit */}
+                        <div className="py-2 border-t border-white/[0.05]">
+                            <button
+                                onClick={logout}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors"
+                            >
+                                <LogOut className="w-4 h-4" /> Esci
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   MAIN LANDING PAGE
+   ═══════════════════════════════════════════════════════════════════ */
 export const LandingPage = () => {
+    const { user, subscription, logout } = useAuth();
+    const { theme, toggleTheme } = useTheme();
     const [activeTab, setActiveTab] = useState('cot');
     const activeFeature = featureTabs.find(t => t.id === activeTab);
 
@@ -397,7 +540,10 @@ export const LandingPage = () => {
                     <div className="flex items-center gap-3">
                         <img src={kairongBull} alt="Kairon" className="h-10 w-auto" />
                         <div className="relative">
-                            <span className="text-xl font-black tracking-[0.15em] text-white uppercase" style={{ fontFamily: 'Georgia, serif' }}>KAIRON</span>
+                            <span className="text-xl font-black tracking-[0.2em] text-white uppercase" style={{
+                                fontFamily: 'Georgia, serif',
+                                textShadow: '0 0 10px rgba(255,255,255,0.4), 0 0 20px rgba(0,217,165,0.3)'
+                            }}>KARION</span>
                             {/* Luminescent underline glow */}
                             <div className="absolute -bottom-1 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
                             <div className="absolute -bottom-1 left-0 right-0 h-[6px] blur-[3px] opacity-60" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
@@ -410,18 +556,30 @@ export const LandingPage = () => {
                         <Link to="/pricing" className="px-5 py-2 rounded-xl text-sm font-semibold text-white/70 hover:text-white hover:bg-white/[0.08] transition-all duration-200">Pricing</Link>
                     </div>
                     <div className="flex items-center gap-4">
-                        <Link to="/auth?mode=login" className="text-sm font-medium text-white/40 hover:text-white transition-colors">
-                            Log in
-                        </Link>
-                        <Link to="/auth?mode=register">
-                            <motion.button
-                                whileHover={{ scale: 1.05, boxShadow: '0 0 25px rgba(0,217,165,0.5)' }}
-                                whileTap={{ scale: 0.95 }}
-                                className="px-5 py-2 rounded-lg bg-[#00D9A5] text-black font-bold text-sm transition-shadow duration-300 flex items-center gap-1.5"
-                            >
-                                Get Access <ArrowRight className="w-3.5 h-3.5" />
-                            </motion.button>
-                        </Link>
+                        {!user ? (
+                            <>
+                                <Link to="/auth?mode=login" className="text-sm font-medium text-white/40 hover:text-white transition-colors">
+                                    Log in
+                                </Link>
+                                <Link to="/auth?mode=register">
+                                    <motion.button
+                                        whileHover={{ scale: 1.05, boxShadow: '0 0 25px rgba(0,217,165,0.5)' }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="px-5 py-2 rounded-lg bg-[#00D9A5] text-black font-bold text-sm transition-shadow duration-300 flex items-center gap-1.5"
+                                    >
+                                        Get Access <ArrowRight className="w-3.5 h-3.5" />
+                                    </motion.button>
+                                </Link>
+                            </>
+                        ) : (
+                            <UserMenu
+                                user={user}
+                                subscription={subscription}
+                                logout={logout}
+                                theme={theme}
+                                toggleTheme={toggleTheme}
+                            />
+                        )}
                     </div>
                 </div>
             </nav>
@@ -454,15 +612,27 @@ export const LandingPage = () => {
                             operating system built for professional traders.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
-                            <Link to="/auth?mode=register">
-                                <motion.button
-                                    whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(0,217,165,0.5)' }}
-                                    whileTap={{ scale: 0.97 }}
-                                    className="px-10 py-4 rounded-lg bg-[#00D9A5] text-black font-bold text-lg shadow-[0_0_30px_rgba(0,217,165,0.25)] flex items-center gap-2 group"
-                                >
-                                    Access Now <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                </motion.button>
-                            </Link>
+                            {user ? (
+                                <Link to="/app">
+                                    <motion.button
+                                        whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(0,217,165,0.5)' }}
+                                        whileTap={{ scale: 0.97 }}
+                                        className="px-12 py-4 rounded-lg bg-[#00D9A5] text-black font-bold text-lg shadow-[0_0_30px_rgba(0,217,165,0.25)] flex items-center justify-center min-w-[300px]"
+                                    >
+                                        Accedi alla Dashboard
+                                    </motion.button>
+                                </Link>
+                            ) : (
+                                <Link to="/auth?mode=register">
+                                    <motion.button
+                                        whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(0,217,165,0.5)' }}
+                                        whileTap={{ scale: 0.97 }}
+                                        className="px-10 py-4 rounded-lg bg-[#00D9A5] text-black font-bold text-lg shadow-[0_0_30px_rgba(0,217,165,0.25)] flex items-center gap-2 group"
+                                    >
+                                        Access Now <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                    </motion.button>
+                                </Link>
+                            )}
                         </div>
                     </motion.div>
 
@@ -621,7 +791,10 @@ export const LandingPage = () => {
                     <div className="col-span-1 md:col-span-2">
                         <div className="flex items-center gap-2.5 mb-4 justify-center md:justify-start">
                             <img src={kairongBull} alt="Kairon" className="h-9 w-auto" />
-                            <span className="text-xl font-black tracking-[0.15em] text-white uppercase" style={{ fontFamily: 'Georgia, serif' }}>KAIRON</span>
+                            <span className="text-xl font-black tracking-[0.2em] text-white uppercase" style={{
+                                fontFamily: 'Georgia, serif',
+                                textShadow: '0 0-10px rgba(255,255,255,0.4), 0 0 20px rgba(0,217,165,0.3)'
+                            }}>KARION</span>
                         </div>
                         <p className="text-white/20 text-sm max-w-xs mx-auto md:mx-0 leading-relaxed">
                             The professional operating system for modern traders. Integrating institutional data, analytics, and execution in one platform.

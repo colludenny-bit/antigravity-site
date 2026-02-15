@@ -9,7 +9,7 @@ import {
   Target, Shield, AlertTriangle, RefreshCw, Lightbulb, Clock,
   BarChart3, Eye, Minus, Users, ArrowUpRight, ArrowDownRight,
   Scale, Layers, Newspaper, ChevronDown, ChevronUp, ChevronRight,
-  Zap, Calendar, ChevronLeft, Info, X
+  Zap, Calendar, ChevronLeft, Info, X, Crown
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { TechCard, TechCardHeader, TechBadge } from '../ui/TechCard';
@@ -577,6 +577,22 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                       <TypewriterText text={line} speed={20} delay={600 + i * 1000} />
                     </li>
                   ))}
+                  {/* Engine Drivers - Integrated */}
+                  {currentAsset.drivers?.length > 0 && (
+                    <div className="mt-8 pt-6 border-t border-white/5">
+                      <h5 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-3">Engine Drivers</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {currentAsset.drivers.map((driver, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-bold text-white/60 uppercase tracking-widest"
+                          >
+                            {driver}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </ul>
               </div>
 
@@ -597,6 +613,40 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                       <p className="text-lg font-bold text-[#00D9A5] tracking-tight leading-none">Trend</p>
                     </div>
                   </div>
+
+                  {/* Source Breakdown - Integrated */}
+                  {currentAsset.scores && Object.keys(currentAsset.scores).length > 0 && (
+                    <div className="mt-8 pt-6 border-t border-white/5">
+                      <h5 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-4">Source Breakdown</h5>
+                      <div className="space-y-3">
+                        {Object.entries(currentAsset.scores).map(([source, score]) => (
+                          <div key={source} className="group">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest group-hover:text-white/60 transition-colors">
+                                {source}
+                              </span>
+                              <span className={cn(
+                                "text-[10px] font-mono font-bold",
+                                score > 0 ? "text-[#00D9A5]" : score < 0 ? "text-red-400" : "text-white/30"
+                              )}>
+                                {score > 0 ? '+' : ''}{score.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.abs(score) * 100}%` }}
+                                className={cn(
+                                  "h-full rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]",
+                                  score > 0 ? "bg-[#00D9A5]" : "bg-red-500"
+                                )}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1604,6 +1654,7 @@ const ActivitySidebar = ({ news, events, strategies }) => {
 
 // Daily Bias Header - Compact with inline expandable items (zoom in/out)
 const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
+  const { subscription } = useAuth();
   const [expandedItem, setExpandedItem] = useState(null);
 
   const bullishCount = analyses ? Object.values(analyses).filter(a => a.direction === 'Up').length : 0;
@@ -1658,6 +1709,20 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
     }
   };
 
+  // Plan badge styling mapping
+  const planColors = {
+    'pro': { border: 'border-amber-500/30', bg: 'bg-amber-500/10', text: 'text-amber-500', icon: Crown },
+    'plus': { border: 'border-[#00D9A5]/30', bg: 'bg-[#00D9A5]/10', text: 'text-[#00D9A5]', icon: Zap },
+    'essential': { border: 'border-blue-500/30', bg: 'bg-blue-500/10', text: 'text-blue-500', icon: Shield },
+    'free': { border: 'border-slate-500/30', bg: 'bg-slate-500/10', text: 'text-slate-400', icon: Activity }
+  };
+
+  const planName = subscription?.plan_name || 'Free Trader';
+  const planSlug = subscription?.plan_slug || 'free';
+  const slugBase = planSlug.split('-')[0].toLowerCase();
+  const style = planColors[slugBase] || planColors.free;
+  const PlanIcon = style.icon;
+
   const toggleItem = (item) => {
     setExpandedItem(expandedItem === item ? null : item);
   };
@@ -1667,7 +1732,6 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
       className="space-y-2"
       onMouseLeave={() => expandedItem && setExpandedItem(null)}
     >
-      {/* Main Header Row */}
       {/* Main Header Row */}
       <div className="flex items-center justify-between p-3 rounded-lg font-apple bg-white !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] dark:bg-white/5 dark:!border-white/5 dark:glass-edge dark:shadow-none">
         {/* Left side: Bias + VIX + Regime */}
@@ -1746,14 +1810,28 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
           </button>
         </div>
 
-        {/* Right side: Next Event */}
-        {nextEvent && (
-          <div className="flex items-center gap-2 text-base pl-4">
-            <AlertTriangle className="w-4 h-4 text-yellow-400" />
-            <span className="text-yellow-400">{nextEvent.event}</span>
-            <span className="text-white/40">{nextEvent.countdown}</span>
-          </div>
-        )}
+        {/* Right side: News + Subscription Plan Badge */}
+        <div className="flex items-center gap-6">
+          {nextEvent && (
+            <div className="flex items-center gap-2 text-base pl-4 border-l border-slate-200 dark:border-white/10 h-6">
+              <AlertTriangle className="w-4 h-4 text-yellow-400" />
+              <span className="text-yellow-400 font-bold uppercase tracking-wider">{nextEvent.event}</span>
+              <span className="text-white/40">{nextEvent.countdown}</span>
+            </div>
+          )}
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all hover:brightness-110 cursor-default",
+              style.bg, style.border, style.text
+            )}
+          >
+            <PlanIcon className="w-4 h-4" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">{planName}</span>
+          </motion.div>
+        </div>
       </div>
 
       {/* Expanded Details Panel - News-style summary */}
@@ -1812,8 +1890,9 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [multiSourceData, setMultiSourceData] = useState(null);
   const [cotSummary, setCotSummary] = useState(null);
+  const [engineData, setEngineData] = useState(null); // Renamed from engineCards to engineData
   const [loading, setLoading] = useState(true);
-  const [favoriteCharts, setFavoriteCharts] = useState(['XAUUSD', 'NAS100', 'SP500']);
+  const [favoriteCharts, setFavoriteCharts] = useState(['XAUUSD', 'NAS100', 'SP500', 'EURUSD']);
   const [favoriteCOT, setFavoriteCOT] = useState(['NAS100', 'SP500']);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
@@ -1825,13 +1904,22 @@ export default function DashboardPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [multiRes, cotRes] = await Promise.all([
+      const token = localStorage.getItem('token');
+      const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const [multiRes, cotRes, engineRes] = await Promise.all([
         axios.get(`${API}/analysis/multi-source`),
-        axios.get(`${API}/cot/data`).catch(() => ({ data: null }))
+        axios.get(`${API}/cot/data`).catch(() => ({ data: null })),
+        axios.get(`${API}/engine/cards`, { headers: authHeader }).catch(() => ({ data: null }))
       ]);
 
       setMultiSourceData(multiRes.data);
       setCotSummary(cotRes.data);
+      if (engineRes.data && Array.isArray(engineRes.data) && engineRes.data.length > 0) {
+        setEngineData(engineRes.data); // Set engineData here
+      } else {
+        setEngineData([]); // Ensure it's an empty array if no data
+      }
       setLastUpdate(new Date());
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -1842,7 +1930,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 300000);
+    const interval = setInterval(fetchData, 30000); // Live update every 30s
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -1861,15 +1949,22 @@ export default function DashboardPage() {
   const analysesData = analyses || mockAnalyses;
 
   // Build assets array for chart tabs (no VIX)
-  const assetsList = Object.entries(analysesData).map(([symbol, data]) => ({
-    symbol,
-    price: data.price,
-    direction: data.direction,
-    confidence: data.confidence,
-    impulse: data.impulse,
-    explanation: data.drivers?.map(d => `${d.name}: ${d.impact}`).join('. '),
-    sparkData: [30, 35, 28, 42, 38, 55, 48, 52]
-  }));
+  const assetsList = Object.entries(analysesData).map(([symbol, data]) => {
+    // Find engine data for this symbol
+    const assetEngineData = engineData?.find(card => card.asset === symbol);
+
+    return {
+      symbol,
+      price: data.price,
+      direction: assetEngineData?.direction === 'UP' ? 'Up' : assetEngineData?.direction === 'DOWN' ? 'Down' : data.direction,
+      confidence: assetEngineData?.probability ?? data.confidence,
+      impulse: assetEngineData?.impulse ?? data.impulse,
+      explanation: data.drivers?.map(d => `${d.name}: ${d.impact}`).join('. '),
+      scores: assetEngineData?.scores || {},
+      drivers: assetEngineData?.drivers || [],
+      sparkData: [30, 35, 28, 42, 38, 55, 48, 52]
+    };
+  });
 
   // Options mock data
   const optionsData = {
@@ -2067,7 +2162,7 @@ export default function DashboardPage() {
           analyses={analysesData}
           vix={vix || { current: 17.62, change: -0.96 }}
           regime={regime || 'risk-on'}
-          nextEvent={next_event || { event: 'CPI Data Release (Ven)', countdown: '2g' }}
+          nextEvent={next_event || { event: 'US Core CPI m/m', countdown: '13h' }}
         />
       </div>
 

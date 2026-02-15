@@ -16,6 +16,7 @@ import { LockScreen } from './components/layout/LockScreen';
 import LandingPage from './components/pages/LandingPage';
 import AuthPage from './components/pages/AuthPage';
 import DashboardPage from './components/pages/DashboardPage';
+import ProfilePage from './components/pages/ProfilePage';
 import StrategyPage from './components/pages/StrategyPage';
 import ChartsPage from './components/pages/ChartsPage';
 import PsychologyPage from './components/pages/PsychologyPage';
@@ -36,6 +37,7 @@ import CryptoPage from './components/pages/CryptoPage';
 import CalculatorPage from './components/pages/CalculatorPage';
 import PerformancePage from './components/pages/PerformancePage';
 import PricingPage from './components/pages/PricingPage';
+import CheckoutSuccessPage from './components/pages/CheckoutSuccessPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -61,7 +63,7 @@ const ProtectedRoute = ({ children }) => {
 };
 
 // Public Route Component (redirect if authenticated)
-const PublicRoute = ({ children }) => {
+const PublicRoute = ({ children, isHome = false }) => {
   const { user, isInitialized } = useAuth();
 
   // Wait until auth is fully initialized before making routing decisions
@@ -73,7 +75,8 @@ const PublicRoute = ({ children }) => {
     );
   }
 
-  if (user) {
+  // Only redirect away if NOT the home page
+  if (user && !isHome) {
     return <Navigate to="/app" replace />;
   }
 
@@ -87,7 +90,7 @@ function AppRoutes() {
       <Route
         path="/"
         element={
-          <PublicRoute>
+          <PublicRoute isHome>
             <LandingPage />
           </PublicRoute>
         }
@@ -104,6 +107,10 @@ function AppRoutes() {
         path="/pricing"
         element={<PricingPage />}
       />
+      <Route
+        path="/checkout/success"
+        element={<CheckoutSuccessPage />}
+      />
 
       {/* Protected Routes - Main App */}
       <Route
@@ -115,6 +122,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route path="report" element={<ReportPage />} />
         <Route path="strategy" element={<StrategyPage />} />
         <Route path="charts" element={<ChartsPage />} />

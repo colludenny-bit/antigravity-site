@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     ArrowRight, Check, X, Sparkles, Shield, Zap, Crown,
     BarChart3, Brain, Globe, LineChart, Target, Calculator,
-    BookOpen, Newspaper, PieChart, Activity, ChevronRight
+    BookOpen, Newspaper, PieChart, Activity, ChevronRight, Loader2
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'sonner';
 import kairongBull from '../../assets/kairon-bull.png';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -133,8 +135,20 @@ if (typeof document !== 'undefined' && !document.getElementById(ledStyleId)) {
 /* ═══════════════════════════════════════════════════════════════════
    PRICING CARD
    ═══════════════════════════════════════════════════════════════════ */
-const PricingCard = ({ plan, index }) => {
+const PricingCard = ({ plan, index, annual, onCheckout }) => {
     const isPopular = plan.badge === 'Most Popular';
+    const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+    const handleCheckout = async () => {
+        setCheckoutLoading(true);
+        try {
+            await onCheckout(plan.id, annual);
+        } catch (e) {
+            // error handled upstream
+        } finally {
+            setCheckoutLoading(false);
+        }
+    };
 
     return (
         <motion.div
@@ -233,8 +247,10 @@ const PricingCard = ({ plan, index }) => {
                     )}
 
                     {/* CTA Button */}
-                    <Link to="/auth?mode=register" className="mb-8">
+                    <div className="mb-8">
                         <motion.button
+                            onClick={handleCheckout}
+                            disabled={checkoutLoading}
                             whileHover={{
                                 scale: 1.03,
                                 boxShadow: `0 0 40px ${plan.color}40`,
@@ -243,13 +259,19 @@ const PricingCard = ({ plan, index }) => {
                             className={`w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-300 ${isPopular
                                 ? 'text-black'
                                 : 'text-white border border-white/10 bg-white/[0.04] hover:bg-white/[0.08]'
-                                }`}
+                                } ${checkoutLoading ? 'opacity-70 cursor-wait' : ''}`}
                             style={isPopular ? { backgroundColor: plan.color } : {}}
                         >
-                            Inizia con {plan.name}
-                            <ArrowRight className="w-4 h-4" />
+                            {checkoutLoading ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <>
+                                    Inizia con {plan.name}
+                                    <ArrowRight className="w-4 h-4" />
+                                </>
+                            )}
                         </motion.button>
-                    </Link>
+                    </div>
 
                     {/* Features list */}
                     <div className="space-y-3 flex-1">
@@ -322,6 +344,25 @@ const FAQItem = ({ item, index }) => {
    ═══════════════════════════════════════════════════════════════════ */
 const PricingPage = () => {
     const [annual, setAnnual] = useState(false);
+    const [couponCode, setCouponCode] = useState('');
+    const [showCouponInput, setShowCouponInput] = useState(false);
+    const { user, checkoutPlan } = useAuth();
+    const navigate = useNavigate();
+
+    const handleCheckout = async (planId, isAnnual) => {
+        const slug = `${planId}-${isAnnual ? 'annual' : 'monthly'}`;
+        if (!user) {
+            // Not logged in — redirect to auth with plan preserved
+            navigate(`/auth?mode=register&plan=${slug}&coupon=${couponCode}`);
+            return;
+        }
+        try {
+            await checkoutPlan(slug, isAnnual, couponCode);
+        } catch (error) {
+            const detail = error.response?.data?.detail || error.message;
+            toast.error(`Errore checkout: ${detail}`);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-black text-white font-apple overflow-x-hidden selection:bg-[#00D9A5]/30">
@@ -411,10 +452,42 @@ const PricingPage = () => {
                                 <motion.span
                                     initial={{ opacity: 0, scale: 0.8 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    className="text-xs font-bold text-[#00D9A5] bg-[#00D9A5]/10 px-3 py-1 rounded-full border border-[#00D9A5]/20"
+                                    className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-[#00D9A5]/15 text-[#00D9A5] uppercase tracking-wider"
                                 >
-                                    Fino a -25%
+                                    Fino al 25% Off
                                 </motion.span>
+                            )}
+                        </div>
+
+                        {/* Discount Code Section */}
+                        <div className="flex flex-col items-center mb-16">
+                            {!showCouponInput ? (
+                                <button
+                                    onClick={() => setShowCouponInput(true)}
+                                    className="text-xs font-bold text-white/30 hover:text-[#00D9A5] transition-colors uppercase tracking-[0.2em]"
+                                >
+                                    Hai un codice sconto?
+                                </button>
+                            ) : (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="flex items-center gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08] backdrop-blur-md"
+                                >
+                                    <input
+                                        type="text"
+                                        placeholder="Inserisci codice"
+                                        value={couponCode}
+                                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                        className="bg-transparent border-none focus:ring-0 text-sm font-bold uppercase tracking-widest px-4 py-2 w-48 placeholder:text-white/20"
+                                    />
+                                    <button
+                                        onClick={() => setShowCouponInput(false)}
+                                        className="p-2 text-white/40 hover:text-white transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </motion.div>
                             )}
                         </div>
                     </motion.div>
@@ -439,7 +512,7 @@ const PricingPage = () => {
                                     period: annual ? '/anno' : '/mese',
                                     savings: annual ? savings : null,
                                     discountPct: annual ? plan.annualDiscount : null,
-                                }} index={i} />
+                                }} index={i} annual={annual} onCheckout={handleCheckout} />
                             );
                         })}
                     </div>

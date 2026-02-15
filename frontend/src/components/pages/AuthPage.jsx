@@ -12,7 +12,7 @@ import { TrendingUp, Mail, Lock, User, ArrowRight, Sparkles } from 'lucide-react
 
 export default function AuthPage() {
   const { t } = useTranslation();
-  const { login, register } = useAuth();
+  const { login, register, checkoutPlan } = useAuth();
   const [searchParams] = useSearchParams();
   const initialMode = searchParams.get('mode');
 
@@ -29,12 +29,20 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
+      let userData;
       if (isLogin) {
-        await login(formData.email, formData.password);
+        userData = await login(formData.email, formData.password);
         toast.success('Benvenuto!');
       } else {
-        await register(formData.email, formData.password, formData.name);
+        userData = await register(formData.email, formData.password, formData.name);
         toast.success('Account creato con successo!');
+      }
+
+      const plan = searchParams.get('plan');
+      const coupon = searchParams.get('coupon');
+      if (plan) {
+        const isAnnual = plan.includes('annual');
+        await checkoutPlan(plan, isAnnual, coupon);
       }
     } catch (error) {
       console.error("Auth Error:", error);
@@ -54,20 +62,28 @@ export default function AuthPage() {
       const socialPass = 'social_login_pass';
       const socialName = provider === 'google' ? 'Google User' : 'Apple User';
 
+      let userData;
       if (isLogin) {
         try {
-          await login(socialEmail, socialPass);
+          userData = await login(socialEmail, socialPass);
           toast.success(`Accesso con ${provider === 'google' ? 'Google' : 'Apple'} riuscito!`);
         } catch (e) {
           toast.error("Utente non trovato. Devi prima registrarti.");
         }
       } else {
         try {
-          await register(socialEmail, socialPass, socialName);
+          userData = await register(socialEmail, socialPass, socialName);
           toast.success(`Registrazione con ${provider === 'google' ? 'Google' : 'Apple'} completata!`);
         } catch (e) {
           toast.error("Utente già registrato. Effettua il login.");
         }
+      }
+
+      const plan = searchParams.get('plan');
+      const coupon = searchParams.get('coupon');
+      if (userData && plan) {
+        const isAnnual = plan.includes('annual');
+        await checkoutPlan(plan, isAnnual, coupon);
       }
     } catch (error) {
       console.error("Social Auth Error:", error);
