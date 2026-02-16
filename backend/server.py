@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -19,6 +19,10 @@ import math
 import yfinance as yf
 from functools import lru_cache
 import asyncio
+import stripe
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from market_data import market_provider
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -117,6 +121,19 @@ latest_engine_cards = []
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Stripe configuration
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '').strip()
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '').strip()
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+STRIPE_SUCCESS_URL = os.environ.get('STRIPE_SUCCESS_URL', f'{FRONTEND_URL}/pricing?checkout=success').strip()
+STRIPE_CANCEL_URL = os.environ.get('STRIPE_CANCEL_URL', f'{FRONTEND_URL}/pricing?checkout=cancel').strip()
+STRIPE_SESSION_MODE = os.environ.get('STRIPE_SESSION_MODE', 'subscription').lower()
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+    stripe.max_network_retries = 1
+else:
+    logger.warning("Stripe secret key missing; checkout endpoint will respond with 503.")
+
 # ==================== MODELS ====================
 
 class UserCreate(BaseModel):
@@ -141,6 +158,19 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+class CheckoutSessionCreate(BaseModel):
+    price_id: str
+    quantity: int = Field(default=1, ge=1)
+    mode: str = Field(default="subscription")
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
+    customer_email: Optional[EmailStr] = None
+    metadata: Optional[Dict[str, str]] = None
+
+class CheckoutSessionResponse(BaseModel):
+    session_id: str
+    url: str
 
 class PsychologyCheckin(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -2148,6 +2178,7 @@ async def update_language(language: str, current_user: dict = Depends(get_curren
     await db.users.update_one({"id": current_user["id"]}, {"$set": {"language": language}})
     return {"status": "updated", "language": language}
 
+<<<<<<< Updated upstream
 # ==================== MARKET ANALYSIS ====================
 
 @api_router.get("/market/analysis")
@@ -2256,6 +2287,76 @@ async def scheduled_engine_run():
     global latest_engine_cards
     if multi_source_engine:
         latest_engine_cards = await multi_source_engine.run_analysis()
+=======
+# ==================== STRIPE PAYMENTS ====================
+
+@api_router.post("/create-checkout", response_model=CheckoutSessionResponse)
+async def create_checkout_session(payload: CheckoutSessionCreate):
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Stripe non è configurato")
+
+    mode = payload.mode.lower()
+    if mode not in {"subscription", "payment"}:
+        raise HTTPException(status_code=400, detail="Modalità Stripe non supportata")
+
+    success_url = payload.success_url or STRIPE_SUCCESS_URL
+    cancel_url = payload.cancel_url or STRIPE_CANCEL_URL
+    if not success_url or not cancel_url:
+        raise HTTPException(status_code=400, detail="URL di reindirizzamento mancanti")
+
+    try:
+        session = stripe.checkout.Session.create(
+            success_url=success_url,
+            cancel_url=cancel_url,
+            payment_method_types=["card"],
+            mode=mode,
+            metadata=payload.metadata or {},
+            customer_email=payload.customer_email,
+            line_items=[
+                {
+                    "price": payload.price_id,
+                    "quantity": max(payload.quantity, 1),
+                }
+            ],
+            allow_promotion_codes=True,
+            locale="it",
+        )
+    except stripe.error.StripeError as exc:
+        logger.error("Errore Stripe create checkout: %s", exc)
+        raise HTTPException(status_code=502, detail="Impossibile avviare il pagamento")
+
+    if not getattr(session, "url", None):
+        raise HTTPException(status_code=502, detail="Sessione Stripe non completa")
+
+    return CheckoutSessionResponse(session_id=session.id, url=session.url)
+
+
+@api_router.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=404, detail="Webhook Stripe non configurato")
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    if not sig_header:
+        raise HTTPException(status_code=400, detail="Intestazione stripe-signature mancante")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except ValueError as exc:
+        logger.warning("Payload Stripe non valido: %s", exc)
+        raise HTTPException(status_code=400, detail="Payload Stripe non valido")
+    except stripe.error.SignatureVerificationError as exc:
+        logger.warning("Firma Stripe non valida: %s", exc)
+        raise HTTPException(status_code=400, detail="Firma Stripe non valida")
+
+    logger.info("Webhook Stripe ricevuto: %s", event["type"])
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        logger.debug("Checkout completato %s (%s)", session.get("id"), session.get("customer_email") or session.get("customer"))
+
+    return {"received": True}
+>>>>>>> Stashed changes
 
 # ==================== ROOT ====================
 
@@ -2396,10 +2497,56 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+<<<<<<< Updated upstream
     if scheduler.running:
         scheduler.shutdown()
     if not DEMO_MODE and client:
         client.close()
+=======
+    if not DEMO_MODE:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+# ==================== SCHEDULER ====================
+
+scheduler = AsyncIOScheduler()
+
+async def market_analysis_task():
+    """Background task to analyze market conditions every 3 hours"""
+    logger.info("🕒 Running scheduled market analysis...")
+    try:
+        # 1. Fetch latest prices for key assets
+        symbols = ["^GSPC", "^IXIC", "GC=F", "BTC-USD", "^VIX"]
+        prices = await market_provider.get_prices(symbols)
+        logger.info(f"📈 Market Snapshot: SPX {prices.get('^GSPC', 0)}, VIX {prices.get('^VIX', 0)}")
+        
+        # 2. Run AI broad market scan (Placeholder)
+        # In future: Pass prices to LLM for analysis
+        
+        # 3. Update 'MarketContext' in DB (Pseudo-code)
+        # await db.market_context.update_one(...)
+        
+    except Exception as e:
+        logger.error(f"Error in market analysis task: {e}")
+
+@app.on_event("startup")
+async def start_scheduler():
+    scheduler.add_job(
+        market_analysis_task, 
+        IntervalTrigger(hours=3), 
+        id="market_analysis", 
+        replace_existing=True
+    )
+    scheduler.start()
+    logger.info("⏳ AI Market Scheduler started (every 3h)")
+
+@app.on_event("shutdown")
+async def stop_scheduler():
+    scheduler.shutdown()
+    logger.info("🛑 Scheduler stopped")
+>>>>>>> Stashed changes
 
 if __name__ == "__main__":
     import uvicorn

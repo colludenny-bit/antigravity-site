@@ -37,6 +37,7 @@ import CalculatorPage from './components/pages/CalculatorPage';
 import PerformancePage from './components/pages/PerformancePage';
 import PricingPage from './components/pages/PricingPage';
 import CheckoutSuccessPage from './components/pages/CheckoutSuccessPage';
+import IntroPreviewPage from './components/pages/IntroPreviewPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -109,6 +110,10 @@ function AppRoutes() {
         element={<CheckoutSuccessPage />}
       />
       <Route
+        path="/intro-preview"
+        element={<IntroPreviewPage />}
+      />
+      <Route
         path="/welcome"
         element={<LandingPage />}
       />
@@ -151,13 +156,14 @@ function AppRoutes() {
 }
 
 function App() {
+  const isIntroPreviewPath = typeof window !== 'undefined' && window.location.pathname === '/intro-preview';
   const [isLocked, setIsLocked] = useState(true);
 
   return (
     <ThemeProvider>
       <AuthProvider>
         <MarketProvider>
-          {isLocked ? (
+          {isLocked && !isIntroPreviewPath ? (
             <LockScreen onUnlock={() => setIsLocked(false)} />
           ) : (
             <BrowserRouter>

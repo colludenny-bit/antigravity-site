@@ -11,6 +11,7 @@ import {
 import kairongBull from '../../assets/kairon-bull.png';
 import { cn } from '../../lib/utils';
 import { useTranslation } from 'react-i18next';
+import { BullLogo } from '../ui/BullLogo';
 
 /* ═══════════════════════════════════════════════════════════════════
    ANIMATED COUNTER HOOK
@@ -538,7 +539,7 @@ export const LandingPage = () => {
             <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] bg-black/60 backdrop-blur-2xl">
                 <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <img src={kairongBull} alt="Kairon" className="h-10 w-auto" />
+                        <BullLogo className="h-10 w-auto" />
                         <div className="relative">
                             <span className="text-xl font-black tracking-[0.2em] text-white uppercase" style={{
                                 fontFamily: 'Georgia, serif',

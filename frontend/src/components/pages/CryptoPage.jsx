@@ -948,7 +948,6 @@ export default function CryptoPage() {
       const data = await MarketService.getTop30();
       if (data?.length) {
         setCoins(data);
-        if (!data.find(c => c.id === selectedId)) setSelectedId(data[0].id);
       }
       setLoading(false);
       setIsUpdating(false);
@@ -956,7 +955,15 @@ export default function CryptoPage() {
     fetchCoins();
     const interval = setInterval(fetchCoins, 60000);
     return () => clearInterval(interval);
-  }, [selectedId]);
+  }, []);
+
+  useEffect(() => {
+    if (!coins.length) return;
+    setSelectedId((prev) => {
+      if (prev && coins.some((c) => c.id === prev)) return prev;
+      return coins[0].id;
+    });
+  }, [coins]);
 
   // Fetch chart data when coin changes
   useEffect(() => {

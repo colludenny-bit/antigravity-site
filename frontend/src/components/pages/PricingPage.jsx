@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import axios from 'axios';
+import { toast } from 'sonner';
 import {
     ArrowRight, Check, X, Sparkles, Shield, Zap, Crown,
     BarChart3, Brain, Globe, LineChart, Target, Calculator,
@@ -115,6 +117,37 @@ const faqItems = [
         a: 'Registrati, scegli il tuo piano e sei operativo in meno di 2 minuti. Nessuna configurazione complessa.',
     },
 ];
+
+const buildStripeEnvKey = (planId, period = '') => {
+    const normalizedId = planId.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const normalizedPeriod = period ? `_${period.toUpperCase()}` : '';
+    return `REACT_APP_STRIPE_PRICE_${normalizedId}${normalizedPeriod}`;
+};
+
+const getStripePriceId = (planId, period) => {
+    const specific = process.env[buildStripeEnvKey(planId, period)];
+    if (specific) return specific;
+    return process.env[buildStripeEnvKey(planId, '')] || '';
+};
+
+const getApiBaseUrl = () => {
+    const envUrl = process.env.REACT_APP_BACKEND_URL?.replace(/\/$/, '');
+    if (envUrl) {
+        return `${envUrl}/api`;
+    }
+
+    if (typeof window !== 'undefined' && window.location.origin) {
+        return `${window.location.origin}/api`;
+    }
+
+    return '/api';
+};
+
+const DEFAULT_STRIPE_SESSION_MODE = ['payment', 'subscription'].includes(
+    process.env.REACT_APP_STRIPE_SESSION_MODE?.toLowerCase()
+)
+    ? process.env.REACT_APP_STRIPE_SESSION_MODE.toLowerCase()
+    : 'subscription';
 
 /* ═══════════════════════════════════════════════════════════════════
    LED SPIN KEYFRAMES (injected once)
@@ -271,35 +304,38 @@ const PricingCard = ({ plan, index, annual, onCheckout }) => {
                                 </>
                             )}
                         </motion.button>
-                    </div>
+
+                    </div >
 
                     {/* Features list */}
-                    <div className="space-y-3 flex-1">
+                    < div className="space-y-3 flex-1" >
                         <div className="text-xs text-white/40 uppercase tracking-widest font-bold mb-4">
                             Cosa include
                         </div>
-                        {plan.features.map((feat, i) => (
-                            <div key={i} className="flex items-start gap-3">
-                                {feat.included ? (
-                                    <Check
-                                        className="w-4.5 h-4.5 mt-0.5 flex-shrink-0"
-                                        style={{ color: plan.color }}
-                                    />
-                                ) : (
-                                    <X className="w-4.5 h-4.5 mt-0.5 flex-shrink-0 text-white/20" />
-                                )}
-                                <span
-                                    className={`text-[15px] ${feat.included ? 'text-white/80' : 'text-white/25'
-                                        }`}
-                                >
-                                    {feat.text}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </motion.div>
+                        {
+                            plan.features.map((feat, i) => (
+                                <div key={i} className="flex items-start gap-3">
+                                    {feat.included ? (
+                                        <Check
+                                            className="w-4.5 h-4.5 mt-0.5 flex-shrink-0"
+                                            style={{ color: plan.color }}
+                                        />
+                                    ) : (
+                                        <X className="w-4.5 h-4.5 mt-0.5 flex-shrink-0 text-white/20" />
+                                    )}
+                                    <span
+                                        className={`text-[15px] ${feat.included ? 'text-white/80' : 'text-white/25'
+                                            }`}
+                                    >
+                                        {feat.text}
+                                    </span>
+                                </div>
+                            ))
+                        }
+                    </div >
+                </div >
+            </div >
+        </motion.div >
     );
 };
 
@@ -363,6 +399,7 @@ const PricingPage = () => {
             toast.error(`Errore checkout: ${detail}`);
         }
     };
+
 
     return (
         <div className="min-h-screen bg-black text-white font-apple overflow-x-hidden selection:bg-[#00D9A5]/30">
@@ -503,6 +540,9 @@ const PricingPage = () => {
                             const annualMonthly = monthlyPrice * (1 - plan.annualDiscount);
                             const annualTotal = annualMonthly * 12;
                             const savings = (monthlyPrice * 12 - annualTotal).toFixed(0);
+                            const periodKey = annual ? 'annual' : 'monthly';
+                            const checkoutKey = `${plan.id}-${periodKey}`;
+                            const stripePriceId = getStripePriceId(plan.id, periodKey);
                             return (
                                 <PricingCard key={plan.id} plan={{
                                     ...plan,
