@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
@@ -20,10 +21,12 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { SupportModal, WhatsNewModal, InviteFriendModal } from '../ui/SupportModals';
 
+const API = `${(process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '')}/api`;
+
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
-  const { logout, user } = useAuth();
+  const { logout, user, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState('account');
 
   // Modals state
@@ -33,6 +36,36 @@ export default function SettingsPage() {
 
   // Subscriptions Tab State
   const [timeRemaining, setTimeRemaining] = useState({ days: 1, hours: 3, mins: 34, secs: 24 });
+
+  // Account security state
+  const [accountState, setAccountState] = useState(null);
+  const [accountLoading, setAccountLoading] = useState(false);
+
+  // Credential flows
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailCode, setEmailCode] = useState('');
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
+
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordCode, setPasswordCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordCodeSent, setPasswordCodeSent] = useState(false);
+
+  // Phone verification flow
+  const phoneCountries = [
+    { code: '+39', label: 'Italia (+39)' },
+    { code: '+1', label: 'USA/Canada (+1)' },
+    { code: '+44', label: 'UK (+44)' },
+    { code: '+33', label: 'Francia (+33)' },
+    { code: '+49', label: 'Germania (+49)' },
+    { code: '+34', label: 'Spagna (+34)' },
+    { code: '+41', label: 'Svizzera (+41)' },
+  ];
+  const [phoneCountryCode, setPhoneCountryCode] = useState('+39');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneCodeSent, setPhoneCodeSent] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -56,6 +89,157 @@ export default function SettingsPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const loadAccountState = async () => {
+    setAccountLoading(true);
+    try {
+      const [securityRes, linkedRes] = await Promise.all([
+        axios.get(`${API}/account/security-state`),
+        axios.get(`${API}/account/linked-accounts`).catch(() => ({ data: null })),
+      ]);
+      setAccountState({
+        ...securityRes.data,
+        linked_accounts: linkedRes.data?.linked_accounts || securityRes.data?.linked_accounts || [],
+        current_provider: linkedRes.data?.current_provider || securityRes.data?.current_provider || 'password',
+      });
+    } catch (error) {
+      console.error('Failed to load account state', error);
+      toast.error('Impossibile caricare impostazioni account');
+    } finally {
+      setAccountLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'account') {
+      loadAccountState();
+    }
+  }, [activeTab]);
+
+  const requestEmailCode = async () => {
+    if (!newEmail) {
+      toast.error('Inserisci una nuova email');
+      return;
+    }
+    try {
+      const { data } = await axios.post(`${API}/account/email/request-code`, { new_email: newEmail });
+      setEmailCodeSent(true);
+      if (data?.debug_code) setEmailCode(data.debug_code);
+      toast.success(`Codice inviato a ${data?.target || 'nuova email'}`);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Invio codice non riuscito');
+    }
+  };
+
+  const confirmEmailChange = async () => {
+    if (!emailCode) {
+      toast.error('Inserisci il codice');
+      return;
+    }
+    try {
+      const { data } = await axios.post(`${API}/account/email/confirm`, {
+        new_email: newEmail,
+        code: emailCode,
+      });
+      if (data?.access_token) {
+        localStorage.setItem('token', data.access_token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${data.access_token}`;
+      }
+      await refreshUser();
+      await loadAccountState();
+      setShowEmailForm(false);
+      setEmailCode('');
+      setEmailCodeSent(false);
+      toast.success('Email aggiornata con successo');
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Verifica email fallita');
+    }
+  };
+
+  const requestPasswordCode = async () => {
+    try {
+      const { data } = await axios.post(`${API}/account/password/request-code`);
+      setPasswordCodeSent(true);
+      if (data?.debug_code) setPasswordCode(data.debug_code);
+      toast.success(`Codice inviato a ${data?.target || 'email account'}`);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Invio codice non riuscito');
+    }
+  };
+
+  const confirmPasswordChange = async () => {
+    if (!passwordCode || newPassword.length < 8) {
+      toast.error('Inserisci codice e nuova password (min 8 caratteri)');
+      return;
+    }
+    try {
+      await axios.post(`${API}/account/password/confirm`, {
+        code: passwordCode,
+        new_password: newPassword,
+      });
+      setShowPasswordForm(false);
+      setPasswordCode('');
+      setNewPassword('');
+      setPasswordCodeSent(false);
+      toast.success('Password aggiornata');
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Cambio password fallito');
+    }
+  };
+
+  const requestPhoneCode = async () => {
+    if (!phoneNumber) {
+      toast.error('Inserisci il numero di telefono');
+      return;
+    }
+    try {
+      const { data } = await axios.post(`${API}/account/phone/request-code`, {
+        country_code: phoneCountryCode,
+        phone_number: phoneNumber,
+        channel: 'sms',
+      });
+      setPhoneCodeSent(true);
+      if (data?.debug_code) setPhoneCode(data.debug_code);
+      toast.success(`Codice inviato (${data?.channel || 'sms'})`);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Invio codice telefono non riuscito');
+    }
+  };
+
+  const confirmPhoneCode = async () => {
+    if (!phoneCode) {
+      toast.error('Inserisci il codice SMS');
+      return;
+    }
+    try {
+      await axios.post(`${API}/account/phone/confirm`, {
+        country_code: phoneCountryCode,
+        phone_number: phoneNumber,
+        code: phoneCode,
+      });
+      setPhoneCodeSent(false);
+      setPhoneCode('');
+      await loadAccountState();
+      toast.success('Telefono verificato');
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Verifica telefono fallita');
+    }
+  };
+
+  const handleUnlinkProvider = async (provider) => {
+    try {
+      const { data } = await axios.delete(`${API}/account/linked-accounts/${provider}`);
+      toast.success(`Account ${provider} scollegato`);
+      if (data?.force_logout) {
+        logout();
+        window.location.href = '/auth';
+        return;
+      }
+      await loadAccountState();
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Impossibile scollegare account');
+    }
+  };
 
   const menuSections = [
     {
@@ -316,6 +500,9 @@ export default function SettingsPage() {
       case 'account':
         return (
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {accountLoading && (
+              <div className="text-sm text-white/50">Aggiornamento impostazioni account...</div>
+            )}
             {/* Credentials */}
             <section>
               <h3 className="text-xl font-bold text-white mb-6">Credenziali di accesso</h3>
@@ -323,13 +510,87 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <Label className="text-sm font-bold text-white/70 uppercase tracking-widest">E-mail</Label>
-                    <p className="text-white font-bold mt-1">{user?.email || 'co•••••@gm•••••'}</p>
+                    <p className="text-white font-bold mt-1">{accountState?.email || user?.email || 'co•••••@gm•••••'}</p>
+                    <p className="text-xs text-white/40 mt-1">
+                      {accountState?.email_verified ? 'Email verificata' : 'Email non verificata'}
+                    </p>
                   </div>
-                  <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5">Cambia email</Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl h-10 border-white/10 hover:bg-white/5"
+                    onClick={() => setShowEmailForm(!showEmailForm)}
+                  >
+                    Cambia email
+                  </Button>
                 </div>
                 <div className="flex justify-start">
-                  <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5">Aggiungi password</Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl h-10 border-white/10 hover:bg-white/5"
+                    onClick={() => setShowPasswordForm(!showPasswordForm)}
+                  >
+                    Modifica password
+                  </Button>
                 </div>
+
+                {showEmailForm && (
+                  <div className="mt-5 space-y-3 p-4 rounded-xl border border-white/10 bg-black/20">
+                    <Input
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="Nuova email"
+                      className="bg-white/5 border-white/10 text-white"
+                    />
+                    {emailCodeSent && (
+                      <Input
+                        value={emailCode}
+                        onChange={(e) => setEmailCode(e.target.value)}
+                        placeholder="Codice verifica"
+                        className="bg-white/5 border-white/10 text-white"
+                      />
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button className="rounded-xl" onClick={requestEmailCode}>
+                        Invia codice
+                      </Button>
+                      {emailCodeSent && (
+                        <Button variant="secondary" className="rounded-xl" onClick={confirmEmailChange}>
+                          Conferma cambio email
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {showPasswordForm && (
+                  <div className="mt-5 space-y-3 p-4 rounded-xl border border-white/10 bg-black/20">
+                    {passwordCodeSent && (
+                      <Input
+                        value={passwordCode}
+                        onChange={(e) => setPasswordCode(e.target.value)}
+                        placeholder="Codice verifica"
+                        className="bg-white/5 border-white/10 text-white"
+                      />
+                    )}
+                    <Input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Nuova password (min 8 caratteri)"
+                      className="bg-white/5 border-white/10 text-white"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button className="rounded-xl" onClick={requestPasswordCode}>
+                        Invia codice
+                      </Button>
+                      {passwordCodeSent && (
+                        <Button variant="secondary" className="rounded-xl" onClick={confirmPasswordChange}>
+                          Conferma password
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -338,29 +599,79 @@ export default function SettingsPage() {
             {/* Phone Management */}
             <section>
               <h3 className="text-xl font-bold text-white mb-6">Verifica del telefono</h3>
-              <Button variant="outline" className="rounded-xl h-12 border-white/10 hover:bg-white/5 px-6 font-bold">
-                Aggiungi telefono
-              </Button>
+              <div className="space-y-3 bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Select value={phoneCountryCode} onValueChange={setPhoneCountryCode}>
+                    <SelectTrigger className="bg-white/5 border-white/10 h-12 rounded-xl text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#121517] border-white/10">
+                      {phoneCountries.map((country) => (
+                        <SelectItem key={country.code} value={country.code}>
+                          {country.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="Numero telefono"
+                    className="bg-white/5 border-white/10 h-12 rounded-xl text-white"
+                  />
+                  <Button className="h-12 rounded-xl font-bold" onClick={requestPhoneCode}>
+                    Invia codice
+                  </Button>
+                </div>
+                {phoneCodeSent && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <Input
+                      value={phoneCode}
+                      onChange={(e) => setPhoneCode(e.target.value)}
+                      placeholder="Codice SMS / verifica"
+                      className="bg-white/5 border-white/10 h-12 rounded-xl text-white md:col-span-2"
+                    />
+                    <Button variant="secondary" className="h-12 rounded-xl font-bold" onClick={confirmPhoneCode}>
+                      Conferma numero
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-white/50">
+                  Stato attuale: {accountState?.phone_verified ? `verificato (${accountState?.phone_masked || accountState?.phone_number})` : 'non verificato'}
+                </p>
+              </div>
             </section>
 
             {/* External Accounts */}
             <section>
               <h3 className="text-xl font-bold text-white mb-6">Account esterni collegati</h3>
               <div className="space-y-4">
-                {[1, 2].map((_, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
+                {(accountState?.linked_accounts || []).map((account, i) => (
+                  <div key={`${account.provider}-${i}`} className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
                         <TrendingUp className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-white">Google</h4>
-                        <p className="text-white/60 text-sm">Aggiunto il 1 giu 2021</p>
+                        <h4 className="font-bold text-white capitalize">{account.provider}</h4>
+                        <p className="text-white/60 text-sm">
+                          {account.identifier || 'collegato'} {account.provider === accountState?.current_provider ? '• Sessione attiva' : ''}
+                        </p>
                       </div>
                     </div>
-                    <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5 hover:text-red-500 hover:border-red-500/30">Elimina</Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-xl h-10 border-white/10 hover:bg-white/5 hover:text-red-500 hover:border-red-500/30"
+                      disabled={account.provider === accountState?.current_provider && (accountState?.linked_accounts || []).length <= 1}
+                      onClick={() => handleUnlinkProvider(account.provider)}
+                    >
+                      Elimina
+                    </Button>
                   </div>
                 ))}
+                {accountState?.linked_accounts?.length === 0 && (
+                  <p className="text-white/50 text-sm">Nessun account esterno collegato.</p>
+                )}
               </div>
             </section>
 

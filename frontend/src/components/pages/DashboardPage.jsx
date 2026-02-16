@@ -20,6 +20,7 @@ import { ExportButton } from '../ui/ExportButton';
 import { Skeleton, CardSkeleton } from '../ui/LoadingSkeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { WeeklyBiasScale } from '../ui/WeeklyBiasScale';
+import { detailedStrategies } from '../../data/strategies';
 
 
 // Typewriter Text Component - reveals text character by character
@@ -81,6 +82,13 @@ const CountUp = ({ value, duration = 1500, delay = 0, prefix = '', suffix = '', 
 };
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ''}/api`;
+
+const normalizeStrategyId = (rawId) => {
+  if (!rawId) return rawId;
+  if (rawId === 'rate-vol-alignment') return 'rate-volatility';
+  if (rawId === 'multi-day-ra') return 'multi-day-rejection';
+  return rawId;
+};
 
 // Asset Charts Grid (2-3 charts visible at once)
 const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false, onSyncAsset }) => {
@@ -1427,52 +1435,87 @@ const OptionsPanel = ({ optionsData, animationsReady = false, selectedAsset: pro
   );
 };
 
-// Strategy Selector Panel - With checkbox filtering from Strategia page
-const StrategySelectorPanel = ({ strategies, expandedNews, setExpandedNews }) => {
+// Strategy Selector Panel - data from Strategy Projection Engine
+const StrategySelectorPanel = ({ projections = [], strategiesCatalog = [], expandedNews, setExpandedNews }) => {
   const [showSelector, setShowSelector] = useState(false);
+  const [selectedStrategies, setSelectedStrategies] = useState([]);
 
-  // Available strategies from StrategyPage (with win rates)
-  const availableStrategies = [
-    { id: 'volguard-mr', name: 'VolGuard Mean-Reversion', shortName: 'VG', winRate: 72 },
-    { id: 'gamma-magnet', name: 'GammaMagnet Convergence', shortName: 'GM', winRate: 68 },
-    { id: 'strategy-1', name: 'News Spike Reversion', shortName: 'S1', winRate: 62 },
-    { id: 'rate-vol-alignment', name: 'Rate-Volatility Alignment', shortName: 'RV', winRate: 62 },
-    { id: 'strategy-2', name: 'VIX Range Fade', shortName: 'S2', winRate: 58 },
-    { id: 'multi-day-ra', name: 'Multi-Day Rejection', shortName: 'MD', winRate: 56 },
-  ];
+  const availableStrategies = useMemo(() => {
+    if (Array.isArray(strategiesCatalog) && strategiesCatalog.length > 0) {
+      return strategiesCatalog
+        .map((strategy) => ({
+          id: normalizeStrategyId(strategy.id),
+          name: strategy.name,
+          shortName: strategy.short_name || strategy.shortName || strategy.name?.slice(0, 2)?.toUpperCase() || 'ST',
+          winRate: strategy.win_rate ?? strategy.winRate ?? 0,
+        }))
+        .sort((a, b) => b.winRate - a.winRate);
+    }
 
-  // Selected strategies (default: top 3 by win rate)
-  const [selectedStrategies, setSelectedStrategies] = useState(['volguard-mr', 'gamma-magnet', 'strategy-1']);
+    return detailedStrategies
+      .filter((strategy) => !strategy.isModulator)
+      .map((strategy) => ({
+        id: normalizeStrategyId(strategy.id),
+        name: strategy.name,
+        shortName: strategy.shortName,
+        winRate: strategy.winRate ?? 0,
+      }))
+      .sort((a, b) => b.winRate - a.winRate);
+  }, [strategiesCatalog]);
 
-  // Today's signals for each strategy (simulated - would come from backend)
-  const todaySignals = [
-    { strategyId: 'volguard-mr', asset: 'SP500', bias: 'Long', winRate: 72, summary: 'VIX 17.62 stabile, range post-NFP. SPX tra 6900-6950. Entry su test gamma flip 6900.', trigger: 'VIX Stable + Range' },
-    { strategyId: 'gamma-magnet', asset: 'NAS100', bias: 'Short', winRate: 68, summary: 'Speculatori COT net short. Prezzo vicino a call wall, respinto. Target 21200.', trigger: 'COT Short + Call Wall' },
-    { strategyId: 'gamma-magnet', asset: 'SP500', bias: 'Long', winRate: 68, summary: 'Gamma positivo sopra 6900. Prezzo attratto verso 6950. Supporto forte.', trigger: 'Gamma Magnet 6950' },
-    { strategyId: 'strategy-1', asset: 'XAUUSD', bias: 'Long', winRate: 62, summary: 'Gold a $5055 dopo sell-off. Long liquidation completata. Rimbalzo atteso da supporto.', trigger: 'Post-Liquidation Bounce' },
-    { strategyId: 'strategy-1', asset: 'BTCUSD', bias: 'Short', winRate: 62, summary: 'BTC $67K in sell-off da $100K. Put flow dominante. Target $65K se perde supporto.', trigger: 'Breakdown Setup' },
-    { strategyId: 'rate-vol-alignment', asset: 'EURUSD', bias: 'Long', winRate: 62, summary: 'DXY debole a 96.60. EUR net long speculativo max 6 mesi. Target 1.1950.', trigger: 'USD Weakness' },
-    { strategyId: 'strategy-2', asset: 'NAS100', bias: 'Long', winRate: 58, summary: 'VIX contenuto, Tech in correzione. Fade setup su supporto 21200.', trigger: 'VIX Low + Dip Buy' },
-    { strategyId: 'multi-day-ra', asset: 'XAUUSD', bias: 'Long', winRate: 56, summary: 'Rejection con wick lunga su $5000. Supporto multi-day testato con successo.', trigger: 'Multi-Day Support Hold' },
-  ];
+  useEffect(() => {
+    if (availableStrategies.length === 0) {
+      setSelectedStrategies([]);
+      return;
+    }
 
-  // Filter signals by selected strategies and sort by win rate
-  const filteredSignals = todaySignals
-    .filter(s => selectedStrategies.includes(s.strategyId))
-    .sort((a, b) => b.winRate - a.winRate);
+    const validIds = new Set(availableStrategies.map((s) => s.id));
+    setSelectedStrategies((prev) => {
+      const normalizedPrev = prev.map(normalizeStrategyId).filter((id) => validIds.has(id));
+      if (normalizedPrev.length > 0) return normalizedPrev;
+      return availableStrategies.slice(0, 3).map((strategy) => strategy.id);
+    });
+  }, [availableStrategies]);
+
+  const normalizedSignals = useMemo(() => {
+    return (projections || [])
+      .map((signal) => ({
+        strategyId: normalizeStrategyId(signal.strategy_id || signal.strategyId),
+        asset: signal.asset,
+        bias: signal.bias || 'Neutral',
+        winRate: signal.win_rate ?? signal.winRate ?? 0,
+        probability: signal.probability ?? signal.win_rate ?? signal.winRate ?? 0,
+        summary: signal.summary || '',
+        trigger: signal.trigger || 'N/A',
+        confidence: signal.confidence || 'N/A',
+        entry: signal.entry || null,
+        exit: signal.exit || null,
+      }))
+      .filter((signal) => signal.asset !== 'BTCUSD');
+  }, [projections]);
+
+  const filteredSignals = useMemo(() => {
+    return normalizedSignals
+      .filter((signal) => selectedStrategies.includes(signal.strategyId))
+      .sort((a, b) => b.probability - a.probability);
+  }, [normalizedSignals, selectedStrategies]);
 
   const toggleStrategy = (strategyId) => {
-    if (selectedStrategies.includes(strategyId)) {
+    const normalized = normalizeStrategyId(strategyId);
+    if (selectedStrategies.includes(normalized)) {
       if (selectedStrategies.length > 1) {
-        setSelectedStrategies(selectedStrategies.filter(id => id !== strategyId));
+        setSelectedStrategies(selectedStrategies.filter((id) => id !== normalized));
       }
-    } else {
-      setSelectedStrategies([...selectedStrategies, strategyId]);
+      return;
     }
+    setSelectedStrategies([...selectedStrategies, normalized]);
   };
 
-  const selectAll = () => setSelectedStrategies(availableStrategies.map(s => s.id));
-  const selectNone = () => setSelectedStrategies([availableStrategies[0].id]); // Keep at least one
+  const selectAll = () => setSelectedStrategies(availableStrategies.map((strategy) => strategy.id));
+  const selectNone = () => {
+    if (availableStrategies.length === 0) return;
+    setSelectedStrategies([availableStrategies[0].id]);
+  };
 
   return (
     <TechCard className="p-4 font-apple">
@@ -1507,7 +1550,7 @@ const StrategySelectorPanel = ({ strategies, expandedNews, setExpandedNews }) =>
                   </div>
                 </div>
                 <div className="space-y-1">
-                  {availableStrategies.map(strategy => (
+                  {availableStrategies.map((strategy) => (
                     <button
                       key={strategy.id}
                       onClick={() => toggleStrategy(strategy.id)}
@@ -1518,7 +1561,8 @@ const StrategySelectorPanel = ({ strategies, expandedNews, setExpandedNews }) =>
                           : "bg-transparent text-slate-500 hover:bg-slate-100 dark:text-white/50 dark:hover:bg-white/5"
                       )}
                     >
-                      <span>{strategy.name}</span>
+                      <span className="truncate pr-2">{strategy.name}</span>
+                      <span className="text-xs opacity-60">{strategy.winRate}%</span>
                     </button>
                   ))}
                 </div>
@@ -1534,7 +1578,7 @@ const StrategySelectorPanel = ({ strategies, expandedNews, setExpandedNews }) =>
           <p className="text-sm text-white/40 text-center py-4">Nessun segnale per le strategie selezionate</p>
         ) : (
           filteredSignals.map((s, i) => {
-            const strategy = availableStrategies.find(st => st.id === s.strategyId);
+            const strategy = availableStrategies.find((st) => st.id === s.strategyId);
             return (
               <div
                 key={i}
@@ -1567,10 +1611,10 @@ const StrategySelectorPanel = ({ strategies, expandedNews, setExpandedNews }) =>
                     <div className="w-12 h-1 bg-white/10 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-[#00D9A5] rounded-full"
-                        style={{ width: `${s.winRate}%` }}
+                        style={{ width: `${s.probability}%` }}
                       />
                     </div>
-                    <span className="text-xs text-white/60">{s.winRate}%</span>
+                    <span className="text-xs text-white/60">{s.probability}%</span>
                   </div>
                 </div>
                 <AnimatePresence>
@@ -1587,6 +1631,14 @@ const StrategySelectorPanel = ({ strategies, expandedNews, setExpandedNews }) =>
                           <span className="text-[#00D9A5] font-bold block mb-1">Setup</span>
                           {s.summary}
                         </p>
+                        {s.entry?.zone && s.exit && (
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
+                            <span>Entry: {s.entry.zone[0]} - {s.entry.zone[1]}</span>
+                            <span>Confidence: {s.confidence}</span>
+                            <span>SL: {s.exit.stop_loss}</span>
+                            <span>TP1/TP2: {s.exit.take_profit_1} / {s.exit.take_profit_2}</span>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -1601,7 +1653,7 @@ const StrategySelectorPanel = ({ strategies, expandedNews, setExpandedNews }) =>
 };
 
 // News & Activity Sidebar
-const ActivitySidebar = ({ news, events, strategies }) => {
+const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsSummaries }) => {
   const [activeTab, setActiveTab] = useState('news');
   const [expandedNews, setExpandedNews] = useState(null);
 
@@ -1696,10 +1748,26 @@ const ActivitySidebar = ({ news, events, strategies }) => {
       </TechCard>
 
 
-      {/* Strategy Suggestions - Filtered by Selected Strategies */}
-      <StrategySelectorPanel strategies={strategies} expandedNews={expandedNews} setExpandedNews={setExpandedNews} />
+      {/* 3h News Cycle Summary */}
+      {newsSummaries?.three_hour && (
+        <TechCard className="p-4 font-apple">
+          <h4 className="text-sm font-medium text-white/90 mb-2 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-[#00D9A5]" />
+            Sintesi 3H News Cycle
+          </h4>
+          <p className="text-sm text-white/70 leading-relaxed">{newsSummaries.three_hour}</p>
+        </TechCard>
+      )}
+
+      {/* Strategy Suggestions - from Strategy Projection Engine */}
+      <StrategySelectorPanel
+        projections={strategiesProjections}
+        strategiesCatalog={strategiesCatalog}
+        expandedNews={expandedNews}
+        setExpandedNews={setExpandedNews}
+      />
       <Link
-        to="/strategies"
+        to="/app/strategy"
         className="block mt-3 text-center text-base text-[#00D9A5] hover:underline"
       >
         Vedi tutte le strategie →
@@ -1946,7 +2014,10 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [multiSourceData, setMultiSourceData] = useState(null);
   const [cotSummary, setCotSummary] = useState(null);
-  const [engineData, setEngineData] = useState(null); // Renamed from engineCards to engineData
+  const [engineData, setEngineData] = useState([]);
+  const [strategyProjections, setStrategyProjections] = useState([]);
+  const [strategiesCatalog, setStrategiesCatalog] = useState([]);
+  const [newsBriefing, setNewsBriefing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [favoriteCharts, setFavoriteCharts] = useState(['XAUUSD', 'NAS100', 'SP500']);
   const [favoriteCOT, setFavoriteCOT] = useState(['NAS100', 'SP500']);
@@ -1964,19 +2035,25 @@ export default function DashboardPage() {
       const token = localStorage.getItem('token');
       const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const [multiRes, cotRes, engineRes] = await Promise.all([
+      const [multiRes, cotRes, engineRes, strategyRes, strategyCatalogRes, newsRes] = await Promise.all([
         axios.get(`${API}/analysis/multi-source`),
         axios.get(`${API}/cot/data`).catch(() => ({ data: null })),
-        axios.get(`${API}/engine/cards`, { headers: authHeader }).catch(() => ({ data: null }))
+        axios.get(`${API}/engine/cards`, { headers: authHeader }).catch(() => ({ data: null })),
+        axios.get(`${API}/strategy/projections`, { headers: authHeader }).catch(() => ({ data: null })),
+        axios.get(`${API}/strategy/catalog`, { headers: authHeader }).catch(() => ({ data: null })),
+        axios.get(`${API}/news/briefing`, { headers: authHeader }).catch(() => ({ data: null })),
       ]);
 
       setMultiSourceData(multiRes.data);
       setCotSummary(cotRes.data);
-      if (engineRes.data && Array.isArray(engineRes.data) && engineRes.data.length > 0) {
-        setEngineData(engineRes.data); // Set engineData here
-      } else {
-        setEngineData([]); // Ensure it's an empty array if no data
-      }
+      setEngineData(Array.isArray(engineRes.data) ? engineRes.data : []);
+      setStrategiesCatalog(Array.isArray(strategyCatalogRes.data?.strategies) ? strategyCatalogRes.data.strategies : []);
+      setStrategyProjections(Array.isArray(strategyRes.data?.projections) ? strategyRes.data.projections : []);
+
+      const directNews = newsRes.data || null;
+      const fallbackNews = strategyRes.data?.events ? strategyRes.data : null;
+      setNewsBriefing(directNews || fallbackNews);
+
       setLastUpdate(new Date());
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -1999,7 +2076,6 @@ export default function DashboardPage() {
     'NAS100': { price: 21450, direction: 'Up', confidence: 55, impulse: 'Laterale', drivers: [{ name: 'NFP forte', impact: 'Positivo' }, { name: 'Tech weakness', impact: 'Cautela' }] },
     'SP500': { price: 6941.5, direction: 'Up', confidence: 52, impulse: 'Laterale', drivers: [{ name: 'NFP Beat', impact: 'Supportivo' }, { name: 'Fed hawkish', impact: 'Freno' }] },
     'EURUSD': { price: 1.1870, direction: 'Up', confidence: 65, impulse: 'Prosegue', drivers: [{ name: 'USD Debole', impact: 'Bullish' }, { name: 'ECB Hawkish', impact: 'Supportivo' }] },
-    'BTCUSD': { price: 67230, direction: 'Down', confidence: 68, impulse: 'Sell-off', drivers: [{ name: 'Risk-off crypto', impact: 'Bearish' }, { name: 'Liquidazioni', impact: 'Pressione' }] },
   }), []);
 
   // Use real data if available, otherwise fallback to mock data
@@ -2259,7 +2335,12 @@ export default function DashboardPage() {
 
         {/* RIGHT SIDEBAR: News + Activity + Strategies */}
         <div className="lg:col-span-1">
-          <ActivitySidebar />
+          <ActivitySidebar
+            news={newsBriefing?.events}
+            newsSummaries={newsBriefing?.summaries}
+            strategiesProjections={strategyProjections}
+            strategiesCatalog={strategiesCatalog}
+          />
         </div>
       </div>
     </div>

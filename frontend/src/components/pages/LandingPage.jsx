@@ -195,6 +195,49 @@ const BrowserFrame = ({ children, className = '', glow = true, glowColor = '#00D
     </div>
 );
 
+const MacbookHero = ({ screenshot }) => (
+    <div className="relative w-full">
+        <div className="absolute inset-x-0 -top-8 h-24 bg-gradient-to-r from-transparent via-[#00D9A5]/20 to-transparent blur-2xl pointer-events-none" />
+        <div className="relative mx-auto max-w-5xl perspective-[2200px]">
+            <motion.div
+                initial={{ opacity: 0, rotateX: -78, y: 36 }}
+                animate={{ opacity: 1, rotateX: -8, y: 0 }}
+                transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.25 }}
+                className="relative origin-bottom mx-auto w-[94%] rounded-t-[22px] border border-white/20 bg-gradient-to-b from-[#22262b] to-[#0b0e11] p-3 shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
+                style={{ transformStyle: 'preserve-3d' }}
+            >
+                <div className="relative overflow-hidden rounded-[14px] border border-white/10 bg-black aspect-[16/10]">
+                    <motion.img
+                        src={screenshot}
+                        alt="Karion Dashboard Preview"
+                        className="w-full h-full object-cover"
+                        initial={{ scale: 1.07, opacity: 0.82 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 1.1, delay: 0.5, ease: 'easeOut' }}
+                    />
+                    <motion.div
+                        className="absolute inset-0 pointer-events-none"
+                        animate={{ opacity: [0.08, 0.22, 0.08] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                        style={{
+                            background: 'radial-gradient(ellipse at 75% 12%, rgba(0,217,165,0.2), transparent 55%)',
+                        }}
+                    />
+                </div>
+            </motion.div>
+
+            <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.6 }}
+                className="relative -mt-1 mx-auto h-6 w-full rounded-b-[24px] border border-white/15 bg-gradient-to-b from-[#c8c9cc] via-[#a0a2a7] to-[#7d7f84] shadow-[0_14px_38px_rgba(0,0,0,0.5)]"
+            >
+                <div className="absolute left-1/2 top-[3px] -translate-x-1/2 w-20 h-1.5 rounded-full bg-black/25" />
+            </motion.div>
+        </div>
+    </div>
+);
+
 /* ═══════════════════════════════════════════════════════════════════
    FEATURE SHOWCASE TABS DATA
    ═══════════════════════════════════════════════════════════════════ */
@@ -644,13 +687,7 @@ export const LandingPage = () => {
                         transition={{ duration: 1, delay: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
                         className="mt-16 max-w-5xl mx-auto"
                     >
-                        <BrowserFrame glowColor="#00D9A5" starBorder>
-                            <img
-                                src="/screenshots/hero-dashboard.png"
-                                alt="Karion Trading OS Dashboard"
-                                className="w-full h-auto block"
-                            />
-                        </BrowserFrame>
+                        <MacbookHero screenshot="/screenshots/hero-dashboard.png" />
                     </motion.div>
                 </div>
             </section>

@@ -15,7 +15,30 @@ import uuid
 import bcrypt
 import jwt
 import json
+import hashlib
+import random
+import re
 from datetime import datetime, timezone, timedelta
+try:
+    from .market_intelligence import (
+        STRATEGY_CATALOG,
+        build_cot_snapshot,
+        build_engine_cards,
+        build_multi_source_snapshot,
+        build_news_briefing,
+        build_strategy_projections,
+        canonical_strategy_id,
+    )
+except ImportError:
+    from market_intelligence import (
+        STRATEGY_CATALOG,
+        build_cot_snapshot,
+        build_engine_cards,
+        build_multi_source_snapshot,
+        build_news_briefing,
+        build_strategy_projections,
+        canonical_strategy_id,
+    )
 
 # Load env
 from dotenv import load_dotenv
@@ -31,6 +54,13 @@ JWT_EXPIRATION_HOURS = 24
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 STRIPE_MODE = bool(STRIPE_SECRET_KEY)
+
+# Verification / Delivery providers
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'no-reply@karion.it')
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
+TWILIO_FROM_NUMBER = os.environ.get('TWILIO_FROM_NUMBER', '')
 
 if STRIPE_MODE:
     import stripe
@@ -128,7 +158,12 @@ except Exception as e:
         "password": bcrypt.hashpw("password123".encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),
         "created_at": "2024-01-01T00:00:00Z",
         "level": "Trader Intermedio",
-        "xp": 1500
+        "xp": 1500,
+        "auth_provider": "password",
+        "linked_accounts": [{"provider": "password", "identifier": "test@test.com", "added_at": "2024-01-01T00:00:00Z"}],
+        "email_verified": True,
+        "phone_number": None,
+        "phone_verified": False,
     }
 
 # ==================== APP ====================
@@ -160,6 +195,19 @@ _cg_cache = {
     "charts": {}
 }
 CG_CACHE_TTL = 300 # 5 minutes
+
+# Best-effort cache for serverless hot instances
+_intelligence_cache = {
+    "multi": {"data": None, "timestamp": None},
+    "cot": {"data": None, "timestamp": None},
+    "engine": {"data": None, "timestamp": None},
+    "news": {"data": None, "timestamp": None},
+    "projections": {"data": None, "timestamp": None},
+}
+INTELLIGENCE_CACHE_TTL = 45  # seconds
+
+_verification_cache = {}
+VERIFICATION_TTL_MINUTES = 15
 
 @app.get("/api/market/prices")
 async def get_market_prices():
@@ -304,30 +352,119 @@ async def get_global_data():
     except Exception:
         return _cg_cache["global"]["data"]
 
+def _cache_get(key: str):
+    slot = _intelligence_cache.get(key)
+    if not slot or not slot["timestamp"]:
+        return None
+    if (datetime.now(timezone.utc) - slot["timestamp"]).total_seconds() > INTELLIGENCE_CACHE_TTL:
+        return None
+    return slot["data"]
+
+
+def _cache_set(key: str, value):
+    _intelligence_cache[key] = {"data": value, "timestamp": datetime.now(timezone.utc)}
+
+
+def _build_intelligence_bundle():
+    now = datetime.now(timezone.utc)
+    multi = build_multi_source_snapshot(now)
+    cot = build_cot_snapshot(multi["analyses"], now)
+    briefing = build_news_briefing(now)
+    engine_cards = build_engine_cards(multi["analyses"], cot["data"], now)
+    projections = build_strategy_projections(multi["analyses"], cot["data"], briefing, now)
+    return {
+        "multi": multi,
+        "cot": cot,
+        "news": briefing,
+        "engine": engine_cards,
+        "projections": projections,
+    }
+
+
+def _get_intelligence_bundle():
+    cached_multi = _cache_get("multi")
+    cached_cot = _cache_get("cot")
+    cached_news = _cache_get("news")
+    cached_engine = _cache_get("engine")
+    cached_proj = _cache_get("projections")
+    if cached_multi and cached_cot and cached_news and cached_engine and cached_proj:
+        return {
+            "multi": cached_multi,
+            "cot": cached_cot,
+            "news": cached_news,
+            "engine": cached_engine,
+            "projections": cached_proj,
+        }
+
+    fresh = _build_intelligence_bundle()
+    _cache_set("multi", fresh["multi"])
+    _cache_set("cot", fresh["cot"])
+    _cache_set("news", fresh["news"])
+    _cache_set("engine", fresh["engine"])
+    _cache_set("projections", fresh["projections"])
+    return fresh
+
+
 @app.get("/api/analysis/multi-source")
 async def get_multi_source_analysis():
-    # Survival endpoint to prevent 404
-    return {
-        "status": "success",
-        "data": {
-            "summary": "Analisi multi-source in fase di aggiornamento. Consultare i grafici per i dati live.",
-            "sentiment": "Neutrale",
-            "score": 50
-        }
-    }
+    return _get_intelligence_bundle()["multi"]
+
 
 @app.get("/api/cot/data")
 async def get_cot_data():
-    # Survival endpoint to prevent 404
-    return {
-        "status": "success",
-        "data": {}
-    }
+    return _get_intelligence_bundle()["cot"]
+
 
 @app.get("/api/engine/cards")
 async def get_engine_cards():
-    # Survival endpoint to prevent 404
-    return []
+    return _get_intelligence_bundle()["engine"]
+
+
+@app.get("/api/news/briefing")
+async def get_news_briefing():
+    return _get_intelligence_bundle()["news"]
+
+
+@app.get("/api/strategy/catalog")
+async def get_strategy_catalog():
+    return {
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "strategies": [
+            {
+                "id": strategy["id"],
+                "aliases": strategy["aliases"],
+                "name": strategy["name"],
+                "short_name": strategy["short_name"],
+                "win_rate": strategy["win_rate"],
+                "assets": strategy["assets"],
+                "trigger": strategy["trigger"],
+            }
+            for strategy in STRATEGY_CATALOG
+        ],
+    }
+
+
+@app.get("/api/strategy/projections")
+async def get_strategy_projections(strategy_ids: Optional[str] = None):
+    bundle = _get_intelligence_bundle()
+    projections = bundle["projections"]
+    if strategy_ids:
+        requested = {canonical_strategy_id(raw_id.strip()) for raw_id in strategy_ids.split(",") if raw_id.strip()}
+        projections = [
+            projection
+            for projection in projections
+            if canonical_strategy_id(projection.get("strategy_id", "")) in requested
+        ]
+    return {
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "sources": {
+            "daily_bias_engine": "active",
+            "crypto_bias_engine": "isolated",
+            "news_cycle": "3h",
+        },
+        "summaries": bundle["news"]["summaries"],
+        "projections": projections,
+    }
 
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
@@ -372,6 +509,32 @@ class SubscriptionResponse(BaseModel):
     expires_at: Optional[str] = None
     cancel_at_period_end: bool = False
 
+
+class PasswordCodeConfirmRequest(BaseModel):
+    code: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class EmailChangeRequest(BaseModel):
+    new_email: EmailStr
+
+
+class EmailChangeConfirmRequest(BaseModel):
+    new_email: EmailStr
+    code: str
+
+
+class PhoneCodeRequest(BaseModel):
+    country_code: str = Field(min_length=2, max_length=5)
+    phone_number: str = Field(min_length=6, max_length=20)
+    channel: str = "sms"  # sms | email
+
+
+class PhoneCodeConfirmRequest(BaseModel):
+    country_code: str = Field(min_length=2, max_length=5)
+    phone_number: str = Field(min_length=6, max_length=20)
+    code: str
+
 # ==================== AUTH HELPERS ====================
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -407,6 +570,191 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _normalize_phone(country_code: str, phone_number: str) -> str:
+    cc = country_code.strip()
+    if not cc.startswith("+"):
+        cc = f"+{cc}"
+    phone = re.sub(r"[^0-9]", "", phone_number)
+    return f"{cc}{phone}"
+
+
+def _mask_email(email: str) -> str:
+    if "@" not in email:
+        return email
+    local, domain = email.split("@", 1)
+    if len(local) <= 2:
+        local_masked = f"{local[0]}*" if local else "*"
+    else:
+        local_masked = f"{local[:2]}{'*' * max(2, len(local) - 2)}"
+    return f"{local_masked}@{domain}"
+
+
+def _mask_phone(phone: Optional[str]) -> Optional[str]:
+    if not phone:
+        return None
+    if len(phone) <= 4:
+        return "*" * len(phone)
+    return f"{phone[:-4].replace(phone[:-4], '*' * len(phone[:-4]))}{phone[-4:]}"
+
+
+def _generate_code() -> str:
+    return f"{random.randint(0, 999999):06d}"
+
+
+def _code_hash(user_id: str, purpose: str, target: str, code: str) -> str:
+    payload = f"{user_id}|{purpose}|{target}|{code}|{JWT_SECRET}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+async def _send_email_code(email: str, code: str, purpose: str) -> str:
+    if not RESEND_API_KEY:
+        print(f"[DEV_EMAIL_CODE] {purpose} -> {email}: {code}")
+        return "dev_log"
+
+    subject_map = {
+        "password_change": "Codice verifica cambio password",
+        "email_change": "Codice verifica cambio email",
+        "phone_verify": "Codice verifica telefono",
+    }
+    subject = subject_map.get(purpose, "Codice verifica account")
+    html = (
+        f"<p>Ciao,</p><p>Il tuo codice di verifica e: <strong>{code}</strong>.</p>"
+        "<p>Scade in 15 minuti.</p>"
+    )
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10.0) as client_http:
+            response = await client_http.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "from": RESEND_FROM_EMAIL,
+                    "to": [email],
+                    "subject": subject,
+                    "html": html,
+                },
+            )
+            if 200 <= response.status_code < 300:
+                return "email"
+            print(f"RESEND_ERROR {response.status_code}: {response.text}")
+            return "failed"
+    except Exception as exc:
+        print(f"RESEND_EXCEPTION: {exc}")
+        return "failed"
+
+
+async def _send_sms_code(phone: str, code: str) -> str:
+    if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER):
+        return "unavailable"
+    try:
+        import httpx
+
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json"
+        async with httpx.AsyncClient(timeout=10.0) as client_http:
+            response = await client_http.post(
+                url,
+                auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
+                data={
+                    "From": TWILIO_FROM_NUMBER,
+                    "To": phone,
+                    "Body": f"Karion code: {code} (15 min)",
+                },
+            )
+            if 200 <= response.status_code < 300:
+                return "sms"
+            print(f"TWILIO_ERROR {response.status_code}: {response.text}")
+            return "failed"
+    except Exception as exc:
+        print(f"TWILIO_EXCEPTION: {exc}")
+        return "failed"
+
+
+async def _store_verification_code(user_id: str, purpose: str, target: str, code: str):
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=VERIFICATION_TTL_MINUTES)
+    code_hash = _code_hash(user_id, purpose, target, code)
+
+    if DEMO_MODE:
+        _verification_cache[f"{user_id}:{purpose}:{target}"] = {
+            "code_hash": code_hash,
+            "expires_at": expires_at,
+            "used": False,
+        }
+        return
+
+    await db.verification_codes.insert_one(
+        {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "purpose": purpose,
+            "target": target,
+            "code_hash": code_hash,
+            "expires_at": expires_at.isoformat(),
+            "used": False,
+            "created_at": _now_iso(),
+        }
+    )
+
+
+async def _verify_code(user_id: str, purpose: str, target: str, code: str) -> bool:
+    expected_hash = _code_hash(user_id, purpose, target, code)
+    now = datetime.now(timezone.utc)
+
+    if DEMO_MODE:
+        key = f"{user_id}:{purpose}:{target}"
+        item = _verification_cache.get(key)
+        if not item:
+            return False
+        if item["used"] or item["expires_at"] < now:
+            return False
+        if item["code_hash"] != expected_hash:
+            return False
+        item["used"] = True
+        return True
+
+    doc = await db.verification_codes.find_one(
+        {
+            "user_id": user_id,
+            "purpose": purpose,
+            "target": target,
+            "used": False,
+        },
+        sort=[("created_at", -1)],
+    )
+    if not doc:
+        return False
+    try:
+        expires_at = datetime.fromisoformat(doc["expires_at"])
+    except Exception:
+        return False
+    if expires_at < now:
+        return False
+    if doc.get("code_hash") != expected_hash:
+        return False
+
+    await db.verification_codes.update_one({"id": doc["id"]}, {"$set": {"used": True}})
+    return True
+
+
+async def _get_user_document(user_id: str) -> Optional[dict]:
+    if DEMO_MODE:
+        return next((u for u in demo_users.values() if u["id"] == user_id), None)
+    return await db.users.find_one({"id": user_id}, {"_id": 0})
+
+
+async def _replace_demo_user(old_email: str, user_doc: dict):
+    if old_email in demo_users:
+        demo_users.pop(old_email)
+    demo_users[user_doc["email"]] = user_doc
+
 # ==================== ROUTES ====================
 @app.get("/api/health")
 async def health_check():
@@ -422,7 +770,12 @@ async def register(user_data: UserCreate):
             "id": user_id, "email": user_data.email, "name": user_data.name,
             "password": hash_password(user_data.password),
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "level": "Novice", "xp": 0
+            "level": "Novice", "xp": 0,
+            "auth_provider": "password",
+            "linked_accounts": [{"provider": "password", "identifier": user_data.email, "added_at": _now_iso()}],
+            "email_verified": True,
+            "phone_number": None,
+            "phone_verified": False,
         }
     else:
         existing = await db.users.find_one({"email": user_data.email})
@@ -433,7 +786,12 @@ async def register(user_data: UserCreate):
             "id": user_id, "email": user_data.email, "name": user_data.name,
             "password": hash_password(user_data.password),
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "level": "Novice", "xp": 0
+            "level": "Novice", "xp": 0,
+            "auth_provider": "password",
+            "linked_accounts": [{"provider": "password", "identifier": user_data.email, "added_at": _now_iso()}],
+            "email_verified": True,
+            "phone_number": None,
+            "phone_verified": False,
         })
     token = create_token(user_id, user_data.email)
     return TokenResponse(access_token=token, user=UserResponse(
@@ -458,6 +816,244 @@ async def login(credentials: UserLogin):
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
     return UserResponse(**current_user)
+
+# ==================== ACCOUNT SECURITY ====================
+@api_router.get("/account/security-state")
+async def get_account_security_state(current_user: dict = Depends(get_current_user)):
+    user_doc = await _get_user_document(current_user["id"])
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    linked_accounts = user_doc.get("linked_accounts") or [
+        {
+            "provider": user_doc.get("auth_provider", "password"),
+            "identifier": user_doc.get("email"),
+            "added_at": user_doc.get("created_at", _now_iso()),
+        }
+    ]
+
+    return {
+        "email": user_doc.get("email"),
+        "email_masked": _mask_email(user_doc.get("email", "")),
+        "email_verified": bool(user_doc.get("email_verified", True)),
+        "phone_number": user_doc.get("phone_number"),
+        "phone_masked": _mask_phone(user_doc.get("phone_number")),
+        "phone_verified": bool(user_doc.get("phone_verified", False)),
+        "current_provider": user_doc.get("auth_provider", "password"),
+        "linked_accounts": linked_accounts,
+    }
+
+
+@api_router.post("/account/password/request-code")
+async def request_password_change_code(current_user: dict = Depends(get_current_user)):
+    user_doc = await _get_user_document(current_user["id"])
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    code = _generate_code()
+    target_email = user_doc["email"]
+    await _store_verification_code(user_doc["id"], "password_change", target_email, code)
+    delivery = await _send_email_code(target_email, code, "password_change")
+    if delivery == "failed":
+        raise HTTPException(status_code=503, detail="Unable to send verification code")
+
+    payload = {"status": "code_sent", "channel": delivery, "target": _mask_email(target_email)}
+    if DEMO_MODE:
+        payload["debug_code"] = code
+    return payload
+
+
+@api_router.post("/account/password/confirm")
+async def confirm_password_change(req: PasswordCodeConfirmRequest, current_user: dict = Depends(get_current_user)):
+    user_doc = await _get_user_document(current_user["id"])
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    is_valid = await _verify_code(user_doc["id"], "password_change", user_doc["email"], req.code.strip())
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+
+    new_hash = hash_password(req.new_password)
+    if DEMO_MODE:
+        old_email = user_doc["email"]
+        user_doc["password"] = new_hash
+        await _replace_demo_user(old_email, user_doc)
+    else:
+        await db.users.update_one({"id": user_doc["id"]}, {"$set": {"password": new_hash}})
+
+    return {"status": "password_updated"}
+
+
+@api_router.post("/account/email/request-code")
+async def request_email_change_code(req: EmailChangeRequest, current_user: dict = Depends(get_current_user)):
+    user_doc = await _get_user_document(current_user["id"])
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    new_email = req.new_email.lower().strip()
+    if new_email == user_doc["email"].lower():
+        raise HTTPException(status_code=400, detail="New email must be different")
+
+    if DEMO_MODE:
+        exists = new_email in demo_users
+    else:
+        exists = await db.users.find_one({"email": new_email})
+    if exists:
+        raise HTTPException(status_code=400, detail="Email already in use")
+
+    code = _generate_code()
+    await _store_verification_code(user_doc["id"], "email_change", new_email, code)
+    delivery = await _send_email_code(new_email, code, "email_change")
+    if delivery == "failed":
+        raise HTTPException(status_code=503, detail="Unable to send verification code")
+
+    payload = {"status": "code_sent", "channel": delivery, "target": _mask_email(new_email)}
+    if DEMO_MODE:
+        payload["debug_code"] = code
+    return payload
+
+
+@api_router.post("/account/email/confirm")
+async def confirm_email_change(req: EmailChangeConfirmRequest, current_user: dict = Depends(get_current_user)):
+    user_doc = await _get_user_document(current_user["id"])
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_email = req.new_email.lower().strip()
+    valid = await _verify_code(user_doc["id"], "email_change", new_email, req.code.strip())
+    if not valid:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+
+    linked_accounts = user_doc.get("linked_accounts", [])
+    for account in linked_accounts:
+        if account.get("provider") == "password":
+            account["identifier"] = new_email
+
+    if DEMO_MODE:
+        old_email = user_doc["email"]
+        user_doc["email"] = new_email
+        user_doc["linked_accounts"] = linked_accounts
+        await _replace_demo_user(old_email, user_doc)
+    else:
+        await db.users.update_one(
+            {"id": user_doc["id"]},
+            {"$set": {"email": new_email, "linked_accounts": linked_accounts}},
+        )
+
+    new_token = create_token(user_doc["id"], new_email)
+    return {"status": "email_updated", "email": new_email, "access_token": new_token}
+
+
+@api_router.post("/account/phone/request-code")
+async def request_phone_verification_code(req: PhoneCodeRequest, current_user: dict = Depends(get_current_user)):
+    user_doc = await _get_user_document(current_user["id"])
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    full_phone = _normalize_phone(req.country_code, req.phone_number)
+    if not re.match(r"^\+\d{7,17}$", full_phone):
+        raise HTTPException(status_code=400, detail="Invalid phone format")
+
+    code = _generate_code()
+    await _store_verification_code(user_doc["id"], "phone_verify", full_phone, code)
+
+    requested_channel = req.channel.lower().strip()
+    delivery = "failed"
+    if requested_channel == "sms":
+        delivery = await _send_sms_code(full_phone, code)
+        if delivery in {"unavailable", "failed"}:
+            delivery = await _send_email_code(user_doc["email"], code, "phone_verify")
+            if delivery == "email":
+                delivery = "email_fallback"
+    else:
+        delivery = await _send_email_code(user_doc["email"], code, "phone_verify")
+
+    if delivery == "failed":
+        raise HTTPException(status_code=503, detail="Unable to send verification code")
+
+    payload = {"status": "code_sent", "channel": delivery, "target": _mask_phone(full_phone)}
+    if DEMO_MODE:
+        payload["debug_code"] = code
+    return payload
+
+
+@api_router.post("/account/phone/confirm")
+async def confirm_phone_verification(req: PhoneCodeConfirmRequest, current_user: dict = Depends(get_current_user)):
+    user_doc = await _get_user_document(current_user["id"])
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    full_phone = _normalize_phone(req.country_code, req.phone_number)
+    valid = await _verify_code(user_doc["id"], "phone_verify", full_phone, req.code.strip())
+    if not valid:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+
+    if DEMO_MODE:
+        old_email = user_doc["email"]
+        user_doc["phone_number"] = full_phone
+        user_doc["phone_verified"] = True
+        await _replace_demo_user(old_email, user_doc)
+    else:
+        await db.users.update_one(
+            {"id": user_doc["id"]},
+            {"$set": {"phone_number": full_phone, "phone_verified": True}},
+        )
+
+    return {"status": "phone_verified", "phone_number": full_phone}
+
+
+@api_router.get("/account/linked-accounts")
+async def get_linked_accounts(current_user: dict = Depends(get_current_user)):
+    user_doc = await _get_user_document(current_user["id"])
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    linked_accounts = user_doc.get("linked_accounts") or [
+        {
+            "provider": user_doc.get("auth_provider", "password"),
+            "identifier": user_doc.get("email"),
+            "added_at": user_doc.get("created_at", _now_iso()),
+        }
+    ]
+    return {
+        "current_provider": user_doc.get("auth_provider", "password"),
+        "linked_accounts": linked_accounts,
+    }
+
+
+@api_router.delete("/account/linked-accounts/{provider}")
+async def unlink_account(provider: str, current_user: dict = Depends(get_current_user)):
+    user_doc = await _get_user_document(current_user["id"])
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    provider = provider.lower().strip()
+    linked_accounts = user_doc.get("linked_accounts") or []
+    if not linked_accounts:
+        raise HTTPException(status_code=400, detail="No linked accounts")
+
+    remaining = [account for account in linked_accounts if account.get("provider", "").lower() != provider]
+    if len(remaining) == len(linked_accounts):
+        raise HTTPException(status_code=404, detail="Provider not linked")
+
+    current_provider = user_doc.get("auth_provider", "password")
+    if current_provider == provider and not remaining:
+        raise HTTPException(status_code=400, detail="Cannot remove the only authentication method")
+
+    new_provider = remaining[0]["provider"] if current_provider == provider and remaining else current_provider
+    force_logout = current_provider == provider
+
+    if DEMO_MODE:
+        old_email = user_doc["email"]
+        user_doc["linked_accounts"] = remaining
+        user_doc["auth_provider"] = new_provider
+        await _replace_demo_user(old_email, user_doc)
+    else:
+        await db.users.update_one(
+            {"id": user_doc["id"]},
+            {"$set": {"linked_accounts": remaining, "auth_provider": new_provider}},
+        )
+
+    return {"status": "unlinked", "provider": provider, "force_logout": force_logout}
 
 # ==================== STRIPE ROUTES ====================
 @api_router.post("/create-checkout", response_model=CheckoutResponse)
