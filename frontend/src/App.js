@@ -155,36 +155,40 @@ function AppRoutes() {
   );
 }
 
+import ErrorBoundary from './components/layout/ErrorBoundary';
+
 function App() {
   const isIntroPreviewPath = typeof window !== 'undefined' && window.location.pathname === '/intro-preview';
   const [isLocked, setIsLocked] = useState(true);
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <MarketProvider>
-          {isLocked && !isIntroPreviewPath ? (
-            <LockScreen onUnlock={() => setIsLocked(false)} />
-          ) : (
-            <BrowserRouter>
-              <AppRoutes />
-              <Toaster
-                position="top-right"
-                richColors
-                theme="dark"
-                toastOptions={{
-                  style: {
-                    background: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    color: 'hsl(var(--foreground))',
-                  }
-                }}
-              />
-            </BrowserRouter>
-          )}
-        </MarketProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <MarketProvider>
+            {isLocked && !isIntroPreviewPath ? (
+              <LockScreen onUnlock={() => setIsLocked(false)} />
+            ) : (
+              <BrowserRouter>
+                <AppRoutes />
+                <Toaster
+                  position="top-right"
+                  richColors
+                  theme="dark"
+                  toastOptions={{
+                    style: {
+                      background: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      color: 'hsl(var(--foreground))',
+                    }
+                  }}
+                />
+              </BrowserRouter>
+            )}
+          </MarketProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

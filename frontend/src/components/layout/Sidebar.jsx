@@ -238,7 +238,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
           <div className="p-4 border-b border-border">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
-                {user.name?.charAt(0).toUpperCase()}
+                {(user.name?.charAt(0) || '').toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{user.name}</p>
