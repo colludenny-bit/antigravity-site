@@ -24,8 +24,8 @@ export const MacroService = {
 
         try {
             // Fetch from our backend
-            const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:8000/api/market/prices' : '/api/market/prices';
-            const response = await fetch(API_URL);
+            const FETCH_URL = `${process.env.REACT_APP_BACKEND_URL || ''}/api/market/prices`;
+            const response = await fetch(FETCH_URL);
 
             if (!response.ok) throw new Error("API call failed");
 
