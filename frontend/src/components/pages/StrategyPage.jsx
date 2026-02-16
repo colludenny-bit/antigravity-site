@@ -11,238 +11,35 @@ import { cn } from '../../lib/utils';
 import {
   Target, Plus, Zap, TrendingUp, TrendingDown,
   Percent, Shield, AlertTriangle, ArrowRight, Download,
-  Play, BarChart3, Activity
+  Play, BarChart3, Activity, Layers, Settings2, DollarSign,
+  ChevronDown, ChevronUp, Trophy, Pause, Ban, Scale,
+  CheckCircle, XCircle, Minus, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Pre-defined strategies based on user rules
-const predefinedStrategies = [
-  {
-    id: 'strategy-1',
-    name: 'News Spike Reversion',
-    shortName: 'S1',
-    assets: ['NQ', 'S&P', 'XAUUSD', 'EURUSD'],
-    winRate: 62,
-    avgWinR: 1.2,
-    avgLossR: 1.0,
-    riskReward: 1.44,
-    maxDD: 8,
-    description: 'Sfrutta l\'eccesso post-news quando il prezzo arriva su un estremo 1-2 settimane e poi "rifiuta" la rottura, puntando al ritorno verso il centro (VWAP/mid-range).',
-    rules: [
-      'Attendi evento high-impact e primo spike post-release',
-      'Spike deve raggiungere/rompere zona premium (weekly/2-week H/L)',
-      'Entry su rejection: rientro dentro il range',
-      'Short: rientro sotto estremo high | Long: rientro sopra estremo low',
-      'Stop oltre max/min dello spike',
-      'TP1: +1.2R | TP2: +1.3R (runner)'
-    ],
-    triggers: [
-      'Evento high-impact entro la giornata',
-      'Spike raggiunge zona premium',
-      'Rejection chiaro (prezzo rientra nel range)',
-      'Distanza sufficiente per 1.2R verso centro'
-    ],
-    probabilityFactors: [
-      'VIX non accelera contro il trade → Prob ↑',
-      'Posizione entra rapidamente in profitto → Prob ↑',
-      'Prezzo accetta fuori range → Prob ↓'
-    ]
-  },
-  {
-    id: 'strategy-2',
-    name: 'VIX Range Fade',
-    shortName: 'S2',
-    assets: ['NQ', 'S&P'],
-    winRate: 58,
-    avgWinR: 1.2,
-    avgLossR: 1.0,
-    riskReward: 1.39,
-    maxDD: 10,
-    description: 'Nei giorni senza catalizzatori forti, fare mean-reversion dagli estremi premium verso il centro. Prioritaria per indici USA.',
-    rules: [
-      'Attiva SOLO se NO news high-impact imminenti',
-      'Prezzo deve testare zona premium almeno 2 volte',
-      'Entry solo sul rientro dentro il range (rejection secondo test)',
-      'Stop oltre max/min del test (1R deve restare piccolo)',
-      'TP1: +1.2R | Runner: +1.3R solo se VIX non peggiora'
-    ],
-    triggers: [
-      'Finestra "no-trade" attorno ai dati rispettata',
-      'Secondo test della zona premium',
-      'VIX stabile o in calo',
-      'Spazio pulito fino al centro range'
-    ],
-    probabilityFactors: [
-      'VIX stabile/in calo → Prob ↑',
-      'Prezzo esteso dagli estremi → Prob ↑',
-      'VIX accelera + prezzo accetta oltre estremo → Prob ↓'
-    ]
-  },
-  {
-    id: 'strategy-3',
-    name: 'Cross-Market Confirmation',
-    shortName: 'S3',
-    assets: ['Tutti'],
-    winRate: null,
-    avgWinR: null,
-    avgLossR: null,
-    riskReward: null,
-    maxDD: null,
-    description: 'NON genera entry nuove. Aumenta o riduce la probabilità delle idee S1/S2 usando coerenza tra mercati (risk sentiment). Modulatore.',
-    rules: [
-      'Se VIX sale (stress): riduci prob long risk-on (NQ/S&P long, EURUSD long)',
-      'Se VIX sale: aumenta cautela su fade contro trend',
-      'Se VIX scende (risk-on): aumenta prob mean-reversion verso centro per indici',
-      'Se VIX scende: riduci prob long XAU contrarian se non supportato'
-    ],
-    triggers: [
-      'Cambio direzione VIX',
-      'Divergenza tra asset correlati',
-      'Conferma/divergenza risk sentiment'
-    ],
-    probabilityFactors: [
-      'Coerenza tra mercati → Prob trade S1/S2 ↑',
-      'Divergenza tra mercati → Prob trade S1/S2 ↓'
-    ],
-    isModulator: true
-  },
-  // Advanced Strategies
-  {
-    id: 'gamma-magnet',
-    name: 'GammaMagnet Convergence',
-    shortName: 'GM',
-    assets: ['NQ', 'S&P', 'SPY', 'QQQ'],
-    winRate: 68,
-    avgWinR: 1.24,
-    avgLossR: 1.0,
-    riskReward: 2.15,
-    maxDD: 8,
-    description: 'Sfrutta la convergenza del prezzo verso strike con alta gamma opzionaria. Market makers coprono, creando magneti di prezzo verso 0DTE strikes.',
-    rules: [
-      'Identifica strike con max OI opzioni 0DTE',
-      'Entry quando prezzo a ±0.5% dallo strike target',
-      'VIX deve essere < VVIX (volatilità compressa)',
-      'Stop oltre max/min della candela di trigger',
-      'TP1: raggiungimento strike | TP2: +1.24R'
-    ],
-    triggers: [
-      'Prezzo entro 0.5% da strike ad alta gamma',
-      'Market makers in delta hedging attivo',
-      'Volume crescente verso lo strike',
-      'VIX < VVIX (compressione vol)'
-    ],
-    probabilityFactors: [
-      'Alta OI sullo strike → Prob ↑',
-      'VIX in calo → Prob ↑',
-      'Rottura dello strike con volume → Prob ↓',
-      'FOMC/CPI entro 24h → Prob ↓'
-    ],
-    isAdvanced: true
-  },
-  {
-    id: 'rate-vol-alignment',
-    name: 'Rate-Volatility Alignment',
-    shortName: 'RV',
-    assets: ['NQ', 'S&P', 'TLT', 'EURUSD'],
-    winRate: 62,
-    avgWinR: 0.98,
-    avgLossR: 1.0,
-    riskReward: 1.62,
-    maxDD: 12,
-    description: 'Allinea direzione trade con movimento tassi vs volatilità. Long risk quando yield calano + VIX cala. Short quando divergono.',
-    rules: [
-      'Check correlazione 2Y/10Y yield vs VIX',
-      'Long equity quando: yield ↓ + VIX ↓ (risk-on)',
-      'Short equity quando: yield ↑ + VIX ↑ (stress)',
-      'Evita se yield e VIX divergono',
-      'Size ridotta 50% se correlazione < 0.7'
-    ],
-    triggers: [
-      'Yield 2Y cambia direzione intraday',
-      'VIX conferma direzione (stesso verso)',
-      'DXY non diverge dal movimento',
-      'No eventi FED imminenti'
-    ],
-    probabilityFactors: [
-      'Correlazione yield-VIX > 0.8 → Prob ↑',
-      'Conferma DXY → Prob ↑',
-      'Divergenza asset → Prob ↓',
-      'Curva yield inverte → cautela'
-    ],
-    isAdvanced: true
-  },
-  {
-    id: 'volguard-mr',
-    name: 'VolGuard Mean-Reversion',
-    shortName: 'VG',
-    assets: ['NQ', 'S&P', 'SPX'],
-    winRate: 72,
-    avgWinR: 0.65,
-    avgLossR: 1.0,
-    riskReward: 1.67,
-    maxDD: 5,
-    description: 'Mean-reversion intraday con stop dinamico basato su VIX. Più il VIX è basso, più aggressivo il fade. Scalping protetto.',
-    rules: [
-      'Attiva solo se VIX < 18 (low vol regime)',
-      'Fade estremi 1.5 ATR da VWAP intraday',
-      'Stop dinamico: 0.5 ATR se VIX < 15, 0.8 ATR se VIX 15-18',
-      'TP = ritorno a VWAP (sempre)',
-      'Max 3 trade/giorno per asset'
-    ],
-    triggers: [
-      'VIX < 18 (regime low vol confermato)',
-      'Prezzo esteso > 1.5 ATR da VWAP',
-      'RSI 5min < 20 o > 80',
-      'Volume exhaustion visibile'
-    ],
-    probabilityFactors: [
-      'VIX < 15 → Prob ↑↑',
-      'Primo trade del giorno → Prob ↑',
-      'VIX in aumento → Prob ↓',
-      'Terzo trade consecutivo → Prob ↓↓'
-    ],
-    isAdvanced: true
-  },
-  {
-    id: 'multi-day-ra',
-    name: 'Multi-Day Rejection/Acceptance',
-    shortName: 'MD',
-    assets: ['NQ', 'S&P', 'XAUUSD', 'BTC'],
-    winRate: 56,
-    avgWinR: 1.85,
-    avgLossR: 1.0,
-    riskReward: 2.36,
-    maxDD: 15,
-    description: 'Swing trade su rottura/rigetto multi-day. Attende accettazione o rigetto sopra/sotto livello chiave weekly.',
-    rules: [
-      'Identifica livello weekly (H/L 2 settimane)',
-      'Attendi test + close daily sopra/sotto',
-      'Rejection: chiusura rientra → fade direction',
-      'Acceptance: 2 chiusure consecutive → trend follow',
-      'Stop oltre il max/min del pattern',
-      'TP1: centro range weekly | TP2: lato opposto'
-    ],
-    triggers: [
-      'Prezzo su weekly H o L',
-      'Prima chiusura daily oltre il livello',
-      'ATR daily elevato (>1.5x media)',
-      'Volume sopra media weekly'
-    ],
-    probabilityFactors: [
-      'Rejection con wick lunga → Prob fade ↑↑',
-      'Acceptance con close forte → Prob continuation ↑↑',
-      'Inside day dopo rottura → attendi',
-      'VIX in spike → aspetta stabilizzazione'
-    ],
-    isAdvanced: true
-  }
-];
+import { detailedStrategies } from '../../data/strategies';
+
+const dataQualityMetrics = {
+  completeness: 94,
+  validity: 98,
+  consistency: 91,
+  timeliness: 100
+};
+
+const portfolioMetrics = {
+  totalTrades: detailedStrategies.reduce((acc, s) => acc + (s.trades || 0), 0),
+  overallWinRate: (detailedStrategies.reduce((acc, s) => acc + (s.winRate || 0) * (s.trades || 0), 0) / detailedStrategies.reduce((acc, s) => acc + (s.trades || 0), 1)).toFixed(1),
+  avgExpectancy: (detailedStrategies.reduce((acc, s) => acc + (s.expectancyR || 0) * (s.trades || 0), 0) / detailedStrategies.reduce((acc, s) => acc + (s.trades || 0), 1)).toFixed(2),
+  avgProfitFactor: (detailedStrategies.reduce((acc, s) => acc + (s.profitFactor || 0) * (s.trades || 0), 0) / detailedStrategies.reduce((acc, s) => acc + (s.trades || 0), 1)).toFixed(2),
+  portfolioDrawdown: Math.max(...detailedStrategies.map(s => s.maxDrawdown || 0)),
+  sharpeRatio: 1.85,
+  netPnl: detailedStrategies.reduce((acc, s) => acc + (s.netPnl || 0), 0)
+};
 
 const StrategyCard = ({ strategy, onExportToMonteCarlo }) => {
   const navigate = useNavigate();
 
   const handleExport = () => {
-    // Store strategy params in localStorage for Monte Carlo
     const monteCarloParams = {
       name: strategy.name,
       winRate: strategy.winRate,
@@ -277,10 +74,8 @@ const StrategyCard = ({ strategy, onExportToMonteCarlo }) => {
         </div>
       </div>
       <div className="p-4 pt-0 space-y-4">
-        {/* Description */}
         <p className="text-sm text-muted-foreground">{strategy.description}</p>
 
-        {/* Stats Grid - Only for non-modulator strategies */}
         {!strategy.isModulator && (
           <div className="grid grid-cols-4 gap-2">
             <div className="p-3 bg-white/5 rounded-lg text-center">
@@ -306,7 +101,6 @@ const StrategyCard = ({ strategy, onExportToMonteCarlo }) => {
           </div>
         )}
 
-        {/* Rules */}
         <div>
           <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
             <Target className="w-4 h-4 text-primary" />
@@ -322,7 +116,6 @@ const StrategyCard = ({ strategy, onExportToMonteCarlo }) => {
           </ul>
         </div>
 
-        {/* Triggers */}
         <div>
           <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
             <Zap className="w-4 h-4 text-yellow-400" />
@@ -337,7 +130,6 @@ const StrategyCard = ({ strategy, onExportToMonteCarlo }) => {
           </div>
         </div>
 
-        {/* Probability Factors */}
         <div>
           <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
             <Activity className="w-4 h-4 text-purple-400" />
@@ -353,7 +145,6 @@ const StrategyCard = ({ strategy, onExportToMonteCarlo }) => {
           </ul>
         </div>
 
-        {/* Export Button - Only for strategies with stats */}
         {!strategy.isModulator && (
           <Button
             onClick={handleExport}
@@ -369,9 +160,167 @@ const StrategyCard = ({ strategy, onExportToMonteCarlo }) => {
   );
 };
 
+const StrategyDetailTab = ({ strategy }) => {
+  const [segmentMode, setSegmentMode] = useState('guided');
+
+  if (!strategy) return null;
+
+  const segmentationFilters = [
+    { label: 'Setup Quality', values: ['A+', 'A', 'B', 'C'], active: 'A+' },
+    { label: 'Session', values: ['London', 'New York', 'Asia', 'Overlap'], active: 'New York' },
+    { label: 'Planned vs Unplanned', values: ['Planned', 'Unplanned'], active: 'Planned' },
+    { label: 'Market Regime', values: ['Trending', 'Ranging', 'Volatile'], active: 'Trending' },
+    { label: 'Direction', values: ['Long', 'Short'], active: 'Long' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="glass-enhanced p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Target className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold">DNA Strategia</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-medium ${strategy.status === 'LIVE' ? 'text-emerald-400' :
+              strategy.status === 'WATCH' ? 'text-yellow-400' : 'text-gray-400'
+              }`}>
+              ● {strategy.status}
+            </span>
+            <span className="text-sm text-muted-foreground">| {strategy.trades} trades | Confidence: {strategy.confidence}%</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="glass-tab p-4 text-center">
+            <span className="text-sm text-muted-foreground block mb-1">Win Rate</span>
+            <span className="stat-number text-emerald-400">{strategy.winRate}%</span>
+          </div>
+          <div className="glass-tab p-4 text-center">
+            <span className="text-sm text-muted-foreground block mb-1">Expectancy (R)</span>
+            <span className="stat-number">{strategy.expectancyR}</span>
+          </div>
+          <div className="glass-tab p-4 text-center">
+            <span className="text-sm text-muted-foreground block mb-1">Profit Factor</span>
+            <span className="stat-number">{strategy.profitFactor}</span>
+          </div>
+          <div className="glass-tab p-4 text-center">
+            <span className="text-sm text-muted-foreground block mb-1">Max Drawdown</span>
+            <span className="stat-number text-red-400">{strategy.maxDrawdown}%</span>
+          </div>
+          <div className="glass-tab p-4 text-center">
+            <span className="text-sm text-muted-foreground block mb-1">Net P&L</span>
+            <span className="stat-number text-emerald-400">${strategy.netPnl.toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <span className="text-sm text-muted-foreground">Segmentazione:</span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSegmentMode('guided')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${segmentMode === 'guided'
+              ? 'bg-primary text-white'
+              : 'bg-white/5 text-muted-foreground hover:bg-secondary'
+              }`}
+          >
+            Guidata
+          </button>
+          <button
+            onClick={() => setSegmentMode('discovery')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${segmentMode === 'discovery'
+              ? 'bg-primary text-white'
+              : 'bg-white/5 text-muted-foreground hover:bg-secondary'
+              }`}
+          >
+            Discovery
+          </button>
+        </div>
+      </div>
+
+      {segmentMode === 'guided' && (
+        <div className="glass-enhanced p-6">
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <Settings2 className="w-5 h-5 text-primary" />
+            Segmentazione Guidata
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {segmentationFilters.map((filter) => (
+              <div key={filter.label} className="glass-tab p-4">
+                <span className="text-sm text-muted-foreground block mb-2">{filter.label}</span>
+                <div className="flex flex-wrap gap-1">
+                  {filter.values.map((value) => (
+                    <button
+                      key={value}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-all ${filter.active === value
+                        ? 'bg-primary text-white'
+                        : 'bg-white/5 text-muted-foreground hover:bg-secondary'
+                        }`}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="glass-enhanced p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Zap className="w-5 h-5 text-yellow-400" />
+          <h3 className="font-semibold">3 Priorità di Ottimizzazione</h3>
+        </div>
+
+        <div className="space-y-3">
+          <div className="glass-tab p-4 border-l-4 border-emerald-500 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold">1</span>
+              <div>
+                <p className="font-medium">Aumenta size su setup A+</p>
+                <p className="text-sm text-muted-foreground">+23% win rate su A+ vs media</p>
+              </div>
+            </div>
+            <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded">ALTO IMPATTO</span>
+          </div>
+
+          <div className="glass-tab p-4 border-l-4 border-yellow-500 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 font-bold">2</span>
+              <div>
+                <p className="font-medium">Evita ingressi sessione Asiatica</p>
+                <p className="text-sm text-muted-foreground">-15% win rate durante Asia</p>
+              </div>
+            </div>
+            <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">MEDIO IMPATTO</span>
+          </div>
+
+          <div className="glass-tab p-4 border-l-4 border-blue-500 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold">3</span>
+              <div>
+                <p className="font-medium">Revisione short in trend forte</p>
+                <p className="text-sm text-muted-foreground">Short contro-trend sottoperformano</p>
+              </div>
+            </div>
+            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">REVISIONE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function StrategyPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('strategies');
+  // Performance sub-state
+  const [performanceTab, setPerformanceTab] = useState('portfolio');
+  const [expandedStrategy, setExpandedStrategy] = useState(null);
+
   const [newStrategy, setNewStrategy] = useState({
     name: '',
     assets: '',
@@ -390,7 +339,6 @@ export default function StrategyPage() {
       return;
     }
 
-    // Save to localStorage (in production would save to backend)
     const savedStrategies = JSON.parse(localStorage.getItem('customStrategies') || '[]');
     savedStrategies.push({
       ...newStrategy,
@@ -429,16 +377,45 @@ export default function StrategyPage() {
     navigate('/montecarlo');
   };
 
-  // Load custom strategies
   const customStrategies = JSON.parse(localStorage.getItem('customStrategies') || '[]');
-  const allStrategies = [...predefinedStrategies, ...customStrategies.map(s => ({
+  const allStrategies = [...detailedStrategies, ...customStrategies.map(s => ({
     ...s,
     probabilityFactors: ['Definiti dall\'utente']
   }))];
 
+  const getActionColor = (action) => {
+    switch (action) {
+      case 'SCALE': return 'text-emerald-400 bg-emerald-500/20';
+      case 'MAINTAIN': return 'text-blue-400 bg-blue-500/20';
+      case 'REDUCE': return 'text-yellow-400 bg-yellow-500/20';
+      case 'PAUSE': return 'text-orange-400 bg-orange-500/20';
+      case 'BAN': return 'text-red-400 bg-red-500/20';
+      default: return 'text-gray-400 bg-gray-500/20';
+    }
+  };
+
+  const getActionIcon = (action) => {
+    switch (action) {
+      case 'SCALE': return <ArrowUp className="w-4 h-4" />;
+      case 'MAINTAIN': return <Minus className="w-4 h-4" />;
+      case 'REDUCE': return <ArrowDown className="w-4 h-4" />;
+      case 'PAUSE': return <Pause className="w-4 h-4" />;
+      case 'BAN': return <Ban className="w-4 h-4" />;
+      default: return <Minus className="w-4 h-4" />;
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'LIVE': return 'text-emerald-400';
+      case 'WATCH': return 'text-yellow-400';
+      case 'OFF': return 'text-gray-400';
+      default: return 'text-gray-400';
+    }
+  };
+
   return (
     <div className="space-y-6 fade-in font-apple" data-testid="strategy-page">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -448,16 +425,19 @@ export default function StrategyPage() {
           Strategie di Trading
         </h1>
         <p className="text-muted-foreground mt-1">
-          Strategie pre-definite con regole e stime di performance
+          Libreria strategie, regole operative e analisi performance
         </p>
       </motion.div>
 
-      {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-transparent p-1 gap-1">
           <TabsTrigger value="strategies" className="rounded-lg">
+            <Layers className="w-4 h-4 mr-2" />
+            Libreria ({allStrategies.length})
+          </TabsTrigger>
+          <TabsTrigger value="performance" className="rounded-lg">
             <BarChart3 className="w-4 h-4 mr-2" />
-            Strategie ({allStrategies.length})
+            Performance
           </TabsTrigger>
           <TabsTrigger value="new" className="rounded-lg">
             <Plus className="w-4 h-4 mr-2" />
@@ -465,9 +445,7 @@ export default function StrategyPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Strategies List */}
         <TabsContent value="strategies" className="space-y-4">
-          {/* Strategy Tabs */}
           <div className="flex flex-wrap gap-2 mb-4">
             {allStrategies.map(s => (
               <button
@@ -487,7 +465,6 @@ export default function StrategyPage() {
             ))}
           </div>
 
-          {/* Strategy Cards */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {allStrategies.map(strategy => (
               <StrategyCard
@@ -498,7 +475,6 @@ export default function StrategyPage() {
             ))}
           </div>
 
-          {/* Risk Management Rules */}
           <div className="glass-enhanced p-4">
             <div className="pb-2">
               <h4 className="text-base font-semibold flex items-center gap-2">
@@ -511,14 +487,207 @@ export default function StrategyPage() {
               <p>• Max <strong>2 operazioni/giorno</strong> per asset: Trade #1 + Re-entry solo se tesi valida</p>
               <p>• Apri trade solo se <strong>Probabilità ≥55%</strong></p>
               <p>• <strong>Stop a BE</strong> dopo +0.6R profitto</p>
-              <p>• <strong>Chiudi anticipato</strong> se probabilità scende sotto 50%</p>
-              <p>• <strong>Re-entry</strong> consentito solo se prob torna ≥55%</p>
             </div>
           </div>
         </TabsContent>
 
-        {/* New Strategy Form */}
+        <TabsContent value="performance" className="space-y-6">
+          {/* Performance Header & Time Filter */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold">Analisi Quantitativa</h2>
+            </div>
+
+          </div>
+
+          {/* Performance Sub-Tabs */}
+          <div className="flex gap-2 border-b border-border pb-2 overflow-x-auto">
+            <button
+              onClick={() => setPerformanceTab('portfolio')}
+              className={`tab-selector ${performanceTab === 'portfolio' ? 'tab-selector-active' : ''}`}
+            >
+              <Layers className="w-4 h-4 inline mr-2" />
+              Portfolio
+            </button>
+            {detailedStrategies.filter(s => s.status === 'LIVE' && !s.isModulator && !s.name.includes('News') && !s.name.includes('VIX')).map((strategy) => (
+              <button
+                key={strategy.id}
+                onClick={() => setPerformanceTab(strategy.id)}
+                className={`tab-selector ${performanceTab === strategy.id ? 'tab-selector-active' : ''} flex items-center gap-2`}
+              >
+                <span className={`w-2 h-2 rounded-full ${getStatusColor(strategy.status)}`} />
+                {strategy.name.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+
+          {performanceTab === 'portfolio' ? (
+            <>
+              {/* Data Quality */}
+              <div className="glass-enhanced p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold">Qualità Dati</h3>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(dataQualityMetrics).map(([key, value]) => (
+                    <div key={key} className="glass-tab p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-muted-foreground capitalize">{key}</span>
+                        {value >= 90 ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-yellow-400" />}
+                      </div>
+                      <div className="stat-number text-foreground">{value}%</div>
+                      <div className="h-1.5 bg-secondary rounded-full mt-2 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${value >= 90 ? 'bg-emerald-500' : 'bg-yellow-500'}`} style={{ width: `${value}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Core Metrics */}
+              <div className="glass-enhanced p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Activity className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold">Metriche Chiave</h3>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                  <div className="glass-tab p-4 text-center">
+                    <span className="text-sm text-muted-foreground block mb-1">Total Trades</span>
+                    <span className="stat-number">{portfolioMetrics.totalTrades}</span>
+                  </div>
+                  <div className="glass-tab p-4 text-center">
+                    <span className="text-sm text-muted-foreground block mb-1">Win Rate</span>
+                    <span className="stat-number text-emerald-400">{portfolioMetrics.overallWinRate}%</span>
+                  </div>
+                  <div className="glass-tab p-4 text-center">
+                    <span className="text-sm text-muted-foreground block mb-1">Expectancy (R)</span>
+                    <span className="stat-number">{portfolioMetrics.avgExpectancy}</span>
+                  </div>
+                  <div className="glass-tab p-4 text-center">
+                    <span className="text-sm text-muted-foreground block mb-1">Profit Factor</span>
+                    <span className="stat-number text-emerald-400">{portfolioMetrics.avgProfitFactor}</span>
+                  </div>
+                  <div className="glass-tab p-4 text-center">
+                    <span className="text-sm text-muted-foreground block mb-1">Max Drawdown</span>
+                    <span className="stat-number text-red-400">{portfolioMetrics.portfolioDrawdown}%</span>
+                  </div>
+                  <div className="glass-tab p-4 text-center">
+                    <span className="text-sm text-muted-foreground block mb-1">Sharpe Ratio</span>
+                    <span className="stat-number">{portfolioMetrics.sharpeRatio}</span>
+                  </div>
+                  <div className="glass-tab p-4 text-center">
+                    <span className="text-sm text-muted-foreground block mb-1">Net P&L</span>
+                    <span className="stat-number text-emerald-400">${portfolioMetrics.netPnl.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Leaderboard */}
+              <div className="glass-enhanced p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-yellow-400" />
+                    <h3 className="font-semibold">Classifica Strategie</h3>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Ordinati per Risk-Adjusted Return</span>
+                </div>
+                <div className="space-y-3">
+                  {detailedStrategies.filter(s => s.status === 'LIVE' && !s.isModulator && !s.name.includes('News') && !s.name.includes('VIX')).sort((a, b) => (b.expectancyR || 0) * (b.winRate || 0) - (a.expectancyR || 0) * (a.winRate || 0)).map((strategy, index) => (
+                    <div key={strategy.id}
+                      className="glass-tab p-4 cursor-pointer hover:border-primary/40 transition-all"
+                      onClick={() => setExpandedStrategy(expandedStrategy === strategy.id ? null : strategy.id)}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <span className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">#{index + 1}</span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium">{strategy.name}</h4>
+                              <span className={`text-xs ${getStatusColor(strategy.status)}`}>● {strategy.status}</span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{strategy.type} • {strategy.trades} trades</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-6">
+                          <div className="text-right hidden md:block">
+                            <span className="text-sm text-muted-foreground">Win Rate</span>
+                            <p className="font-semibold text-emerald-400">{strategy.winRate}%</p>
+                          </div>
+                          <div className="text-right hidden lg:block">
+                            <span className="text-sm text-muted-foreground">P.Factor</span>
+                            <p className="font-semibold">{strategy.profitFactor}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm text-muted-foreground">Net P&L</span>
+                            <p className={`font-semibold ${strategy.netPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>${strategy.netPnl.toLocaleString()}</p>
+                          </div>
+                          <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 ${getActionColor(strategy.action)}`}>
+                            {getActionIcon(strategy.action)}
+                            <span className="font-medium text-sm">{strategy.action}</span>
+                          </div>
+                          {expandedStrategy === strategy.id ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+                        </div>
+                      </div>
+                      {expandedStrategy === strategy.id && (
+                        <div className="mt-4 pt-4 border-t border-border/50 grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="p-3 bg-white/5 rounded-lg">
+                            <span className="text-xs text-muted-foreground block">Confidence</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{strategy.confidence}%</span>
+                              <div className="flex-1 h-1.5 bg-secondary rounded-full">
+                                <div className="h-full bg-primary rounded-full" style={{ width: `${strategy.confidence}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="p-3 bg-white/5 rounded-lg">
+                            <span className="text-xs text-muted-foreground block">Max Drawdown</span>
+                            <span className="font-semibold text-red-400">{strategy.maxDrawdown}%</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Optimization Moves */}
+              <div className="glass-enhanced p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Zap className="w-5 h-5 text-yellow-400" />
+                  <h3 className="font-semibold">Ottimizzazione</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="glass-tab p-4 border-l-4 border-emerald-500">
+                    <h4 className="font-medium mb-2 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-emerald-400" />
+                      Edge
+                    </h4>
+                    <p className="text-sm text-muted-foreground">Aumenta size GammaMagnet del 15% in regimi di alta volatilità.</p>
+                  </div>
+                  <div className="glass-tab p-4 border-l-4 border-yellow-500">
+                    <h4 className="font-medium mb-2 flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-yellow-400" />
+                      Rischio
+                    </h4>
+                    <p className="text-sm text-muted-foreground">Riduci esposizione Multi-Day Rejection finché il DD non rientra &lt;10%.</p>
+                  </div>
+                  <div className="glass-tab p-4 border-l-4 border-blue-500">
+                    <h4 className="font-medium mb-2 flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-blue-400" />
+                      Costi
+                    </h4>
+                    <p className="text-sm text-muted-foreground">Usa ordini limit su Rate-Volatility per ridurre slippage (~$8/trade).</p>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <StrategyDetailTab strategy={detailedStrategies.find(s => s.id === performanceTab)} />
+          )}
+        </TabsContent>
+
         <TabsContent value="new" className="space-y-4">
+          {/* New Strategy Form (Existing) */}
           <div className="glass-enhanced p-0">
             <div className="p-4">
               <h3 className="font-semibold flex items-center gap-2">
@@ -528,7 +697,6 @@ export default function StrategyPage() {
             </div>
             <div className="p-4 pt-0 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Name */}
                 <div className="space-y-2">
                   <Label>Nome Strategia *</Label>
                   <Input
@@ -538,8 +706,6 @@ export default function StrategyPage() {
                     className="bg-white/5"
                   />
                 </div>
-
-                {/* Assets */}
                 <div className="space-y-2">
                   <Label>Asset (separati da virgola)</Label>
                   <Input
@@ -551,7 +717,6 @@ export default function StrategyPage() {
                 </div>
               </div>
 
-              {/* Description */}
               <div className="space-y-2">
                 <Label>Descrizione *</Label>
                 <Textarea
@@ -562,7 +727,6 @@ export default function StrategyPage() {
                 />
               </div>
 
-              {/* Stats Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label>Win Rate (%)</Label>
@@ -610,7 +774,6 @@ export default function StrategyPage() {
                 </div>
               </div>
 
-              {/* Rules */}
               <div className="space-y-2">
                 <Label>Regole (una per riga)</Label>
                 <Textarea
@@ -621,7 +784,6 @@ export default function StrategyPage() {
                 />
               </div>
 
-              {/* Triggers */}
               <div className="space-y-2">
                 <Label>Trigger (uno per riga)</Label>
                 <Textarea
@@ -632,7 +794,6 @@ export default function StrategyPage() {
                 />
               </div>
 
-              {/* Preview R:R */}
               <div className="p-4 bg-white/5 rounded-xl">
                 <p className="text-sm text-muted-foreground mb-1">Risk/Reward Stimato</p>
                 <p className="text-2xl font-bold text-primary">
@@ -640,7 +801,6 @@ export default function StrategyPage() {
                 </p>
               </div>
 
-              {/* Save Button */}
               <Button
                 onClick={handleSaveStrategy}
                 className="w-full rounded-xl bg-primary hover:bg-primary/90"

@@ -34,7 +34,7 @@ import OptionsFlowPage from './components/pages/OptionsFlowPage';
 import MacroEconomyPage from './components/pages/MacroEconomyPage';
 import CryptoPage from './components/pages/CryptoPage';
 import CalculatorPage from './components/pages/CalculatorPage';
-import PerformancePage from './components/pages/PerformancePage';
+
 import PricingPage from './components/pages/PricingPage';
 import CheckoutSuccessPage from './components/pages/CheckoutSuccessPage';
 import IntroPreviewPage from './components/pages/IntroPreviewPage';
@@ -138,7 +138,7 @@ function AppRoutes() {
         <Route path="cot" element={<COTPage />} />
         <Route path="options" element={<OptionsFlowPage />} />
         <Route path="statistics" element={<StatisticsPage />} />
-        <Route path="performance" element={<PerformancePage />} />
+
         <Route path="montecarlo" element={<MonteCarloPage />} />
         <Route path="calculator" element={<CalculatorPage />} />
         <Route path="crypto" element={<CryptoPage />} />

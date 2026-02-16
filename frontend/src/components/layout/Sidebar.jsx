@@ -41,7 +41,7 @@ const navItems = [
   { path: '/app/cot', icon: TrendingUp, label: 'COT', iconClass: 'icon-cot' },
   { path: '/app/options', icon: Activity, label: 'Options', iconClass: 'icon-options' },
   { path: '/app/statistics', icon: LineChart, label: 'Stats', iconClass: 'icon-stats' },
-  { path: '/app/performance', icon: Gauge, label: 'Performance', iconClass: 'icon-performance' },
+
   { path: '/app/strategy', icon: Target, label: 'Strategia', iconClass: 'icon-strategy' },
   { path: '/app/montecarlo', icon: Dices, label: 'Monte Carlo', iconClass: 'icon-montecarlo' },
   { path: '/app/calculator', icon: Calculator, label: 'Calcolatore', iconClass: 'icon-calculator' },

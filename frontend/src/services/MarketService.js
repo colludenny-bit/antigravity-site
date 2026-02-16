@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = `${process.env.REACT_APP_BACKEND_URL || ''}/api/market`;
+const API_URL = `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000'}/api/market`;
 
 // Cache to prevent rate limiting
 let priceCache = {};

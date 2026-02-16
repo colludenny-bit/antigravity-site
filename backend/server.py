@@ -49,7 +49,7 @@ try:
     import asyncio
     async def test_mongo():
         await client.admin.command('ping')
-    asyncio.get_event_loop().run_until_complete(test_mongo())
+    # asyncio.get_event_loop().run_until_complete(test_mongo())
     db = client[os.environ.get('DB_NAME', 'karion_trading_os')]
     print("✅ Connected to MongoDB")
 except Exception as e:
@@ -1279,6 +1279,16 @@ async def analyze_pdf(file: UploadFile = File(...), current_user: dict = Depends
 _market_cache = {"data": None, "timestamp": None}
 _vix_cache = {"data": None, "timestamp": None}
 
+# CoinGecko Proxy Cache
+_cg_cache = {
+    "top30": {"data": None, "timestamp": None},
+    "global": {"data": None, "timestamp": None},
+    "trending": {"data": None, "timestamp": None},
+    "coins": {}, # cache by coin id
+    "charts": {} # cache by coin id
+}
+CG_CACHE_TTL = 300 # 5 minutes
+
 def get_yf_ticker_safe(symbol: str, period: str = "5d", interval: str = "1d"):
     """Safely fetch data from yfinance with error handling"""
     try:
@@ -2380,6 +2390,14 @@ async def get_trending():
 
 @api_router.get("/market/coin/{id}")
 async def get_coin_details(id: str):
+    global _cg_cache
+    now = datetime.now(timezone.utc)
+    
+    if id in _cg_cache["coins"] and _cg_cache["coins"][id]["timestamp"]:
+        age = (now - _cg_cache["coins"][id]["timestamp"]).total_seconds()
+        if age < CG_CACHE_TTL:
+            return _cg_cache["coins"][id]["data"]
+
     try:
         import httpx
         url = f"{COINGECKO_BASE_URL}/coins/{id}"
@@ -2393,12 +2411,33 @@ async def get_coin_details(id: str):
         }
         async with httpx.AsyncClient() as client:
             response = await client.get(url, params=params)
-            return response.json()
+            
+            if response.status_code == 429:
+                logger.warning(f"CoinGecko Rate Limit reached (coin/{id}).")
+                if id in _cg_cache["coins"]:
+                    return _cg_cache["coins"][id]["data"]
+                return None
+                
+            data = response.json()
+            _cg_cache["coins"][id] = {"data": data, "timestamp": now}
+            return data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Coin Details Fetch Error ({id}): {e}")
+        if id in _cg_cache["coins"]:
+            return _cg_cache["coins"][id]["data"]
+        return None
 
 @api_router.get("/market/top30")
 async def get_top30():
+    global _cg_cache
+    now = datetime.now(timezone.utc)
+    
+    # Check cache
+    if _cg_cache["top30"]["data"] and _cg_cache["top30"]["timestamp"]:
+        age = (now - _cg_cache["top30"]["timestamp"]).total_seconds()
+        if age < CG_CACHE_TTL:
+            return _cg_cache["top30"]["data"]
+
     try:
         import httpx
         url = f"{COINGECKO_BASE_URL}/coins/markets"
@@ -2412,12 +2451,34 @@ async def get_top30():
         }
         async with httpx.AsyncClient() as client:
             response = await client.get(url, params=params)
-            return response.json()
+            
+            if response.status_code == 429:
+                logger.warning("CoinGecko Rate Limit reached (top30). Using stale cache or empty list.")
+                if _cg_cache["top30"]["data"]:
+                    return _cg_cache["top30"]["data"]
+                return []
+                
+            data = response.json()
+            _cg_cache["top30"]["data"] = data
+            _cg_cache["top30"]["timestamp"] = now
+            return data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Top30 Fetch Error: {e}")
+        if _cg_cache["top30"]["data"]:
+            return _cg_cache["top30"]["data"]
+        return []
 
 @api_router.get("/market/chart/{id}")
 async def get_coin_chart(id: str, days: int = 7):
+    global _cg_cache
+    now = datetime.now(timezone.utc)
+    cache_key = f"{id}_{days}"
+    
+    if cache_key in _cg_cache["charts"] and _cg_cache["charts"][cache_key]["timestamp"]:
+        age = (now - _cg_cache["charts"][cache_key]["timestamp"]).total_seconds()
+        if age < CG_CACHE_TTL:
+            return _cg_cache["charts"][cache_key]["data"]
+
     try:
         import httpx
         url = f"{COINGECKO_BASE_URL}/coins/{id}/market_chart"
@@ -2427,21 +2488,50 @@ async def get_coin_chart(id: str, days: int = 7):
         }
         async with httpx.AsyncClient() as client:
             response = await client.get(url, params=params)
-            return response.json()
+            
+            if response.status_code == 429:
+                logger.warning(f"CoinGecko Rate Limit reached (chart/{id}).")
+                if cache_key in _cg_cache["charts"]:
+                    return _cg_cache["charts"][cache_key]["data"]
+                return {"prices": [], "market_caps": [], "total_volumes": []}
+                
+            data = response.json()
+            _cg_cache["charts"][cache_key] = {"data": data, "timestamp": now}
+            return data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Chart Fetch Error ({id}): {e}")
+        if cache_key in _cg_cache["charts"]:
+            return _cg_cache["charts"][cache_key]["data"]
+        return {"prices": [], "market_caps": [], "total_volumes": []}
 
 @api_router.get("/market/global")
 async def get_global_data():
+    global _cg_cache
+    now = datetime.now(timezone.utc)
+    
+    if _cg_cache["global"]["data"] and _cg_cache["global"]["timestamp"]:
+        age = (now - _cg_cache["global"]["timestamp"]).total_seconds()
+        if age < CG_CACHE_TTL:
+            return _cg_cache["global"]["data"]
+
     try:
         import httpx
         url = f"{COINGECKO_BASE_URL}/global"
         async with httpx.AsyncClient() as client:
             response = await client.get(url)
+            
+            if response.status_code == 429:
+                logger.warning("CoinGecko Rate Limit reached (global).")
+                return _cg_cache["global"]["data"]
+
             data = response.json()
-            return data.get("data")
+            result = data.get("data")
+            _cg_cache["global"]["data"] = result
+            _cg_cache["global"]["timestamp"] = now
+            return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Global Data Fetch Error: {e}")
+        return _cg_cache["global"]["data"]
 
 # --- SURVIVAL ENDPOINTS ---
 

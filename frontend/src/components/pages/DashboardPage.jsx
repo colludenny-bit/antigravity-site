@@ -1043,10 +1043,20 @@ const COTPanel = ({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady =
 
 
 // Options Flow Panel - Enhanced Interactive
-const OptionsPanel = ({ optionsData, animationsReady = false }) => {
+const OptionsPanel = ({ optionsData, animationsReady = false, selectedAsset: propAsset, onAssetChange }) => {
   const [showSelector, setShowSelector] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState('XAUUSD');
+  const [internalSelectedAsset, setInternalSelectedAsset] = useState('XAUUSD');
+
+  const selectedAsset = propAsset || internalSelectedAsset;
+  const handleAssetChange = (asset) => {
+    if (onAssetChange) {
+      onAssetChange(asset);
+    } else {
+      setInternalSelectedAsset(asset);
+    }
+    setShowSelector(false);
+  };
 
   const availableAssets = ['XAUUSD', 'NAS100', 'SP500', 'EURUSD', 'BTCUSD'];
 
@@ -1231,7 +1241,7 @@ const OptionsPanel = ({ optionsData, animationsReady = false }) => {
                   {availableAssets.map(asset => (
                     <button
                       key={asset}
-                      onClick={() => { setSelectedAsset(asset); setShowSelector(false); }}
+                      onClick={() => handleAssetChange(asset)}
                       className={cn(
                         "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors font-medium",
                         selectedAsset === asset
@@ -1927,6 +1937,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [favoriteCharts, setFavoriteCharts] = useState(['XAUUSD', 'NAS100', 'SP500']);
   const [favoriteCOT, setFavoriteCOT] = useState(['NAS100', 'SP500']);
+  const [optionsSelectedAsset, setOptionsSelectedAsset] = useState('XAUUSD');
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   // Typewriter animation state
@@ -2211,16 +2222,23 @@ export default function DashboardPage() {
             onFavoriteChange={setFavoriteCharts}
             animationsReady={headerHidden}
             onSyncAsset={useCallback((symbol) => {
-              // Only sync if symbol is actually in the COT data to avoid empty cards
+              // Sync COT Favorites
               if (cotDataToUse?.data?.[symbol]) {
                 setFavoriteCOT(prev => [symbol, ...prev.filter(s => s !== symbol)].slice(0, 3));
               }
+              // Sync Options Asset
+              setOptionsSelectedAsset(symbol);
             }, [cotDataToUse])}
           />
 
           {/* Options + COT Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-            <OptionsPanel optionsData={optionsData} animationsReady={headerHidden} />
+            <OptionsPanel
+              optionsData={optionsData}
+              animationsReady={headerHidden}
+              selectedAsset={optionsSelectedAsset}
+              onAssetChange={setOptionsSelectedAsset}
+            />
             <COTPanel cotData={cotDataToUse} favoriteCOT={favoriteCOT} onFavoriteCOTChange={setFavoriteCOT} animationsReady={headerHidden} />
           </div>
         </div>
