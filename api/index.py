@@ -613,8 +613,10 @@ def _code_hash(user_id: str, purpose: str, target: str, code: str) -> str:
 
 async def _send_email_code(email: str, code: str, purpose: str) -> str:
     if not RESEND_API_KEY:
-        print(f"[DEV_EMAIL_CODE] {purpose} -> {email}: {code}")
-        return "dev_log"
+        if DEMO_MODE:
+            print(f"[DEV_EMAIL_CODE] {purpose} -> {email}: {code}")
+            return "dev_log"
+        return "unavailable"
 
     subject_map = {
         "password_change": "Codice verifica cambio password",
@@ -854,8 +856,11 @@ async def request_password_change_code(current_user: dict = Depends(get_current_
     target_email = user_doc["email"]
     await _store_verification_code(user_doc["id"], "password_change", target_email, code)
     delivery = await _send_email_code(target_email, code, "password_change")
-    if delivery == "failed":
-        raise HTTPException(status_code=503, detail="Unable to send verification code")
+    if delivery in {"failed", "unavailable"}:
+        raise HTTPException(
+            status_code=503,
+            detail="Provider email non configurato. Imposta RESEND_API_KEY e RESEND_FROM_EMAIL.",
+        )
 
     payload = {"status": "code_sent", "channel": delivery, "target": _mask_email(target_email)}
     if DEMO_MODE:
@@ -903,8 +908,11 @@ async def request_email_change_code(req: EmailChangeRequest, current_user: dict 
     code = _generate_code()
     await _store_verification_code(user_doc["id"], "email_change", new_email, code)
     delivery = await _send_email_code(new_email, code, "email_change")
-    if delivery == "failed":
-        raise HTTPException(status_code=503, detail="Unable to send verification code")
+    if delivery in {"failed", "unavailable"}:
+        raise HTTPException(
+            status_code=503,
+            detail="Provider email non configurato. Imposta RESEND_API_KEY e RESEND_FROM_EMAIL.",
+        )
 
     payload = {"status": "code_sent", "channel": delivery, "target": _mask_email(new_email)}
     if DEMO_MODE:
@@ -967,8 +975,11 @@ async def request_phone_verification_code(req: PhoneCodeRequest, current_user: d
     else:
         delivery = await _send_email_code(user_doc["email"], code, "phone_verify")
 
-    if delivery == "failed":
-        raise HTTPException(status_code=503, detail="Unable to send verification code")
+    if delivery in {"failed", "unavailable"}:
+        raise HTTPException(
+            status_code=503,
+            detail="Provider SMS non configurato. Imposta TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER (e opzionalmente RESEND fallback).",
+        )
 
     payload = {"status": "code_sent", "channel": delivery, "target": _mask_phone(full_phone)}
     if DEMO_MODE:
