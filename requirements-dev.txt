@@ -11,5 +11,9 @@ python-multipart==0.0.9
 starlette==0.37.2
 stripe>=8.0.0
 uvicorn==0.25.0
+google-generativeai
+apscheduler
+yfinance
 httpx
+PyPDF2
 aiohttp
