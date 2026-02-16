@@ -2531,37 +2531,8 @@ async def get_global_data():
         logger.error(f"Global Data Fetch Error: {e}")
         return _cg_cache["global"]["data"]
 
-# --- SURVIVAL ENDPOINTS ---
-
-@api_router.get("/analysis/multi-source")
-async def get_multi_source_analysis():
-    return {
-        "status": "success",
-        "data": {
-            "summary": "Analisi multi-source in fase di aggiornamento. Consultare i grafici per i dati live.",
-            "sentiment": "Neutrale",
-            "score": 50
-        }
-    }
-
-@api_router.get("/cot/data")
-async def get_cot_data():
-    return {"status": "success", "data": {}}
-
-@api_router.get("/engine/cards")
-async def get_engine_cards():
-    return []
-
 # Include router and middleware
 app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Startup Event
 @app.on_event("startup")
@@ -2589,7 +2560,6 @@ async def shutdown_db_client():
         scheduler.shutdown()
     if not DEMO_MODE and client:
         client.close()
-
 
 if __name__ == "__main__":
     import uvicorn

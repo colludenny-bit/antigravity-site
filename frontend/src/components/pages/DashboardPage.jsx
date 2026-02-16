@@ -733,19 +733,24 @@ const COTPanel = ({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady =
 
   if (!cotData?.data) return null;
 
-  const instruments = Object.keys(cotData.data);
-  const selectedInstruments = favoriteCOT?.length > 0 ? favoriteCOT : instruments.slice(0, 2);
+  const instruments = Object.keys(cotData.data || {});
+  const validFavorites = (favoriteCOT || []).filter((symbol) => instruments.includes(symbol));
+  const selectedInstruments = validFavorites.length > 0 ? validFavorites : instruments.slice(0, 2);
 
   const nextInstrument = () => {
+    if (selectedInstruments.length === 0) return;
     setActiveIndex((prev) => (prev + 1) % selectedInstruments.length);
   };
 
   const prevInstrument = () => {
+    if (selectedInstruments.length === 0) return;
     setActiveIndex((prev) => (prev - 1 + selectedInstruments.length) % selectedInstruments.length);
   };
 
-  const currentSymbol = selectedInstruments[activeIndex];
-  const data = cotData?.data?.[currentSymbol];
+  const currentSymbol = selectedInstruments.length > 0
+    ? selectedInstruments[Math.min(activeIndex, selectedInstruments.length - 1)]
+    : null;
+  const data = currentSymbol ? cotData?.data?.[currentSymbol] : null;
 
   const selectInstrument = (inst) => {
     if (!onFavoriteCOTChange) return;
@@ -817,6 +822,14 @@ const COTPanel = ({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady =
   };
 
   const interpretation = getInterpretation(data, metrics);
+
+  if (selectedInstruments.length === 0) {
+    return (
+      <TechCard className="p-4 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex items-center justify-center">
+        <p className="text-sm text-white/60 text-center">COT non disponibile al momento.</p>
+      </TechCard>
+    );
+  }
 
   return (
     <TechCard className="p-3 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex flex-col">
@@ -975,7 +988,7 @@ const COTPanel = ({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady =
         {/* Left Stack Title & NetPos */}
         {/* Left Stack Title & NetPos - Big & Spaced */}
         <div className="flex flex-col items-start px-1 mb-0 relative top-[18px] shrink-0">
-          <h2 className="text-xl font-bold text-white leading-none mb-0.5">{currentSymbol}</h2>
+          <h2 className="text-xl font-bold text-white leading-none mb-0.5">{currentSymbol || '-'}</h2>
           <div className="flex items-baseline gap-2 mt-0">
             <span className={cn(
               "text-3xl font-bold tracking-tighter leading-none",
@@ -988,7 +1001,7 @@ const COTPanel = ({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady =
         {/* Rolling Bias Section */}
         <div className="mb-0 -mt-[8px] px-0">
           <WeeklyBiasScale
-            data={data.rolling_bias || [
+            data={data?.rolling_bias || [
               { label: 'W-3', value: 45, isCurrent: false },
               { label: 'W-2', value: 37, isCurrent: false },
               { label: 'W-1', value: 55, isCurrent: false, isPrevious: true },
@@ -2047,8 +2060,9 @@ export default function DashboardPage() {
     }
   }), []);
 
-  // Use real COT data if available, otherwise fallback to mock
-  const cotDataToUse = cotSummary?.data ? cotSummary : mockCotData;
+  // Use real COT data only when at least one symbol is available
+  const hasLiveCotData = cotSummary?.data && Object.keys(cotSummary.data).length > 0;
+  const cotDataToUse = hasLiveCotData ? cotSummary : mockCotData;
 
   // Get greeting based on time of day
   const getGreeting = () => {
