@@ -14,7 +14,7 @@ import {
   Settings, Moon, Sun, Globe, User, Bell, Shield, Palette,
   Lock, Key, ExternalLink, Check, X, Eye, EyeOff,
   TrendingUp, Download, Trash2, Volume2, Zap, Database, LogOut,
-  CreditCard, FileText, Activity, Mail, Smartphone, Plus, Pencil, Share2, Info,
+  CreditCard, FileText, Activity, Mail, Plus, Pencil, Share2, Info,
   MessageSquare, Sparkles, Heart
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -333,51 +333,7 @@ export default function SettingsPage() {
               </div>
             </section>
 
-            {/* 2FA */}
-            <section>
-              <h3 className="text-xl font-bold text-white mb-6">Autenticazione a due fattori</h3>
-              <p className="text-white/70 text-base mb-6 leading-relaxed">
-                Proteggi il tuo account con l'autenticazione a due fattori. Scegli una delle opzioni riportate di seguito.
-              </p>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-                      <Smartphone className="w-5 h-5 text-white/60" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-white">App di autenticazione</h4>
-                      <p className="text-white/60 text-sm">Utilizza Google Authenticator, Duo Mobile o Authy.</p>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-                      <Mail className="w-5 h-5 text-white/60" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-white">Messaggio di testo</h4>
-                      <p className="text-white/60 text-sm">Ricevi un codice via SMS sul tuo dispositivo mobile.</p>
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-                      <Key className="w-5 h-5 text-white/60" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-white">Codici backup</h4>
-                      <p className="text-white/60 text-sm">Utilizzali se non puoi accedere al tuo telefono.</p>
-                    </div>
-                  </div>
-                  <Button variant="outline" className="rounded-xl h-10 border-white/10 hover:bg-white/5">Genera nuovi codici</Button>
-                </div>
-              </div>
-            </section>
+
 
             {/* Phone Management */}
             <section>
