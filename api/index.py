@@ -151,6 +151,16 @@ app.add_middleware(
 
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 
+# CoinGecko Proxy Cache for Serverless (Best effort)
+_cg_cache = {
+    "top30": {"data": None, "timestamp": None},
+    "global": {"data": None, "timestamp": None},
+    "trending": {"data": None, "timestamp": None},
+    "coins": {},
+    "charts": {}
+}
+CG_CACHE_TTL = 300 # 5 minutes
+
 @app.get("/api/market/prices")
 async def get_market_prices():
     try:
@@ -201,6 +211,14 @@ async def get_coin_details(id: str):
 
 @app.get("/api/market/top30")
 async def get_top30():
+    global _cg_cache
+    now = datetime.now(timezone.utc)
+    
+    # Best-effort cache for reused instances
+    if _cg_cache["top30"]["data"] and _cg_cache["top30"]["timestamp"]:
+        if (now - _cg_cache["top30"]["timestamp"]).total_seconds() < CG_CACHE_TTL:
+            return _cg_cache["top30"]["data"]
+
     try:
         url = f"{COINGECKO_BASE_URL}/coins/markets"
         params = {
@@ -214,12 +232,26 @@ async def get_top30():
         import httpx
         async with httpx.AsyncClient() as client:
             response = await client.get(url, params=params)
-            return response.json()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            
+            if response.status_code == 429:
+                return _cg_cache["top30"]["data"] if _cg_cache["top30"]["data"] else []
+                
+            data = response.json()
+            _cg_cache["top30"] = {"data": data, "timestamp": now}
+            return data
+    except Exception:
+        return _cg_cache["top30"]["data"] if _cg_cache["top30"]["data"] else []
 
 @app.get("/api/market/chart/{id}")
 async def get_coin_chart(id: str, days: int = 7):
+    global _cg_cache
+    now = datetime.now(timezone.utc)
+    cache_key = f"{id}_{days}"
+    
+    if cache_key in _cg_cache["charts"] and _cg_cache["charts"][cache_key]["timestamp"]:
+        if (now - _cg_cache["charts"][cache_key]["timestamp"]).total_seconds() < CG_CACHE_TTL:
+            return _cg_cache["charts"][cache_key]["data"]
+
     try:
         url = f"{COINGECKO_BASE_URL}/coins/{id}/market_chart"
         params = {
@@ -229,21 +261,40 @@ async def get_coin_chart(id: str, days: int = 7):
         import httpx
         async with httpx.AsyncClient() as client:
             response = await client.get(url, params=params)
-            return response.json()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            
+            if response.status_code == 429:
+                return _cg_cache["charts"].get(cache_key, {}).get("data", {"prices": []})
+                
+            data = response.json()
+            _cg_cache["charts"][cache_key] = {"data": data, "timestamp": now}
+            return data
+    except Exception:
+        return _cg_cache["charts"].get(cache_key, {}).get("data", {"prices": []})
 
 @app.get("/api/market/global")
 async def get_global_data():
+    global _cg_cache
+    now = datetime.now(timezone.utc)
+    
+    if _cg_cache["global"]["data"] and _cg_cache["global"]["timestamp"]:
+        if (now - _cg_cache["global"]["timestamp"]).total_seconds() < CG_CACHE_TTL:
+            return _cg_cache["global"]["data"]
+
     try:
         url = f"{COINGECKO_BASE_URL}/global"
         import httpx
         async with httpx.AsyncClient() as client:
             response = await client.get(url)
+            
+            if response.status_code == 429:
+                return _cg_cache["global"]["data"]
+
             data = response.json()
-            return data.get("data")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            result = data.get("data")
+            _cg_cache["global"] = {"data": result, "timestamp": now}
+            return result
+    except Exception:
+        return _cg_cache["global"]["data"]
 
 @app.get("/api/analysis/multi-source")
 async def get_multi_source_analysis():

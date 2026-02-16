@@ -9,7 +9,6 @@ import {
     BookOpen, Newspaper, PieChart, Activity, ChevronRight, Loader2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { toast } from 'sonner';
 import kairongBull from '../../assets/kairon-bull.png';
 
 /* ═══════════════════════════════════════════════════════════════════
