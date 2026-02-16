@@ -2188,7 +2188,6 @@ async def update_language(language: str, current_user: dict = Depends(get_curren
     await db.users.update_one({"id": current_user["id"]}, {"$set": {"language": language}})
     return {"status": "updated", "language": language}
 
-<<<<<<< Updated upstream
 # ==================== MARKET ANALYSIS ====================
 
 @api_router.get("/market/analysis")
@@ -2297,7 +2296,7 @@ async def scheduled_engine_run():
     global latest_engine_cards
     if multi_source_engine:
         latest_engine_cards = await multi_source_engine.run_analysis()
-=======
+
 # ==================== STRIPE PAYMENTS ====================
 
 @api_router.post("/create-checkout", response_model=CheckoutSessionResponse)
@@ -2366,7 +2365,6 @@ async def stripe_webhook(request: Request):
         logger.debug("Checkout completato %s (%s)", session.get("id"), session.get("customer_email") or session.get("customer"))
 
     return {"received": True}
->>>>>>> Stashed changes
 
 # ==================== ROOT ====================
 
@@ -2587,56 +2585,11 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-<<<<<<< Updated upstream
     if scheduler.running:
         scheduler.shutdown()
     if not DEMO_MODE and client:
         client.close()
-=======
-    if not DEMO_MODE:
-        try:
-            client.close()
-        except Exception:
-            pass
 
-# ==================== SCHEDULER ====================
-
-scheduler = AsyncIOScheduler()
-
-async def market_analysis_task():
-    """Background task to analyze market conditions every 3 hours"""
-    logger.info("🕒 Running scheduled market analysis...")
-    try:
-        # 1. Fetch latest prices for key assets
-        symbols = ["^GSPC", "^IXIC", "GC=F", "BTC-USD", "^VIX"]
-        prices = await market_provider.get_prices(symbols)
-        logger.info(f"📈 Market Snapshot: SPX {prices.get('^GSPC', 0)}, VIX {prices.get('^VIX', 0)}")
-        
-        # 2. Run AI broad market scan (Placeholder)
-        # In future: Pass prices to LLM for analysis
-        
-        # 3. Update 'MarketContext' in DB (Pseudo-code)
-        # await db.market_context.update_one(...)
-        
-    except Exception as e:
-        logger.error(f"Error in market analysis task: {e}")
-
-@app.on_event("startup")
-async def start_scheduler():
-    scheduler.add_job(
-        market_analysis_task, 
-        IntervalTrigger(hours=3), 
-        id="market_analysis", 
-        replace_existing=True
-    )
-    scheduler.start()
-    logger.info("⏳ AI Market Scheduler started (every 3h)")
-
-@app.on_event("shutdown")
-async def stop_scheduler():
-    scheduler.shutdown()
-    logger.info("🛑 Scheduler stopped")
->>>>>>> Stashed changes
 
 if __name__ == "__main__":
     import uvicorn
