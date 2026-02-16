@@ -696,86 +696,54 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 
               <div className="flex flex-col justify-between">
                 <div>
-                  <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Metriche Rapide</h5>
+                  <h5 className="text-sm font-bold text-white uppercase tracking-[0.2em] mb-4">Metriche Rapide</h5>
                   <div className="space-y-4">
                     <div>
-                      <p className="text-[10px] text-white uppercase font-black tracking-[0.2em] mb-2 leading-none">ATR Daily Range</p>
+                      <p className="text-xs text-white uppercase font-black tracking-[0.2em] mb-2 leading-none">ATR Daily Range</p>
                       <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
                         <div
                           style={{ width: `${atrProgress}%` }}
                           className="h-full rounded-full bg-[#00D9A5] transition-all duration-700"
                         />
                       </div>
-                      <div className="mt-2 flex items-center justify-between text-[10px] text-white/60 font-bold">
+                      <div className="mt-2 flex items-center justify-between text-xs text-white/70 font-bold">
                         <span>Percorso: {formatPoints(dayMovePoints)} pts ({Math.round(atrProgress)}%)</span>
                         <span>Rimanente: {formatPoints(atrRemaining)} pts ({Math.max(0, 100 - Math.round(atrProgress))}%)</span>
                       </div>
-                      <p className="text-[10px] text-white/40 mt-1">
+                      <p className="text-xs text-white/50 mt-1">
                         Stato: {atrProgress < 40 ? 'Range Early' : atrProgress < 70 ? 'Mid Range' : 'Range Esteso'}
                       </p>
                     </div>
 
                     {isIndex && (
                       <div className="space-y-1">
-                        <p className="text-[10px] text-white uppercase font-black tracking-[0.2em]">Bias Settimanale</p>
-                        <p className="text-xs font-bold text-[#00D9A5]">{weekRule.description || '—'}</p>
+                        <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Bias Settimanale</p>
+                        <p className="text-sm font-bold text-[#00D9A5]">{weekRule.description || '—'}</p>
                       </div>
                     )}
 
                     {isIndex && (
                       <div className="space-y-1">
-                        <p className="text-[10px] text-white uppercase font-black tracking-[0.2em]">Bias Giornaliero</p>
-                        <p className="text-xs text-white/80">{dayRule.note || '—'}</p>
+                        <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Bias Giornaliero</p>
+                        <p className="text-sm text-white/80">{dayRule.note || '—'}</p>
                       </div>
                     )}
 
                     {isIndex ? (
                       <div className="space-y-1">
-                        <p className="text-[10px] text-white uppercase font-black tracking-[0.2em]">Bias Mensile</p>
-                        <p className="text-xs font-bold text-[#00D9A5]">{monthlyBias || '—'}</p>
+                        <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Bias Mensile</p>
+                        <p className="text-sm font-bold text-[#00D9A5]">{monthlyBias || '—'}</p>
                       </div>
                     ) : (
                       <div className="space-y-1">
-                        <p className="text-[10px] text-white uppercase font-black tracking-[0.2em]">Seasonality</p>
-                        <p className="text-xs font-bold text-[#00D9A5]">{seasonalityBias}</p>
-                        <p className="text-[10px] text-white/40">MTD: {formatPoints(monthMovePoints)} pts</p>
+                        <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Seasonality</p>
+                        <p className="text-sm font-bold text-[#00D9A5]">{seasonalityBias}</p>
+                        <p className="text-xs text-white/50">MTD: {formatPoints(monthMovePoints)} pts</p>
                       </div>
                     )}
                   </div>
 
-                  {/* Source Breakdown - Integrated */}
-                  {currentAsset.scores && Object.keys(currentAsset.scores).length > 0 && (
-                    <div className="mt-8 pt-6 border-t border-white/5">
-                      <h5 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-4">Source Breakdown</h5>
-                      <div className="space-y-3">
-                        {Object.entries(currentAsset.scores).map(([source, score]) => (
-                          <div key={source} className="group">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest group-hover:text-white/60 transition-colors">
-                                {source}
-                              </span>
-                              <span className={cn(
-                                "text-[10px] font-mono font-bold",
-                                score > 0 ? "text-[#00D9A5]" : score < 0 ? "text-red-400" : "text-white/30"
-                              )}>
-                                {score > 0 ? '+' : ''}{score.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${Math.abs(score) * 100}%` }}
-                                className={cn(
-                                  "h-full rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]",
-                                  score > 0 ? "bg-[#00D9A5]" : "bg-red-500"
-                                )}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* Source Breakdown removed per request */}
                 </div>
               </div>
             </div>
