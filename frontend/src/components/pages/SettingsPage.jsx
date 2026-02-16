@@ -67,6 +67,10 @@ export default function SettingsPage() {
   const [phoneCode, setPhoneCode] = useState('');
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
 
+  // Coming soon toggles
+  const passwordChangeComingSoon = true;
+  const phoneVerificationComingSoon = true;
+
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeRemaining(prev => {
@@ -526,11 +530,21 @@ export default function SettingsPage() {
                 <div className="flex justify-start">
                   <Button
                     variant="outline"
-                    className="rounded-xl h-10 border-white/10 hover:bg-white/5"
-                    onClick={() => setShowPasswordForm(!showPasswordForm)}
+                    className={cn(
+                      "rounded-xl h-10 border-white/10 hover:bg-white/5",
+                      passwordChangeComingSoon && "opacity-60 cursor-not-allowed"
+                    )}
+                    onClick={() => {
+                      if (passwordChangeComingSoon) return;
+                      setShowPasswordForm(!showPasswordForm);
+                    }}
+                    disabled={passwordChangeComingSoon}
                   >
                     Modifica password
                   </Button>
+                  {passwordChangeComingSoon && (
+                    <p className="text-xs text-white/40 mt-2">Disponibile a breve</p>
+                  )}
                 </div>
 
                 {showEmailForm && (
@@ -562,7 +576,7 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                {showPasswordForm && (
+                {!passwordChangeComingSoon && showPasswordForm && (
                   <div className="mt-5 space-y-3 p-4 rounded-xl border border-white/10 bg-black/20">
                     {passwordCodeSent && (
                       <Input
@@ -599,7 +613,12 @@ export default function SettingsPage() {
             {/* Phone Management */}
             <section>
               <h3 className="text-xl font-bold text-white mb-6">Verifica del telefono</h3>
-              <div className="space-y-3 bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+              <div
+                className={cn(
+                  "space-y-3 bg-white/[0.03] border border-white/10 rounded-2xl p-6",
+                  phoneVerificationComingSoon && "opacity-60 pointer-events-none"
+                )}
+              >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <Select value={phoneCountryCode} onValueChange={setPhoneCountryCode}>
                     <SelectTrigger className="bg-white/5 border-white/10 h-12 rounded-xl text-white">
@@ -640,6 +659,9 @@ export default function SettingsPage() {
                   Stato attuale: {accountState?.phone_verified ? `verificato (${accountState?.phone_masked || accountState?.phone_number})` : 'non verificato'}
                 </p>
               </div>
+              {phoneVerificationComingSoon && (
+                <p className="text-xs text-white/40 mt-2">Disponibile a breve</p>
+              )}
             </section>
 
             {/* External Accounts */}
