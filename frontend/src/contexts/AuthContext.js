@@ -28,9 +28,16 @@ export const AuthProvider = ({ children }) => {
   const fetchUser = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/auth/me`);
-      setUser(response.data);
-      // Also fetch subscription after user is loaded
-      await fetchSubscription();
+      // Check if response is valid JSON user object and not HTML (Vercel protection)
+      if (response.data && response.data.email) {
+        setUser(response.data);
+        // Also fetch subscription after user is loaded
+        await fetchSubscription();
+      } else {
+        // Received distinct response (likely HTML from Vercel protection), treat as logout
+        console.warn('Invalid user data received, logging out');
+        logout();
+      }
     } catch (error) {
       console.error('Failed to fetch user:', error);
       logout();
