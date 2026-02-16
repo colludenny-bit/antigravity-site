@@ -796,6 +796,15 @@ async def register(user_data: UserCreate):
             "phone_verified": False,
         })
     token = create_token(user_id, user_data.email)
+    
+    # Send Welcome Email
+    try:
+        from backend.notification_service import notification_service
+        # Background task ideally, but for now synchronous/best-effort
+        notification_service.send_welcome_email(user_data.email, user_data.name)
+    except Exception as e:
+        print(f"Failed to send welcome email: {e}")
+
     return TokenResponse(access_token=token, user=UserResponse(
         id=user_id, email=user_data.email, name=user_data.name,
         created_at=datetime.now(timezone.utc).isoformat(), level="Novice", xp=0

@@ -13,3 +13,5 @@ stripe>=8.0.0
 uvicorn==0.25.0
 httpx
 aiohttp
+twilio
+resend
