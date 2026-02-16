@@ -82,8 +82,23 @@ class MarketDataService:
                     
                     if not hist.empty:
                         price = hist["Close"].iloc[-1]
-                        prev = hist["Open"].iloc[0] 
+                        prev = hist["Open"].iloc[0]
                         change = ((price - prev) / prev) * 100
+
+                        # Day open/MTD open for range & seasonality calcs (only reliable on 1d interval)
+                        day_open = None
+                        day_change_points = None
+                        day_change_pct = None
+                        month_open = None
+                        month_change_points = None
+                        month_change_pct = None
+                        if interval == "1d" and len(hist) >= 2:
+                            day_open = float(hist["Open"].iloc[-1])
+                            day_change_points = float(price - day_open)
+                            day_change_pct = float((price - day_open) / day_open * 100)
+                            month_open = float(hist["Open"].iloc[0])
+                            month_change_points = float(price - month_open)
+                            month_change_pct = float((price - month_open) / month_open * 100)
                         
                         # Calculate ATR (14)
                         high = hist["High"]
@@ -114,10 +129,16 @@ class MarketDataService:
                             hourly_vol = hourly_ranges.mean()
 
                         return {
-                            "price": float(price), 
+                            "price": float(price),
                             "change": float(change),
                             "atr": float(atr),
-                            "hourly_vol_avg": float(hourly_vol) if not pd.isna(hourly_vol) else 0.0
+                            "hourly_vol_avg": float(hourly_vol) if not pd.isna(hourly_vol) else 0.0,
+                            "day_open": day_open,
+                            "day_change_points": day_change_points,
+                            "day_change_pct": day_change_pct,
+                            "month_open": month_open,
+                            "month_change_points": month_change_points,
+                            "month_change_pct": month_change_pct
                         }
                 except:
                     continue

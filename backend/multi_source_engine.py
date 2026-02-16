@@ -15,6 +15,15 @@ class AssetCard(BaseModel):
     drivers: List[str]
     invalidation_level: str
     scores: Dict[str, float] # Breakdown
+    price: Optional[float] = None
+    atr: Optional[float] = None
+    day_open: Optional[float] = None
+    day_change_points: Optional[float] = None
+    day_change_pct: Optional[float] = None
+    month_open: Optional[float] = None
+    month_change_points: Optional[float] = None
+    month_change_pct: Optional[float] = None
+    hourly_vol_avg: Optional[float] = None
     timestamp: str
 
 class MultiSourceEngine:
@@ -289,5 +298,14 @@ class MultiSourceEngine:
                 "tech": round(score_tech, 2),
                 "user_bias": round(score_stat, 2)
             },
+            price=price,
+            atr=atr,
+            day_open=market_data.get("day_open"),
+            day_change_points=market_data.get("day_change_points"),
+            day_change_pct=market_data.get("day_change_pct"),
+            month_open=market_data.get("month_open"),
+            month_change_points=market_data.get("month_change_points"),
+            month_change_pct=market_data.get("month_change_pct"),
+            hourly_vol_avg=market_data.get("hourly_vol_avg"),
             timestamp=datetime.now().isoformat()
         )

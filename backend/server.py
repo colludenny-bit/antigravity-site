@@ -1642,6 +1642,7 @@ async def get_multi_source_analysis():
         analysis = calculate_multi_source_score(symbol, vix_data, prices)
         analysis["last_update"] = now.strftime("%H:%M")
         analysis["price"] = prices.get(symbol, {}).get("price", 0)
+        analysis["change"] = prices.get(symbol, {}).get("change", 0)
         analyses[symbol] = analysis
     
     # Next macro event

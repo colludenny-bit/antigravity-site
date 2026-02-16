@@ -81,6 +81,29 @@ const CountUp = ({ value, duration = 1500, delay = 0, prefix = '', suffix = '', 
   return <span className={className}>{prefix}{display}{suffix}</span>;
 };
 
+// Seasonality rules (shared with Macro -> Volatility & Bias)
+const SEASONALITY_RULES = {
+  weeks: {
+    1: { bias: 'RANGE', description: 'Poco direzionale' },
+    2: { bias: 'ACCUMULATION', description: 'Accumula e inizia lo slancio' },
+    3: { bias: 'TREND', description: 'Continua lo slancio' },
+    4: { bias: 'EXPANSION', description: 'Molto direzionale' }
+  },
+  days: {
+    Monday: { bias: 'RANGE_EXPANSION', note: 'Ranging ed espansione solo dopo sbilanciamenti' },
+    Tuesday: { bias: 'ACCUMULATION', note: 'Accumulo o ribilanciamento' },
+    Wednesday: { bias: 'EXPANSION', note: 'Espansione in ribilanciamento' },
+    Thursday: { bias: 'ACCUMULATION', note: 'Accumulo o ribilanciamento' },
+    Friday: { bias: 'REVERSAL_RISK', note: 'Espansione, possibile inversione su zone importanti' }
+  }
+};
+
+// Statistical bias (indices only)
+const STAT_BIAS = {
+  NAS100: { weekly_bias: 'NEUTRAL', monthly_bias: 'BULLISH' },
+  SP500: { weekly_bias: 'BEARISH', monthly_bias: 'NEUTRAL' }
+};
+
 const API = `${process.env.REACT_APP_BACKEND_URL || ''}/api`;
 
 const normalizeStrategyId = (rawId) => {
@@ -193,6 +216,34 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 
   const currentAsset = selectedAsset ? assets.find(a => a.symbol === selectedAsset) : assets[0];
   const dailyOutlook = currentAsset ? getDailyOutlook(currentAsset) : null;
+  const now = new Date();
+  const weekNum = Math.min(4, Math.floor((now.getDate() - 1) / 7) + 1);
+  const dayKey = now.toLocaleDateString('en-US', { weekday: 'long' });
+  const weekRule = SEASONALITY_RULES.weeks[weekNum] || {};
+  const dayRule = SEASONALITY_RULES.days[dayKey] || {};
+  const isIndex = currentAsset?.symbol === 'NAS100' || currentAsset?.symbol === 'SP500';
+  const monthlyBias = currentAsset?.symbol ? STAT_BIAS[currentAsset.symbol]?.monthly_bias : null;
+  const atrValue = currentAsset?.atr || (currentAsset?.price ? currentAsset.price * 0.01 : 0);
+  const dayMovePoints = Math.abs(
+    currentAsset?.dayChangePoints ?? (currentAsset?.price ? (currentAsset.price * (currentAsset.change || 0) / 100) : 0)
+  );
+  const atrRemaining = Math.max(0, atrValue - dayMovePoints);
+  const atrProgress = atrValue > 0 ? Math.min(100, (dayMovePoints / atrValue) * 100) : 0;
+  const monthMovePoints = currentAsset?.monthChangePoints ?? 0;
+  const formatPoints = (val) => {
+    if (!Number.isFinite(val)) return '-';
+    const absVal = Math.abs(val);
+    if (currentAsset?.symbol === 'EURUSD') return absVal.toFixed(5);
+    return absVal >= 100 ? Math.round(absVal).toLocaleString() : absVal.toFixed(1);
+  };
+  const seasonalityBias = (() => {
+    if (isIndex) return null;
+    if (!atrValue) return 'Neutral';
+    if (monthMovePoints >= atrValue * 1.5) return 'Espansione';
+    if (monthMovePoints <= -atrValue * 1.5) return 'Distribuzione';
+    if (Math.abs(monthMovePoints) <= atrValue * 0.5) return 'Accumulo';
+    return 'Slancio';
+  })();
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
   const handleFocusAsset = (symbol) => {
@@ -618,6 +669,12 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                       <TypewriterText text={line} speed={20} delay={600 + i * 1000} />
                     </li>
                   ))}
+                  <li className="flex items-start gap-4 text-sm text-white/70 leading-relaxed tracking-tight">
+                    <div className="mt-2.5 w-1.5 h-1.5 rounded-full bg-white/40 flex-shrink-0" />
+                    <span>
+                      Correlazione: {isIndex ? `${weekRule.description || '—'} • ${dayRule.note || '—'}` : `Seasonality ${seasonalityBias}`} • ATR {Math.round(atrProgress)}%
+                    </span>
+                  </li>
                   {/* Engine Drivers - Integrated */}
                   {currentAsset.drivers?.length > 0 && (
                     <div className="mt-8 pt-6 border-t border-white/5">
@@ -640,19 +697,50 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
               <div className="flex flex-col justify-between">
                 <div>
                   <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Metriche Rapide</h5>
-                  <div className="grid grid-cols-2 gap-y-6">
+                  <div className="space-y-4">
                     <div>
-                      <p className="text-xs text-white uppercase font-black tracking-[0.2em] mb-1 leading-none">Volatilità</p>
-                      <p className="text-lg font-bold text-[#00D9A5] tracking-tight leading-none">Alta</p>
+                      <p className="text-[10px] text-white uppercase font-black tracking-[0.2em] mb-2 leading-none">ATR Daily Range</p>
+                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div
+                          style={{ width: `${atrProgress}%` }}
+                          className="h-full rounded-full bg-[#00D9A5] transition-all duration-700"
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[10px] text-white/60 font-bold">
+                        <span>Percorso: {formatPoints(dayMovePoints)} pts ({Math.round(atrProgress)}%)</span>
+                        <span>Rimanente: {formatPoints(atrRemaining)} pts ({Math.max(0, 100 - Math.round(atrProgress))}%)</span>
+                      </div>
+                      <p className="text-[10px] text-white/40 mt-1">
+                        Stato: {atrProgress < 40 ? 'Range Early' : atrProgress < 70 ? 'Mid Range' : 'Range Esteso'}
+                      </p>
                     </div>
-                    <div>
-                      <p className="text-xs text-white uppercase font-black tracking-[0.2em] mb-1 leading-none">Impulso</p>
-                      <p className="text-lg font-bold text-[#00D9A5] tracking-tight leading-none">{currentAsset.impulse || 'Stabile'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-white uppercase font-black tracking-[0.2em] mb-1 leading-none">Regime</p>
-                      <p className="text-lg font-bold text-[#00D9A5] tracking-tight leading-none">Trend</p>
-                    </div>
+
+                    {isIndex && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-white uppercase font-black tracking-[0.2em]">Bias Settimanale</p>
+                        <p className="text-xs font-bold text-[#00D9A5]">{weekRule.description || '—'}</p>
+                      </div>
+                    )}
+
+                    {isIndex && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-white uppercase font-black tracking-[0.2em]">Bias Giornaliero</p>
+                        <p className="text-xs text-white/80">{dayRule.note || '—'}</p>
+                      </div>
+                    )}
+
+                    {isIndex ? (
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-white uppercase font-black tracking-[0.2em]">Bias Mensile</p>
+                        <p className="text-xs font-bold text-[#00D9A5]">{monthlyBias || '—'}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-white uppercase font-black tracking-[0.2em]">Seasonality</p>
+                        <p className="text-xs font-bold text-[#00D9A5]">{seasonalityBias}</p>
+                        <p className="text-[10px] text-white/40">MTD: {formatPoints(monthMovePoints)} pts</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Source Breakdown - Integrated */}
@@ -1857,9 +1945,9 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
       onMouseLeave={() => expandedItem && setExpandedItem(null)}
     >
       {/* Main Header Row */}
-      <div className="flex items-center justify-between p-3 rounded-lg font-apple bg-white !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] dark:bg-white/5 dark:!border-white/5 dark:glass-edge dark:shadow-none">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 p-3 rounded-lg font-apple bg-white !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] dark:bg-white/5 dark:!border-white/5 dark:glass-edge dark:shadow-none">
         {/* Left side: Bias + VIX + Regime */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Daily Bias */}
           <button
             onClick={() => toggleItem('bias')}
@@ -1935,7 +2023,7 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
         </div>
 
         {/* Right side: News + Subscription Plan Badge */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 sm:gap-6 flex-wrap">
           {nextEvent && (
             <div className="flex items-center gap-2 text-base pl-4 border-l border-slate-200 dark:border-white/10 h-6">
               <AlertTriangle className="w-4 h-4 text-yellow-400" />
@@ -1985,7 +2073,7 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
                   </h4>
 
                   {/* Inline Stats */}
-                  <div className="flex items-center gap-4 mb-2 text-base">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-2 text-sm sm:text-base">
                     {details[expandedItem].stats.map((stat, i) => (
                       <span key={i} className="flex items-center gap-1">
                         <span className="text-white/40">{stat.label}:</span>
@@ -2089,12 +2177,18 @@ export default function DashboardPage() {
     return {
       symbol,
       price: data.price,
+      change: data.change ?? 0,
       direction: assetEngineData?.direction === 'UP' ? 'Up' : assetEngineData?.direction === 'DOWN' ? 'Down' : data.direction,
       confidence: assetEngineData?.probability ?? data.confidence,
       impulse: assetEngineData?.impulse ?? data.impulse,
       explanation: data.drivers?.map(d => `${d.name}: ${d.impact}`).join('. '),
       scores: assetEngineData?.scores || {},
       drivers: assetEngineData?.drivers || [],
+      atr: assetEngineData?.atr,
+      dayChangePoints: assetEngineData?.day_change_points,
+      dayChangePct: assetEngineData?.day_change_pct,
+      monthChangePoints: assetEngineData?.month_change_points,
+      monthChangePct: assetEngineData?.month_change_pct,
       sparkData: [30, 35, 28, 42, 38, 55, 48, 52]
     };
   }), [analysesData, engineData]);
@@ -2232,7 +2326,7 @@ export default function DashboardPage() {
   const cursorBlink = introPhase === 'typing' ? 'animate-pulse' : '';
 
   return (
-    <div className="dashboard-page" data-testid="dashboard-page" id="dashboard-main">
+    <div className="dashboard-page px-2 sm:px-0" data-testid="dashboard-page" id="dashboard-main">
       {/* Header - Typewriter Animation */}
       {!headerHidden && (
         <motion.div
@@ -2241,7 +2335,7 @@ export default function DashboardPage() {
           transition={{ duration: 0.5, ease: 'easeInOut' }}
         >
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-white/95">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white/95">
               {introPhase !== 'done' ? (
                 <>
                   {getVisibleText(0).main}
@@ -2291,7 +2385,7 @@ export default function DashboardPage() {
       )}
 
       {/* Daily Bias + VIX + Regime - Compact Row */}
-      <div className="mb-6" ref={biasBarRef} style={{ scrollMarginTop: '16px' }}>
+      <div className="mb-4 sm:mb-6" ref={biasBarRef} style={{ scrollMarginTop: '16px' }}>
         <DailyBiasHeader
           analyses={analysesData}
           vix={vix || { current: 17.62, change: -0.96 }}
@@ -2301,7 +2395,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Grid: Center + Right Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* CENTER: Charts + COT + Options */}
         <div className="lg:col-span-2 space-y-6">
 
@@ -2322,7 +2416,7 @@ export default function DashboardPage() {
           />
 
           {/* Options + COT Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+          <div className="grid grid-cols-1 gap-4 items-stretch">
             <OptionsPanel
               optionsData={optionsData}
               animationsReady={headerHidden}
