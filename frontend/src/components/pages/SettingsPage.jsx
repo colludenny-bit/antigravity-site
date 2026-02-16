@@ -108,7 +108,6 @@ export default function SettingsPage() {
       });
     } catch (error) {
       console.error('Failed to load account state', error);
-      toast.error('Impossibile caricare impostazioni account');
     } finally {
       setAccountLoading(false);
     }
