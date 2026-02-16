@@ -60,16 +60,13 @@ class MarketDataService:
         try:
             dat = yf.Ticker(ticker)
             
-            # 1. Try FastInfo
+            # 1. Try FastInfo (price + prev close)
+            fast_price = None
+            fast_prev = None
             if hasattr(dat, 'fast_info'):
                 try:
-                    price = dat.fast_info.last_price
-                    prev = dat.fast_info.previous_close
-                    if price:
-                        change = 0.0
-                        if prev:
-                            change = ((price - prev) / prev) * 100
-                        return {"price": float(price), "change": float(change)}
+                    fast_price = dat.fast_info.last_price
+                    fast_prev = dat.fast_info.previous_close
                 except:
                     pass
             
@@ -81,9 +78,10 @@ class MarketDataService:
                     hist = dat.history(period=p, interval=interval)
                     
                     if not hist.empty:
-                        price = hist["Close"].iloc[-1]
-                        prev = hist["Open"].iloc[0]
-                        change = ((price - prev) / prev) * 100
+                        hist_price = float(hist["Close"].iloc[-1])
+                        price = float(fast_price) if fast_price else hist_price
+                        prev = float(fast_prev) if fast_prev else float(hist["Open"].iloc[0])
+                        change = ((price - prev) / prev) * 100 if prev else 0.0
 
                         # Day open/MTD open for range & seasonality calcs (only reliable on 1d interval)
                         day_open = None
@@ -95,10 +93,10 @@ class MarketDataService:
                         if interval == "1d" and len(hist) >= 2:
                             day_open = float(hist["Open"].iloc[-1])
                             day_change_points = float(price - day_open)
-                            day_change_pct = float((price - day_open) / day_open * 100)
+                            day_change_pct = float((price - day_open) / day_open * 100) if day_open else 0.0
                             month_open = float(hist["Open"].iloc[0])
                             month_change_points = float(price - month_open)
-                            month_change_pct = float((price - month_open) / month_open * 100)
+                            month_change_pct = float((price - month_open) / month_open * 100) if month_open else 0.0
                         
                         # Calculate ATR (14)
                         high = hist["High"]
@@ -143,6 +141,13 @@ class MarketDataService:
                 except:
                     continue
                     
+            # If history failed but fast price exists, fall back to fast info only
+            if fast_price:
+                change = 0.0
+                if fast_prev:
+                    change = ((fast_price - fast_prev) / fast_prev) * 100
+                return {"price": float(fast_price), "change": float(change)}
+
         except Exception as e:
             logger.warning(f"YF Fetch error {ticker}: {e}")
         
