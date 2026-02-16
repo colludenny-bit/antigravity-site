@@ -98,6 +98,16 @@ app.add_middleware(
 async def health_check():
     return {"status": "ok", "message": "Karion Backend operational"}
 
+@app.get("/api/ready")
+async def readiness_check():
+    """Readiness probe for local/cloud diagnostics"""
+    return {
+        "status": "ready",
+        "demo_mode": DEMO_MODE,
+        "db_connected": db is not None,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
@@ -424,6 +434,9 @@ async def create_checkin(data: PsychologyCheckinCreate, current_user: dict = Dep
 
 @api_router.get("/psychology/checkins", response_model=List[PsychologyCheckin])
 async def get_checkins(current_user: dict = Depends(get_current_user)):
+    if DEMO_MODE:
+        return demo_data.get("psychology_checkins", [])
+    
     checkins = await db.psychology_checkins.find(
         {"user_id": current_user["id"]}, {"_id": 0}
     ).sort("created_at", -1).to_list(100)
@@ -431,9 +444,12 @@ async def get_checkins(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/psychology/stats")
 async def get_psychology_stats(current_user: dict = Depends(get_current_user)):
-    checkins = await db.psychology_checkins.find(
-        {"user_id": current_user["id"]}, {"_id": 0}
-    ).to_list(1000)
+    if DEMO_MODE:
+        checkins = demo_data.get("psychology_checkins", [])
+    else:
+        checkins = await db.psychology_checkins.find(
+            {"user_id": current_user["id"]}, {"_id": 0}
+        ).to_list(1000)
     
     if not checkins:
         return {

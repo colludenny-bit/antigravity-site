@@ -46,9 +46,8 @@ export default function AuthPage() {
       }
     } catch (error) {
       console.error("Auth Error:", error);
-      const detail = error.response?.data?.detail;
-      const status = error.response?.status;
-      toast.error(detail ? `Errore: ${detail}` : `Errore ${status || ''}: Impossibile completare l'operazione`);
+      // Use the friendly message thrown by AuthContext
+      toast.error(error.message || "Errore durante l'autenticazione");
     } finally {
       setLoading(false);
     }
