@@ -64,9 +64,9 @@
     "zod": "^3.24.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "REACT_APP_BACKEND_URL='' react-scripts build",
-    "test": "react-scripts test"
+    "start": "craco start",
+    "build": "REACT_APP_BACKEND_URL='' craco build",
+    "test": "craco test"
   },
   "browserslist": {
     "production": [
