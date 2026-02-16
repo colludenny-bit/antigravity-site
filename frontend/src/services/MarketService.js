@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const COINGECKO_API = 'https://api.coingecko.com/api/v3';
+const API_URL = `${process.env.REACT_APP_BACKEND_URL || ''}/api/market`;
 
 // Cache to prevent rate limiting
 let priceCache = {};
@@ -16,21 +16,12 @@ export const MarketService = {
         }
 
         try {
-            const response = await axios.get(`${COINGECKO_API}/simple/price`, {
-                params: {
-                    ids: 'bitcoin,ethereum,solana,ripple,cardano',
-                    vs_currencies: 'usd',
-                    include_24hr_change: 'true',
-                    include_24hr_vol: 'true',
-                    include_market_cap: 'true'
-                }
-            });
-
+            const response = await axios.get(`${API_URL}/prices`);
             priceCache = response.data;
             lastFetchTime = now;
             return priceCache;
         } catch (error) {
-            console.error('CoinGecko API Error:', error);
+            console.error('Market API Error:', error);
             return priceCache; // Return stale cache if error
         }
     },
@@ -38,10 +29,10 @@ export const MarketService = {
     // Get trending coins
     getTrending: async () => {
         try {
-            const response = await axios.get(`${COINGECKO_API}/search/trending`);
+            const response = await axios.get(`${API_URL}/trending`);
             return response.data.coins;
         } catch (error) {
-            console.error('CoinGecko Trending Error:', error);
+            console.error('Market Trending Error:', error);
             return [];
         }
     },
@@ -49,19 +40,10 @@ export const MarketService = {
     // Get detailed coin data
     getCoinDetails: async (id) => {
         try {
-            const response = await axios.get(`${COINGECKO_API}/coins/${id}`, {
-                params: {
-                    localization: false,
-                    tickers: false,
-                    market_data: true,
-                    community_data: true,
-                    developer_data: true,
-                    sparkline: true
-                }
-            });
+            const response = await axios.get(`${API_URL}/coin/${id}`);
             return response.data;
         } catch (error) {
-            console.error(`CoinGecko Details Error (${id}):`, error);
+            console.error(`Market Details Error (${id}):`, error);
             return null;
         }
     },
@@ -69,19 +51,10 @@ export const MarketService = {
     // Get top 30 coins by market cap
     getTop30: async () => {
         try {
-            const response = await axios.get(`${COINGECKO_API}/coins/markets`, {
-                params: {
-                    vs_currency: 'usd',
-                    order: 'market_cap_desc',
-                    per_page: 30,
-                    page: 1,
-                    sparkline: true,
-                    price_change_percentage: '1h,24h,7d'
-                }
-            });
+            const response = await axios.get(`${API_URL}/top30`);
             return response.data;
         } catch (error) {
-            console.error('CoinGecko Top30 Error:', error);
+            console.error('Market Top30 Error:', error);
             return [];
         }
     },
@@ -89,15 +62,12 @@ export const MarketService = {
     // Get historical chart data
     getCoinChart: async (id, days = 7) => {
         try {
-            const response = await axios.get(`${COINGECKO_API}/coins/${id}/market_chart`, {
-                params: {
-                    vs_currency: 'usd',
-                    days: days
-                }
+            const response = await axios.get(`${API_URL}/chart/${id}`, {
+                params: { days }
             });
             return response.data;
         } catch (error) {
-            console.error(`CoinGecko Chart Error (${id}):`, error);
+            console.error(`Market Chart Error (${id}):`, error);
             return null;
         }
     },
@@ -105,10 +75,10 @@ export const MarketService = {
     // Get global market data
     getGlobalData: async () => {
         try {
-            const response = await axios.get(`${COINGECKO_API}/global`);
-            return response.data.data;
+            const response = await axios.get(`${API_URL}/global`);
+            return response.data;
         } catch (error) {
-            console.error('CoinGecko Global Error:', error);
+            console.error('Market Global Error:', error);
             return null;
         }
     }

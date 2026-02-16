@@ -149,66 +149,126 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
+
 @app.get("/api/market/prices")
 async def get_market_prices():
-    """
-    Returns market prices for crypto overview.
-    In a real scenario, this would fetch from an external API (like CoinGecko) via backend
-    to avoid CORS issues, or return cached data.
-    For now, we return the mock/simulated data matching the frontend expectations.
-    """
-    return [
-        {
-            "id": "bitcoin",
-            "symbol": "btc",
-            "name": "Bitcoin",
-            "current_price": 48234.50,
-            "price_change_percentage_24h": 2.4,
-            "total_volume": 25000000000,
-            "market_cap": 900000000000,
-            "sparkline_in_7d": {"price": [47000, 47500, 47200, 48000, 48500, 48100, 48234]}
-        },
-        {
-            "id": "ethereum",
-            "symbol": "eth",
-            "name": "Ethereum",
-            "current_price": 2650.12,
-            "price_change_percentage_24h": 1.8,
-            "total_volume": 12000000000,
-            "market_cap": 300000000000,
-            "sparkline_in_7d": {"price": [2500, 2550, 2520, 2600, 2650, 2620, 2650]}
-        },
-        {
-            "id": "solana",
-            "symbol": "sol",
-            "name": "Solana",
-            "current_price": 98.45,
-            "price_change_percentage_24h": 5.2,
-            "total_volume": 2000000000,
-            "market_cap": 40000000000,
-            "sparkline_in_7d": {"price": [90, 92, 91, 95, 98, 97, 98.45]}
-        },
-        {
-            "id": "cardano",
-            "symbol": "ada",
-            "name": "Cardano",
-            "current_price": 0.55,
-            "price_change_percentage_24h": -0.5,
-            "total_volume": 500000000,
-            "market_cap": 18000000000,
-            "sparkline_in_7d": {"price": [0.54, 0.56, 0.55, 0.56, 0.55, 0.54, 0.55]}
-        },
-        {
-            "id": "ripple",
-            "symbol": "xrp",
-            "name": "XRP",
-            "current_price": 0.62,
-            "price_change_percentage_24h": 1.1,
-            "total_volume": 800000000,
-            "market_cap": 30000000000,
-            "sparkline_in_7d": {"price": [0.60, 0.61, 0.61, 0.63, 0.62, 0.62, 0.62]}
+    try:
+        url = f"{COINGECKO_BASE_URL}/simple/price"
+        params = {
+            "ids": "bitcoin,ethereum,solana,ripple,cardano",
+            "vs_currencies": "usd",
+            "include_24hr_change": "true",
+            "include_24hr_vol": "true",
+            "include_market_cap": "true"
         }
-    ]
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/market/trending")
+async def get_trending():
+    try:
+        url = f"{COINGECKO_BASE_URL}/search/trending"
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/market/coin/{id}")
+async def get_coin_details(id: str):
+    try:
+        url = f"{COINGECKO_BASE_URL}/coins/{id}"
+        params = {
+            "localization": "false",
+            "tickers": "false",
+            "market_data": "true",
+            "community_data": "true",
+            "developer_data": "true",
+            "sparkline": "true"
+        }
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/market/top30")
+async def get_top30():
+    try:
+        url = f"{COINGECKO_BASE_URL}/coins/markets"
+        params = {
+            "vs_currency": "usd",
+            "order": "market_cap_desc",
+            "per_page": 30,
+            "page": 1,
+            "sparkline": "true",
+            "price_change_percentage": "1h,24h,7d"
+        }
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/market/chart/{id}")
+async def get_coin_chart(id: str, days: int = 7):
+    try:
+        url = f"{COINGECKO_BASE_URL}/coins/{id}/market_chart"
+        params = {
+            "vs_currency": "usd",
+            "days": days
+        }
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/market/global")
+async def get_global_data():
+    try:
+        url = f"{COINGECKO_BASE_URL}/global"
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            data = response.json()
+            return data.get("data")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analysis/multi-source")
+async def get_multi_source_analysis():
+    # Survival endpoint to prevent 404
+    return {
+        "status": "success",
+        "data": {
+            "summary": "Analisi multi-source in fase di aggiornamento. Consultare i grafici per i dati live.",
+            "sentiment": "Neutrale",
+            "score": 50
+        }
+    }
+
+@app.get("/api/cot/data")
+async def get_cot_data():
+    # Survival endpoint to prevent 404
+    return {
+        "status": "success",
+        "data": {}
+    }
+
+@app.get("/api/engine/cards")
+async def get_engine_cards():
+    # Survival endpoint to prevent 404
+    return []
 
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()

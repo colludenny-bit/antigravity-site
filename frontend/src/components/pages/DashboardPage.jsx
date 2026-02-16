@@ -80,10 +80,10 @@ const CountUp = ({ value, duration = 1500, delay = 0, prefix = '', suffix = '', 
   return <span className={className}>{prefix}{display}{suffix}</span>;
 };
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = `${process.env.REACT_APP_BACKEND_URL || ''}/api`;
 
 // Asset Charts Grid (2-3 charts visible at once)
-const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false }) => {
+const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false, onSyncAsset }) => {
   // State with LocalStorage Persistence
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('dashboard_viewMode') || 'grid');
   const [selectedAsset, setSelectedAsset] = useState(() => localStorage.getItem('dashboard_selectedAsset') || null);
@@ -92,8 +92,13 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const [showColorPalette, setShowColorPalette] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [chartLineColor, setChartLineColor] = useState(() => localStorage.getItem('dashboard_chartLineColor') || '#00D9A5');
+  const [syncEnabled, setSyncEnabled] = useState(() => localStorage.getItem('dashboard_syncEnabled') === 'true');
 
   // Persist State Changes
+  useEffect(() => {
+    localStorage.setItem('dashboard_syncEnabled', syncEnabled);
+  }, [syncEnabled]);
+
   useEffect(() => {
     localStorage.setItem('dashboard_viewMode', viewMode);
   }, [viewMode]);
@@ -101,10 +106,13 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   useEffect(() => {
     if (selectedAsset) {
       localStorage.setItem('dashboard_selectedAsset', selectedAsset);
+      if (syncEnabled && onSyncAsset) {
+        onSyncAsset(selectedAsset);
+      }
     } else {
       localStorage.removeItem('dashboard_selectedAsset');
     }
-  }, [selectedAsset]);
+  }, [selectedAsset, syncEnabled, onSyncAsset]);
 
   useEffect(() => {
     localStorage.setItem('dashboard_chartLineColor', chartLineColor);
@@ -115,14 +123,12 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 
   const toggleFavorite = (symbol) => {
     if (favoriteCharts.includes(symbol)) {
-      if (favoriteCharts.length > 1) {
+      if (favoriteCharts.length > 2) {
         onFavoriteChange(favoriteCharts.filter(s => s !== symbol));
       }
     } else {
       if (favoriteCharts.length < 3) {
         onFavoriteChange([...favoriteCharts, symbol]);
-      } else {
-        onFavoriteChange([...favoriteCharts.slice(1), symbol]);
       }
     }
   };
@@ -405,7 +411,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                   </div>
 
                   {/* Color Selection Section */}
-                  <div className="border-t border-white/5 pt-3">
+                  <div className="border-t border-white/5 pt-3 mb-4">
                     <div className="mb-2 px-1">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Colore Grafico</span>
                     </div>
@@ -423,6 +429,33 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                         />
                       ))}
                     </div>
+                  </div>
+
+                  {/* Sync Tickers Switch */}
+                  <div className="border-t border-white/5 pt-3">
+                    <button
+                      onClick={() => setSyncEnabled(!syncEnabled)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all hover:bg-slate-100 dark:hover:bg-white/5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <RefreshCw className={cn("w-4 h-4 transition-transform duration-500", syncEnabled && "rotate-180 text-[#00D9A5]")} />
+                        <span className={cn("font-medium", syncEnabled ? "text-[#00D9A5]" : "text-slate-500 dark:text-white/50")}>Sync Tickers</span>
+                      </div>
+                      <div className={cn(
+                        "w-8 h-4 rounded-full relative transition-colors",
+                        syncEnabled ? "bg-[#00D9A5]" : "bg-slate-200 dark:bg-white/10"
+                      )}>
+                        <div className={cn(
+                          "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all shadow-sm",
+                          syncEnabled ? "left-4.5" : "left-0.5"
+                        )} />
+                      </div>
+                    </button>
+                    {syncEnabled && (
+                      <p className="text-[9px] text-[#00D9A5]/60 mt-1 px-3 leading-tight italic">
+                        Link charts, COT & Options
+                      </p>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -1892,7 +1925,7 @@ export default function DashboardPage() {
   const [cotSummary, setCotSummary] = useState(null);
   const [engineData, setEngineData] = useState(null); // Renamed from engineCards to engineData
   const [loading, setLoading] = useState(true);
-  const [favoriteCharts, setFavoriteCharts] = useState(['XAUUSD', 'NAS100', 'SP500', 'EURUSD']);
+  const [favoriteCharts, setFavoriteCharts] = useState(['XAUUSD', 'NAS100', 'SP500']);
   const [favoriteCOT, setFavoriteCOT] = useState(['NAS100', 'SP500']);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
@@ -1937,19 +1970,19 @@ export default function DashboardPage() {
   const { analyses, vix, regime, next_event } = multiSourceData || {};
 
   // Mock data for demo mode when backend is unavailable
-  const mockAnalyses = {
+  const mockAnalyses = useMemo(() => ({
     'XAUUSD': { price: 5055.2, direction: 'Up', confidence: 58, impulse: 'Rallenta', drivers: [{ name: 'Safe Haven', impact: 'Bullish' }, { name: 'Long liquidation', impact: 'Cautela' }] },
     'NAS100': { price: 21450, direction: 'Up', confidence: 55, impulse: 'Laterale', drivers: [{ name: 'NFP forte', impact: 'Positivo' }, { name: 'Tech weakness', impact: 'Cautela' }] },
     'SP500': { price: 6941.5, direction: 'Up', confidence: 52, impulse: 'Laterale', drivers: [{ name: 'NFP Beat', impact: 'Supportivo' }, { name: 'Fed hawkish', impact: 'Freno' }] },
     'EURUSD': { price: 1.1870, direction: 'Up', confidence: 65, impulse: 'Prosegue', drivers: [{ name: 'USD Debole', impact: 'Bullish' }, { name: 'ECB Hawkish', impact: 'Supportivo' }] },
     'BTCUSD': { price: 67230, direction: 'Down', confidence: 68, impulse: 'Sell-off', drivers: [{ name: 'Risk-off crypto', impact: 'Bearish' }, { name: 'Liquidazioni', impact: 'Pressione' }] },
-  };
+  }), []);
 
   // Use real data if available, otherwise fallback to mock data
   const analysesData = analyses || mockAnalyses;
 
   // Build assets array for chart tabs (no VIX)
-  const assetsList = Object.entries(analysesData).map(([symbol, data]) => {
+  const assetsList = useMemo(() => Object.entries(analysesData).map(([symbol, data]) => {
     // Find engine data for this symbol
     const assetEngineData = engineData?.find(card => card.asset === symbol);
 
@@ -1964,17 +1997,17 @@ export default function DashboardPage() {
       drivers: assetEngineData?.drivers || [],
       sparkData: [30, 35, 28, 42, 38, 55, 48, 52]
     };
-  });
+  }), [analysesData, engineData]);
 
   // Options mock data
-  const optionsData = {
+  const optionsData = useMemo(() => ({
     call_ratio: 52,
     put_ratio: 48,
     bias: 'neutral'
-  };
+  }), []);
 
   // Mock COT data for demo mode
-  const mockCotData = {
+  const mockCotData = useMemo(() => ({
     data: {
       'NAS100': {
         bias: 'Bear',
@@ -2001,7 +2034,7 @@ export default function DashboardPage() {
         }
       },
     }
-  };
+  }), []);
 
   // Use real COT data if available, otherwise fallback to mock
   const cotDataToUse = cotSummary?.data ? cotSummary : mockCotData;
@@ -2177,6 +2210,12 @@ export default function DashboardPage() {
             favoriteCharts={favoriteCharts}
             onFavoriteChange={setFavoriteCharts}
             animationsReady={headerHidden}
+            onSyncAsset={useCallback((symbol) => {
+              // Only sync if symbol is actually in the COT data to avoid empty cards
+              if (cotDataToUse?.data?.[symbol]) {
+                setFavoriteCOT(prev => [symbol, ...prev.filter(s => s !== symbol)].slice(0, 3));
+              }
+            }, [cotDataToUse])}
           />
 
           {/* Options + COT Row */}

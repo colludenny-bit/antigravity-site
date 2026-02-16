@@ -2263,6 +2263,106 @@ async def scheduled_engine_run():
 async def root():
     return {"message": "TradingOS API v1.0", "status": "online"}
 
+# --- CRYPTO PROXIES (matching api/index.py) ---
+COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
+
+@api_router.get("/market/trending")
+async def get_trending():
+    try:
+        import httpx
+        url = f"{COINGECKO_BASE_URL}/search/trending"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/market/coin/{id}")
+async def get_coin_details(id: str):
+    try:
+        import httpx
+        url = f"{COINGECKO_BASE_URL}/coins/{id}"
+        params = {
+            "localization": "false",
+            "tickers": "false",
+            "market_data": "true",
+            "community_data": "true",
+            "developer_data": "true",
+            "sparkline": "true"
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/market/top30")
+async def get_top30():
+    try:
+        import httpx
+        url = f"{COINGECKO_BASE_URL}/coins/markets"
+        params = {
+            "vs_currency": "usd",
+            "order": "market_cap_desc",
+            "per_page": 30,
+            "page": 1,
+            "sparkline": "true",
+            "price_change_percentage": "1h,24h,7d"
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/market/chart/{id}")
+async def get_coin_chart(id: str, days: int = 7):
+    try:
+        import httpx
+        url = f"{COINGECKO_BASE_URL}/coins/{id}/market_chart"
+        params = {
+            "vs_currency": "usd",
+            "days": days
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/market/global")
+async def get_global_data():
+    try:
+        import httpx
+        url = f"{COINGECKO_BASE_URL}/global"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            data = response.json()
+            return data.get("data")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- SURVIVAL ENDPOINTS ---
+
+@api_router.get("/analysis/multi-source")
+async def get_multi_source_analysis():
+    return {
+        "status": "success",
+        "data": {
+            "summary": "Analisi multi-source in fase di aggiornamento. Consultare i grafici per i dati live.",
+            "sentiment": "Neutrale",
+            "score": 50
+        }
+    }
+
+@api_router.get("/cot/data")
+async def get_cot_data():
+    return {"status": "success", "data": {}}
+
+@api_router.get("/engine/cards")
+async def get_engine_cards():
+    return []
+
 # Include router and middleware
 app.include_router(api_router)
 

@@ -29,10 +29,12 @@ import {
   Gauge,
   LayoutDashboard
 } from 'lucide-react';
+import kaironBull from '../../assets/kairon-bull.png';
 
 const navItems = [
   { path: '/app', icon: LayoutDashboard, label: 'Dashboard', iconClass: 'icon-home' },
   { path: '/app/crypto', icon: Bitcoin, label: 'Crypto', iconClass: 'icon-crypto' },
+  { path: '/app/statistics', icon: BarChart3, label: 'Grafici', iconClass: 'icon-stats' },
   { path: '/app/news', icon: Newspaper, label: 'News', iconClass: 'icon-news' },
   { path: '/app/macro', icon: Globe, label: 'Macro', iconClass: 'icon-macro' },
   { path: '/app/risk', icon: AlertTriangle, label: 'Risk', iconClass: 'icon-risk' },
@@ -117,19 +119,19 @@ export const Sidebar = ({ isOpen, onClose }) => {
         <div className="mb-3 relative z-10 overflow-visible">
           <button
             onClick={speakMarketAnalysis}
-            className="w-20 h-20 flex items-center justify-center cursor-pointer hover:scale-105 transition-transform group"
+            className="w-20 h-20 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform group"
             style={{ marginLeft: '4px' }}
             title="Click per analisi vocale mercati"
             data-testid="logo-voice-btn"
           >
             <img
-              src="https://customer-assets.emergentagent.com/job_38b9976a-3c50-4a7a-8095-13c48833e390/artifacts/czwo9e5l_K%20%28Logo%29%20copia.png"
+              src={kaironBull}
               alt="Logo"
-              className="w-20 h-20 object-contain group-hover:opacity-80"
-              style={{ transform: 'translateX(6px)' }}
+              className="w-28 h-28 object-contain transition-all"
+              style={{ transform: 'translateX(12px)' }}
             />
-            <span className="absolute -bottom-1 text-[8px] text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-              🎤 Click
+            <span className="absolute -bottom-1 text-[8px] text-primary opacity-0 group-hover:opacity-100 transition-opacity font-bold">
+              🎤 Analizza
             </span>
           </button>
         </div>
@@ -168,6 +170,22 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
         {/* Bottom Actions */}
         <div className="flex flex-col items-center gap-1 mt-2 w-full px-1">
+          {/* Home Button */}
+          <NavLink
+            to="/welcome"
+            className={cn(
+              "w-12 h-12 rounded-xl flex items-center justify-center transition-colors hover:bg-secondary",
+              location.pathname === '/welcome' && "bg-primary/20"
+            )}
+            title="Torna alla Home"
+            data-testid="nav-home"
+          >
+            <Home className={cn(
+              "w-7 h-7",
+              location.pathname === '/welcome' ? "text-primary" : "text-muted-foreground"
+            )} />
+          </NavLink>
+
           {/* Settings Only */}
           <NavLink
             to="/app/settings"

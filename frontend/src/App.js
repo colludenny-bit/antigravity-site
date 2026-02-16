@@ -11,6 +11,7 @@ import { MarketProvider } from './contexts/MarketContext';
 // Layout
 import Layout from './components/layout/Layout';
 import { LockScreen } from './components/layout/LockScreen';
+import { LandingPage } from './components/pages/LandingPage';
 
 // Pages
 import AuthPage from './components/pages/AuthPage';
@@ -106,6 +107,10 @@ function AppRoutes() {
       <Route
         path="/checkout/success"
         element={<CheckoutSuccessPage />}
+      />
+      <Route
+        path="/welcome"
+        element={<LandingPage />}
       />
 
       {/* Protected Routes - Main App */}
