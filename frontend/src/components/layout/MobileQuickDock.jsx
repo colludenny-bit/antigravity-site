@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Home,
   Plus,
@@ -84,49 +85,57 @@ export const MobileQuickDock = () => {
         className="md:hidden fixed left-0 right-0 z-50 pointer-events-none"
         style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}
       >
-        {open && (
-          <div className="mx-3 mb-3 pointer-events-auto rounded-[24px] border border-white/20 bg-[rgba(11,15,23,0.20)] shadow-[0_16px_50px_rgba(0,0,0,0.55)] backdrop-blur-[8px] px-2.5 py-3">
-            <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto no-scrollbar">
-              {launcherGrid.map((item) => {
-                const Icon = item.icon;
-                const active = location.pathname === item.path;
-                return (
-                  <button
-                    key={item.path}
-                    type="button"
-                    onClick={() => navigate(item.path)}
-                    className={cn(
-                      "flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-1.5 transition-all",
-                      active ? "bg-white/12 border border-white/35" : "bg-white/5 border border-white/15 hover:bg-white/10"
-                    )}
-                  >
-                    <span
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0, y: -20 }}
+              transition={{
+                type: 'spring',
+                stiffness: 350,
+                damping: 25,
+                mass: 0.6
+              }}
+              style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
+              className="relative mx-3 mb-3 pointer-events-auto rounded-[24px] border border-white/20 bg-[rgba(11,15,23,0.20)] shadow-[0_16px_50px_rgba(0,0,0,0.55)] backdrop-blur-[8px] px-2.5 py-3 overflow-hidden"
+            >
+              <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.14] via-white/[0.05] to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none bg-gradient-to-t from-black/35 to-transparent" />
+              <div className="relative grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto no-scrollbar">
+                {launcherGrid.map((item) => {
+                  const Icon = item.icon;
+                  const active = location.pathname === item.path;
+                  return (
+                    <button
+                      key={item.path}
+                      type="button"
+                      onClick={() => navigate(item.path)}
                       className={cn(
-                        "w-9 h-9 rounded-full flex items-center justify-center border",
-                        active ? "bg-white/12 border-white/35" : "bg-white/8 border-white/20"
+                        "flex items-center justify-center rounded-xl p-2.5 transition-all",
+                        active ? "bg-white/12 border border-white/35" : "bg-white/5 border border-white/15 hover:bg-white/10"
                       )}
                     >
-                      <Icon
+                      <span
                         className={cn(
-                          "w-4 h-4 text-white",
-                          active ? "drop-shadow-[0_0_8px_rgba(255,255,255,0.85)]" : "drop-shadow-[0_0_6px_rgba(255,255,255,0.55)]"
+                          "w-10 h-10 rounded-full flex items-center justify-center border",
+                          active ? "bg-white/12 border-white/35" : "bg-white/8 border-white/20"
                         )}
-                      />
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[10px] leading-tight text-center font-semibold text-white",
-                        active ? "drop-shadow-[0_0_8px_rgba(255,255,255,0.65)]" : "opacity-90"
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                      >
+                        <Icon
+                          className={cn(
+                            "w-5 h-5 text-white",
+                            active ? "drop-shadow-[0_0_9px_rgba(255,255,255,0.9)]" : "drop-shadow-[0_0_7px_rgba(255,255,255,0.7)]"
+                          )}
+                        />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="mx-5 pointer-events-auto flex items-center justify-between">
           <button

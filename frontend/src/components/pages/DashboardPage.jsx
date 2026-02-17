@@ -2473,21 +2473,18 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {/* Desktop/Tablet only: no tabs under logo on small mobile */}
-      {!isSmallMobile && (
-        <div
-          className="mb-3 sm:mb-6 max-sm:sticky max-sm:z-20"
-          ref={biasBarRef}
-          style={{ scrollMarginTop: '16px', top: 'calc(env(safe-area-inset-top, 0px) + 6px)' }}
-        >
-          <DailyBiasHeader
-            analyses={analysesData}
-            vix={vix || { current: 17.62, change: -0.96 }}
-            regime={regime || 'risk-on'}
-            nextEvent={next_event || { event: 'US Core CPI m/m', countdown: '13h' }}
-          />
-        </div>
-      )}
+      <div
+        className="mb-3 sm:mb-6 max-sm:sticky max-sm:z-20"
+        ref={biasBarRef}
+        style={{ scrollMarginTop: '16px', top: 'calc(env(safe-area-inset-top, 0px) + 6px)' }}
+      >
+        <DailyBiasHeader
+          analyses={analysesData}
+          vix={vix || { current: 17.62, change: -0.96 }}
+          regime={regime || 'risk-on'}
+          nextEvent={next_event || { event: 'US Core CPI m/m', countdown: '13h' }}
+        />
+      </div>
 
       {/* Main Grid: Center + Right Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
