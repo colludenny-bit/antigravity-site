@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 const AuthContext = createContext(null);
-
-const API = `${(process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '')}/api`;
 
 // Demo mode - set to true to bypass authentication
 const DEMO_MODE = false;
@@ -14,10 +12,11 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(!DEMO_MODE);
   const [isInitialized, setIsInitialized] = useState(DEMO_MODE);
   const [subscription, setSubscription] = useState(null);
+  const [error, setError] = useState(null); // Global auth error state
 
   const fetchSubscription = useCallback(async () => {
     try {
-      const response = await axios.get(`${API}/subscription/status`);
+      const response = await api.get('/subscription/status');
       setSubscription(response.data);
     } catch (error) {
       console.error('Failed to fetch subscription:', error);
@@ -26,8 +25,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const fetchUser = useCallback(async () => {
+    setError(null);
+    const storedToken = localStorage.getItem('token');
+    if (!storedToken) {
+      setLoading(false);
+      setIsInitialized(true);
+      return;
+    }
+
     try {
-      const response = await axios.get(`${API}/auth/me`);
+      const response = await api.get('/auth/me');
       // Check if response is valid JSON user object and not HTML (Vercel protection)
       if (response.data && response.data.email) {
         setUser(response.data);
@@ -40,7 +47,12 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      logout();
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        logout();
+      } else {
+        // Network error or timeout, don't logout immediately but stop loading
+        setError(error.userMessage || 'Errore di connessione');
+      }
     } finally {
       setLoading(false);
       setIsInitialized(true);
@@ -52,43 +64,55 @@ export const AuthProvider = ({ children }) => {
       setIsInitialized(true);
       return;
     }
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUser();
-    } else {
-      setLoading(false);
-      setIsInitialized(true);
-    }
-  }, [token, fetchUser]);
+    fetchUser();
+  }, [fetchUser]);
 
   const login = async (email, password) => {
-    const response = await axios.post(`${API}/auth/login`, { email, password });
-    const { access_token, user: userData } = response.data;
-    localStorage.setItem('token', access_token);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-    setToken(access_token);
-    setUser(userData);
-    // Fetch subscription after login
-    setTimeout(() => fetchSubscription(), 100);
-    return userData;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { access_token, user: userData } = response.data;
+      localStorage.setItem('token', access_token);
+      setToken(access_token);
+      setUser(userData);
+      // Fetch subscription after login
+      setTimeout(() => fetchSubscription(), 100);
+      return userData;
+    } catch (err) {
+      const msg = err.userMessage || err.response?.data?.detail || 'Login fallito';
+      setError(msg);
+      throw new Error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const register = async (email, password, name) => {
-    const response = await axios.post(`${API}/auth/register`, { email, password, name });
-    const { access_token, user: userData } = response.data;
-    localStorage.setItem('token', access_token);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-    setToken(access_token);
-    setUser(userData);
-    return userData;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.post('/auth/register', { email, password, name });
+      const { access_token, user: userData } = response.data;
+      localStorage.setItem('token', access_token);
+      setToken(access_token);
+      setUser(userData);
+      return userData;
+    } catch (err) {
+      const msg = err.userMessage || err.response?.data?.detail || 'Registrazione fallita';
+      setError(msg);
+      throw new Error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
     setToken(null);
     setUser(null);
     setSubscription(null);
+    setError(null);
   };
 
   const refreshUser = async () => {
@@ -99,7 +123,7 @@ export const AuthProvider = ({ children }) => {
 
   const checkoutPlan = async (planSlug, annual, couponCode = null) => {
     try {
-      const { data } = await axios.post(`${API}/create-checkout`, {
+      const { data } = await api.post('/create-checkout', {
         plan_slug: planSlug,
         annual,
         coupon_code: couponCode
@@ -120,7 +144,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, token, loading, isInitialized,
+      user, token, loading, isInitialized, error,
       subscription, fetchSubscription,
       login, register, logout, refreshUser, checkoutPlan
     }}>

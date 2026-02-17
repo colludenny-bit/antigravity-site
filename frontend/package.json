@@ -66,7 +66,9 @@
   "scripts": {
     "start": "craco start",
     "build": "REACT_APP_BACKEND_URL='' craco build",
-    "test": "craco test"
+    "test": "craco test",
+    "doctor:local": "bash ../scripts/local-doctor.sh",
+    "smoke:local": "bash ../scripts/smoke-login.sh"
   },
   "browserslist": {
     "production": [
