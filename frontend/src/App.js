@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import './i18n';
@@ -7,38 +7,37 @@ import './App.css';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { MarketProvider } from './contexts/MarketContext';
+import ErrorBoundary from './components/layout/ErrorBoundary';
 
-// Layout
-import Layout from './components/layout/Layout';
 import { LockScreen } from './components/layout/LockScreen';
-import { LandingPage } from './components/pages/LandingPage';
 
-// Pages
-import AuthPage from './components/pages/AuthPage';
-import DashboardPage from './components/pages/DashboardPage';
-import ProfilePage from './components/pages/ProfilePage';
-import StrategyPage from './components/pages/StrategyPage';
-import ChartsPage from './components/pages/ChartsPage';
-import PsychologyPage from './components/pages/PsychologyPage';
-import JournalPage from './components/pages/JournalPage';
-import AIPage from './components/pages/AIPage';
-import MonteCarloPage from './components/pages/MonteCarloPage';
-import StatisticsPage from './components/pages/StatisticsPage';
-import AscensionPage from './components/pages/AscensionPage';
-import SettingsPage from './components/pages/SettingsPage';
-import NewsPage from './components/pages/NewsPage';
-import ReportPage from './components/pages/ReportPage';
-import RiskPage from './components/pages/RiskPage';
-import COTPage from './components/pages/COTPage';
-import OptionsFlowPage from './components/pages/OptionsFlowPage';
-import MacroEconomyPage from './components/pages/MacroEconomyPage';
-import CryptoPage from './components/pages/CryptoPage';
-import CalculatorPage from './components/pages/CalculatorPage';
-
-import PricingPage from './components/pages/PricingPage';
-import CheckoutSuccessPage from './components/pages/CheckoutSuccessPage';
-import IntroPreviewPage from './components/pages/IntroPreviewPage';
-import MobilePreviewPage from './components/pages/MobilePreviewPage';
+// Route-level code splitting: load page code only when route is visited.
+const Layout = lazy(() => import('./components/layout/Layout'));
+const LandingPage = lazy(() => import('./components/pages/LandingPage').then((m) => ({ default: m.LandingPage })));
+const AuthPage = lazy(() => import('./components/pages/AuthPage'));
+const DashboardPage = lazy(() => import('./components/pages/DashboardPage'));
+const ProfilePage = lazy(() => import('./components/pages/ProfilePage'));
+const StrategyPage = lazy(() => import('./components/pages/StrategyPage'));
+const ChartsPage = lazy(() => import('./components/pages/ChartsPage'));
+const PsychologyPage = lazy(() => import('./components/pages/PsychologyPage'));
+const JournalPage = lazy(() => import('./components/pages/JournalPage'));
+const AIPage = lazy(() => import('./components/pages/AIPage'));
+const MonteCarloPage = lazy(() => import('./components/pages/MonteCarloPage'));
+const StatisticsPage = lazy(() => import('./components/pages/StatisticsPage'));
+const AscensionPage = lazy(() => import('./components/pages/AscensionPage'));
+const SettingsPage = lazy(() => import('./components/pages/SettingsPage'));
+const NewsPage = lazy(() => import('./components/pages/NewsPage'));
+const ReportPage = lazy(() => import('./components/pages/ReportPage'));
+const RiskPage = lazy(() => import('./components/pages/RiskPage'));
+const COTPage = lazy(() => import('./components/pages/COTPage'));
+const OptionsFlowPage = lazy(() => import('./components/pages/OptionsFlowPage'));
+const MacroEconomyPage = lazy(() => import('./components/pages/MacroEconomyPage'));
+const CryptoPage = lazy(() => import('./components/pages/CryptoPage'));
+const CalculatorPage = lazy(() => import('./components/pages/CalculatorPage'));
+const PricingPage = lazy(() => import('./components/pages/PricingPage'));
+const CheckoutSuccessPage = lazy(() => import('./components/pages/CheckoutSuccessPage'));
+const IntroPreviewPage = lazy(() => import('./components/pages/IntroPreviewPage'));
+const MobilePreviewPage = lazy(() => import('./components/pages/MobilePreviewPage'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -86,81 +85,90 @@ const PublicRoute = ({ children, isHome = false }) => {
 
 function AppRoutes() {
   return (
-    <Routes>
-      {/* Public Routes */}
-      <Route
-        path="/"
-        element={
-          <Navigate to="/auth" replace />
-        }
-      />
-      <Route
-        path="/auth"
-        element={
-          <PublicRoute>
-            <AuthPage />
-          </PublicRoute>
-        }
-      />
-      <Route
-        path="/pricing"
-        element={<PricingPage />}
-      />
-      <Route
-        path="/checkout/success"
-        element={<CheckoutSuccessPage />}
-      />
-      <Route
-        path="/intro-preview"
-        element={<IntroPreviewPage />}
-      />
-      <Route
-        path="/welcome"
-        element={<LandingPage />}
-      />
-      <Route
-        path="/dev/mobile-preview"
-        element={<MobilePreviewPage />}
-      />
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center">
+            <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Caricamento pagina...</p>
+          </div>
+        </div>
+      }
+    >
+      <Routes>
+        {/* Public Routes */}
+        <Route
+          path="/"
+          element={
+            <Navigate to="/auth" replace />
+          }
+        />
+        <Route
+          path="/auth"
+          element={
+            <PublicRoute>
+              <AuthPage />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/pricing"
+          element={<PricingPage />}
+        />
+        <Route
+          path="/checkout/success"
+          element={<CheckoutSuccessPage />}
+        />
+        <Route
+          path="/intro-preview"
+          element={<IntroPreviewPage />}
+        />
+        <Route
+          path="/welcome"
+          element={<LandingPage />}
+        />
+        <Route
+          path="/dev/mobile-preview"
+          element={<MobilePreviewPage />}
+        />
 
-      {/* Protected Routes - Main App */}
-      <Route
-        path="/app"
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<DashboardPage />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="report" element={<ReportPage />} />
-        <Route path="strategy" element={<StrategyPage />} />
-        <Route path="charts" element={<ChartsPage />} />
-        <Route path="news" element={<NewsPage />} />
-        <Route path="macro" element={<MacroEconomyPage />} />
-        <Route path="risk" element={<RiskPage />} />
-        <Route path="cot" element={<COTPage />} />
-        <Route path="options" element={<OptionsFlowPage />} />
-        <Route path="statistics" element={<StatisticsPage />} />
+        {/* Protected Routes - Main App */}
+        <Route
+          path="/app"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<DashboardPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="report" element={<ReportPage />} />
+          <Route path="strategy" element={<StrategyPage />} />
+          <Route path="charts" element={<ChartsPage />} />
+          <Route path="news" element={<NewsPage />} />
+          <Route path="macro" element={<MacroEconomyPage />} />
+          <Route path="risk" element={<RiskPage />} />
+          <Route path="cot" element={<COTPage />} />
+          <Route path="options" element={<OptionsFlowPage />} />
+          <Route path="statistics" element={<StatisticsPage />} />
 
-        <Route path="montecarlo" element={<MonteCarloPage />} />
-        <Route path="calculator" element={<CalculatorPage />} />
-        <Route path="crypto" element={<CryptoPage />} />
-        <Route path="psychology" element={<PsychologyPage />} />
-        <Route path="journal" element={<JournalPage />} />
-        <Route path="ai" element={<AIPage />} />
-        <Route path="ascension" element={<AscensionPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-      </Route>
+          <Route path="montecarlo" element={<MonteCarloPage />} />
+          <Route path="calculator" element={<CalculatorPage />} />
+          <Route path="crypto" element={<CryptoPage />} />
+          <Route path="psychology" element={<PsychologyPage />} />
+          <Route path="journal" element={<JournalPage />} />
+          <Route path="ai" element={<AIPage />} />
+          <Route path="ascension" element={<AscensionPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
 
-      {/* Catch all - Redirect to Landing */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        {/* Catch all - Redirect to Landing */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
-
-import ErrorBoundary from './components/layout/ErrorBoundary';
 
 function App() {
   const isIntroPreviewPath = typeof window !== 'undefined' && window.location.pathname === '/intro-preview';
