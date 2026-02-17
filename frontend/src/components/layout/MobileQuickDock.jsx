@@ -76,17 +76,17 @@ export const MobileQuickDock = () => {
           type="button"
           aria-label="Chiudi launcher"
           onClick={() => setOpen(false)}
-          className="md:hidden fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]"
+          className="md:hidden fixed inset-0 z-40 bg-black/45 backdrop-blur-[8px]"
         />
       )}
 
       <div
         className="md:hidden fixed left-0 right-0 z-50 pointer-events-none"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}
       >
         {open && (
-          <div className="mx-3 mb-3 pointer-events-auto rounded-[30px] border border-white/10 bg-[#0B0F17]/92 shadow-2xl backdrop-blur-xl px-3 py-4">
-            <div className="grid grid-cols-3 gap-2.5 max-h-[52vh] overflow-y-auto no-scrollbar">
+          <div className="mx-3 mb-3 pointer-events-auto rounded-[24px] border border-white/20 bg-[rgba(11,15,23,0.20)] shadow-[0_16px_50px_rgba(0,0,0,0.55)] backdrop-blur-[8px] px-2.5 py-3">
+            <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto no-scrollbar">
               {launcherGrid.map((item) => {
                 const Icon = item.icon;
                 const active = location.pathname === item.path;
@@ -96,19 +96,29 @@ export const MobileQuickDock = () => {
                     type="button"
                     onClick={() => navigate(item.path)}
                     className={cn(
-                      "flex flex-col items-center gap-2 rounded-2xl px-2 py-2 transition-all",
-                      active ? "bg-[#00D9A5]/14 border border-[#00D9A5]/30" : "bg-white/5 border border-white/10 hover:bg-white/10"
+                      "flex flex-col items-center gap-1.5 rounded-xl px-1.5 py-1.5 transition-all",
+                      active ? "bg-white/12 border border-white/35" : "bg-white/5 border border-white/15 hover:bg-white/10"
                     )}
                   >
                     <span
                       className={cn(
-                        "w-11 h-11 rounded-full flex items-center justify-center border",
-                        active ? "bg-[#00D9A5]/15 border-[#00D9A5]/35" : "bg-white/5 border-white/10"
+                        "w-9 h-9 rounded-full flex items-center justify-center border",
+                        active ? "bg-white/12 border-white/35" : "bg-white/8 border-white/20"
                       )}
                     >
-                      <Icon className={cn("w-5 h-5", active ? "text-[#00D9A5]" : "text-white/85")} />
+                      <Icon
+                        className={cn(
+                          "w-4 h-4 text-white",
+                          active ? "drop-shadow-[0_0_8px_rgba(255,255,255,0.85)]" : "drop-shadow-[0_0_6px_rgba(255,255,255,0.55)]"
+                        )}
+                      />
                     </span>
-                    <span className={cn("text-[11px] leading-tight text-center font-semibold", active ? "text-[#00D9A5]" : "text-white/85")}>
+                    <span
+                      className={cn(
+                        "text-[10px] leading-tight text-center font-semibold text-white",
+                        active ? "drop-shadow-[0_0_8px_rgba(255,255,255,0.65)]" : "opacity-90"
+                      )}
+                    >
                       {item.label}
                     </span>
                   </button>
@@ -124,11 +134,13 @@ export const MobileQuickDock = () => {
             aria-label="Torna in cima alla dashboard"
             onClick={goDashboardTop}
             className={cn(
-              "w-14 h-14 rounded-full border flex items-center justify-center shadow-xl transition-all",
-              isHomeRoute ? "bg-[#00D9A5]/16 border-[#00D9A5]/40" : "bg-[#0B0F17]/88 border-white/15"
+              "w-12 h-12 rounded-full border flex items-center justify-center shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition-all backdrop-blur-[8px]",
+              isHomeRoute
+                ? "bg-[rgba(11,15,23,0.20)] border-white/40 ring-1 ring-white/25"
+                : "bg-[rgba(11,15,23,0.20)] border-white/25"
             )}
           >
-            <Home className={cn("w-6 h-6", isHomeRoute ? "text-[#00D9A5]" : "text-white")} />
+            <Home className="w-5 h-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.75)]" />
           </button>
 
           <button
@@ -136,11 +148,17 @@ export const MobileQuickDock = () => {
             aria-label={open ? "Chiudi launcher" : "Apri launcher"}
             onClick={() => setOpen((v) => !v)}
             className={cn(
-              "w-14 h-14 rounded-full border flex items-center justify-center shadow-xl transition-all",
-              open ? "bg-[#0B0F17]/95 border-white/20" : "bg-[#0B0F17]/88 border-white/15"
+              "w-12 h-12 rounded-full border flex items-center justify-center shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition-all backdrop-blur-[8px]",
+              open
+                ? "bg-[rgba(11,15,23,0.20)] border-white/40 ring-1 ring-white/25"
+                : "bg-[rgba(11,15,23,0.20)] border-white/25"
             )}
           >
-            {open ? <X className="w-6 h-6 text-white" /> : <Plus className="w-6 h-6 text-white" />}
+            {open ? (
+              <X className="w-5 h-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.75)]" />
+            ) : (
+              <Plus className="w-5 h-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.75)]" />
+            )}
           </button>
         </div>
       </div>

@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
-import { Particles } from '../ui/Particles';
-import { KeyboardShortcuts } from '../ui/KeyboardShortcuts';
-import { AIHelperButton } from '../ui/AIHelperButton';
 import { MobileQuickDock } from './MobileQuickDock';
 
 // Karion Logo Component using user's original PNG image
@@ -37,10 +34,6 @@ const KarionLogo = ({ className = "", size = "default" }) => {
 
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  const isHomePage = location.pathname === '/app';
 
   return (
     <div className="min-h-screen bg-background relative transition-colors duration-300">
@@ -96,7 +89,6 @@ export const Layout = () => {
 
 
       {/* Helper Components */}
-      <AIHelperButton />
       <MobileQuickDock />
 
       {/* Mobile Bottom Navigation — DISABLED per user request */}
@@ -104,8 +96,6 @@ export const Layout = () => {
 
 
 
-      {/* Keyboard Shortcuts */}
-      <KeyboardShortcuts onNavigate={(path) => navigate(path)} />
     </div>
   );
 };
