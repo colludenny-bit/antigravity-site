@@ -4,6 +4,7 @@ import { Toaster } from 'sonner';
 import { MotionConfig } from 'framer-motion';
 import './i18n';
 import './App.css';
+import karionLogo from './assets/kairon-logo.png';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -40,20 +41,35 @@ const CheckoutSuccessPage = lazy(() => import('./components/pages/CheckoutSucces
 const IntroPreviewPage = lazy(() => import('./components/pages/IntroPreviewPage'));
 const MobilePreviewPage = lazy(() => import('./components/pages/MobilePreviewPage'));
 
+const LoadingBrand = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background px-6">
+    <div className="text-center">
+      <div className="karion-loader-wrap mx-auto">
+        <img
+          src={karionLogo}
+          alt="Karion"
+          className="karion-loader-logo"
+          loading="eager"
+          decoding="async"
+        />
+      </div>
+      <div className="karion-loader-dots mt-3" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <span className="sr-only">Caricamento</span>
+    </div>
+  </div>
+);
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, isInitialized } = useAuth();
 
   // Wait until auth is fully initialized before making routing decisions
   if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Caricamento...</p>
-        </div>
-      </div>
-    );
+    return <LoadingBrand />;
   }
 
   if (!user) {
@@ -69,11 +85,7 @@ const PublicRoute = ({ children, isHome = false }) => {
 
   // Wait until auth is fully initialized before making routing decisions
   if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <LoadingBrand />;
   }
 
   // Only redirect away if NOT the home page
@@ -86,16 +98,7 @@ const PublicRoute = ({ children, isHome = false }) => {
 
 function AppRoutes() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="text-center">
-            <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Caricamento pagina...</p>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<LoadingBrand />}>
       <Routes>
         {/* Public Routes */}
         <Route
