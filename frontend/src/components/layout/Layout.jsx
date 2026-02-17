@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
-import { MobileNav } from './MobileNav';
 import { Particles } from '../ui/Particles';
 import { KeyboardShortcuts } from '../ui/KeyboardShortcuts';
 import { AIHelperButton } from '../ui/AIHelperButton';
+import { MobileQuickDock } from './MobileQuickDock';
 
 // Karion Logo Component using user's original PNG image
 import kairongLogo from '../../assets/kairon-logo.png';
@@ -78,7 +78,7 @@ export const Layout = () => {
         </header>
 
         {/* Page Content — keep top compact on mobile, aligned under safe area */}
-        <div className="p-4 pt-[calc(env(safe-area-inset-top)+8px)] md:p-6 md:pt-6 lg:p-8">
+        <div className="p-4 pb-24 pt-[calc(env(safe-area-inset-top)+8px)] md:p-6 md:pt-6 md:pb-6 lg:p-8">
           <Outlet />
         </div>
 
@@ -97,6 +97,7 @@ export const Layout = () => {
 
       {/* Helper Components */}
       <AIHelperButton />
+      <MobileQuickDock />
 
       {/* Mobile Bottom Navigation — DISABLED per user request */}
       {/* <MobileNav onSearchClick={() => { }} /> */}
