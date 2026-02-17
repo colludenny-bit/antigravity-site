@@ -552,7 +552,7 @@ export const LandingPage = () => {
     const activeFeature = featureTabs.find(t => t.id === activeTab);
 
     return (
-        <div className="min-h-screen bg-black text-white font-apple overflow-x-hidden selection:bg-[#00D9A5]/30">
+        <div className="min-h-screen bg-black text-white font-apple overflow-x-hidden selection:bg-[#00D9A5]/30" style={{ touchAction: 'pan-y' }}>
 
             {/* ═══ BACKGROUND EFFECTS — grid + grain + gradient blobs ═══ */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
@@ -581,7 +581,7 @@ export const LandingPage = () => {
             {/* ═══ NAVBAR ═══ */}
             {/* NAVBAR — mobile classes (below sm:640px) add Dynamic Island padding + compact layout. Desktop unchanged via sm: overrides */}
             <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] bg-black/60 backdrop-blur-2xl pt-[52px] sm:pt-0">
-                <div className="max-w-[1400px] mx-auto px-3 sm:px-6 h-10 sm:h-16 flex items-center justify-between">
+                <div className="max-w-[1400px] mx-auto px-3 sm:px-6 h-12 sm:h-16 flex items-center justify-between">
                     <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                         <BullLogo className="h-6 sm:h-10 w-auto" />
                         <div className="relative">
@@ -593,13 +593,6 @@ export const LandingPage = () => {
                             <div className="absolute -bottom-1 left-0 right-0 h-[2px] hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
                             <div className="absolute -bottom-1 left-0 right-0 h-[6px] blur-[3px] opacity-60 hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
                         </div>
-                    </div>
-                    {/* Tabs: on mobile (<sm) show compact, on md+ show original desktop style */}
-                    <div className="flex sm:hidden items-center gap-0.5 p-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl">
-                        <a href="#features" className="px-1.5 py-1 rounded-md text-[9px] font-semibold text-white/70 hover:text-white transition-all">Features</a>
-                        <a href="#showcase" className="px-1.5 py-1 rounded-md text-[9px] font-semibold text-white/70 hover:text-white transition-all">Showcase</a>
-                        <a href="#tools" className="px-1.5 py-1 rounded-md text-[9px] font-semibold text-white/70 hover:text-white transition-all">Tools</a>
-                        <Link to="/pricing" className="px-1.5 py-1 rounded-md text-[9px] font-semibold text-white/70 hover:text-white transition-all">Pricing</Link>
                     </div>
                     <div className="hidden md:flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl">
                         <a href="#features" className="px-5 py-2 rounded-xl text-sm font-semibold text-white/70 hover:text-white hover:bg-white/[0.08] transition-all duration-200">Features</a>
@@ -632,6 +625,17 @@ export const LandingPage = () => {
                                 toggleTheme={toggleTheme}
                             />
                         )}
+                    </div>
+                </div>
+                {/* Mobile nav tabs in dedicated scroll row */}
+                <div className="sm:hidden border-t border-white/[0.05]">
+                    <div className="max-w-[1400px] mx-auto px-3 py-2">
+                        <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+                            <a href="#features" className="text-center px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white/75 hover:text-white hover:bg-white/[0.08] transition-all">Features</a>
+                            <a href="#showcase" className="text-center px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white/75 hover:text-white hover:bg-white/[0.08] transition-all">Showcase</a>
+                            <a href="#tools" className="text-center px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white/75 hover:text-white hover:bg-white/[0.08] transition-all">Tools</a>
+                            <Link to="/pricing" className="text-center px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white/75 hover:text-white hover:bg-white/[0.08] transition-all">Pricing</Link>
+                        </div>
                     </div>
                 </div>
             </nav>
@@ -732,42 +736,63 @@ export const LandingPage = () => {
                     </div>
 
                     {/* Tab bar — icon-based like deepcharts */}
-                    <div className="flex justify-center items-center gap-2 mb-14">
-                        {/* Left arrow */}
-                        <button className="w-10 h-10 rounded-xl border border-white/[0.06] flex items-center justify-center text-white/20 hover:text-white/50 transition-colors">
-                            <ChevronRight className="w-5 h-5 rotate-180" />
-                        </button>
-
-                        <div className="flex gap-1 p-1.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-                            {featureTabs.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`relative flex flex-col items-center gap-1.5 px-5 py-3 rounded-lg transition-all duration-300 ${activeTab === tab.id
-                                        ? 'text-white'
-                                        : 'text-white/25 hover:text-white/50'
-                                        }`}
-                                >
-                                    <tab.icon className="w-5 h-5 transition-colors duration-300"
-                                        style={{ color: activeTab === tab.id ? tab.color : undefined }}
-                                    />
-                                    <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:block">{tab.label}</span>
-                                    {activeTab === tab.id && (
-                                        <motion.div
-                                            layoutId="activeTab"
-                                            className="absolute inset-0 rounded-lg -z-10"
-                                            style={{ background: `${tab.color}08`, border: `1px solid ${tab.color}20` }}
-                                            transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-                                        />
-                                    )}
-                                </button>
-                            ))}
+                    <div className="mb-10 sm:mb-14">
+                        {/* Mobile tab chips */}
+                        <div className="sm:hidden">
+                            <div className="grid grid-cols-2 gap-2 p-1.5 rounded-xl bg-white/[0.02] border border-white/[0.08]">
+                                {featureTabs.map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-[0.06em] text-left transition-all duration-200 ${activeTab === tab.id ? 'text-white' : 'text-white/55 hover:text-white/80'
+                                            }`}
+                                        style={activeTab === tab.id ? { background: `${tab.color}12`, border: `1px solid ${tab.color}35` } : {}}
+                                    >
+                                        <tab.icon className="w-4 h-4" style={{ color: activeTab === tab.id ? tab.color : undefined }} />
+                                        <span className="leading-tight">{tab.label}</span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
-                        {/* Right arrow */}
-                        <button className="w-10 h-10 rounded-xl border border-white/[0.06] flex items-center justify-center text-white/20 hover:text-white/50 transition-colors">
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
+                        {/* Desktop/tablet tab bar */}
+                        <div className="hidden sm:flex justify-center items-center gap-2">
+                            {/* Left arrow */}
+                            <button className="w-10 h-10 rounded-xl border border-white/[0.06] flex items-center justify-center text-white/20 hover:text-white/50 transition-colors">
+                                <ChevronRight className="w-5 h-5 rotate-180" />
+                            </button>
+
+                            <div className="flex gap-1 p-1.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                                {featureTabs.map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`relative flex flex-col items-center gap-1.5 px-5 py-3 rounded-lg transition-all duration-300 ${activeTab === tab.id
+                                            ? 'text-white'
+                                            : 'text-white/25 hover:text-white/50'
+                                            }`}
+                                    >
+                                        <tab.icon className="w-5 h-5 transition-colors duration-300"
+                                            style={{ color: activeTab === tab.id ? tab.color : undefined }}
+                                        />
+                                        <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
+                                        {activeTab === tab.id && (
+                                            <motion.div
+                                                layoutId="activeTab"
+                                                className="absolute inset-0 rounded-lg -z-10"
+                                                style={{ background: `${tab.color}08`, border: `1px solid ${tab.color}20` }}
+                                                transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
+                                            />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Right arrow */}
+                            <button className="w-10 h-10 rounded-xl border border-white/[0.06] flex items-center justify-center text-white/20 hover:text-white/50 transition-colors">
+                                <ChevronRight className="w-5 h-5" />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Tab content — crossfade like deepcharts */}
