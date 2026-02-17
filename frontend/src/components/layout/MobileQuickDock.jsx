@@ -98,11 +98,13 @@ export const MobileQuickDock = () => {
                 mass: 0.6
               }}
               style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
-              className="relative mx-3 mb-3 pointer-events-auto rounded-[24px] border border-white/20 bg-[rgba(11,15,23,0.20)] shadow-[0_16px_50px_rgba(0,0,0,0.55)] backdrop-blur-[8px] px-2.5 py-3 overflow-hidden"
+              className="relative mx-3 mb-3 pointer-events-auto rounded-[24px] border border-white/20 bg-[linear-gradient(180deg,rgba(14,18,30,0.80)_0%,rgba(8,12,22,0.92)_100%)] shadow-[0_20px_56px_rgba(0,0,0,0.62)] backdrop-blur-[8px] px-3 py-3 overflow-hidden"
             >
-              <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.14] via-white/[0.05] to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none bg-gradient-to-t from-black/35 to-transparent" />
-              <div className="relative grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto no-scrollbar">
+              <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.08] via-white/[0.02] to-transparent" />
+              <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_22%,rgba(255,255,255,0.09),transparent_55%)]" />
+              <div className="absolute inset-x-0 bottom-0 h-24 pointer-events-none bg-gradient-to-t from-black/45 to-transparent" />
+
+              <div className="relative grid grid-cols-3 gap-3 max-h-[50vh] overflow-y-auto no-scrollbar">
                 {launcherGrid.map((item) => {
                   const Icon = item.icon;
                   const active = location.pathname === item.path;
@@ -112,20 +114,22 @@ export const MobileQuickDock = () => {
                       type="button"
                       onClick={() => navigate(item.path)}
                       className={cn(
-                        "flex items-center justify-center rounded-xl p-2.5 transition-all",
-                        active ? "bg-white/12 border border-white/35" : "bg-white/5 border border-white/15 hover:bg-white/10"
+                        "flex items-center justify-center rounded-xl p-1 transition-all",
+                        active ? "scale-[1.02]" : "hover:scale-[1.02]"
                       )}
                     >
                       <span
                         className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center border",
-                          active ? "bg-white/12 border-white/35" : "bg-white/8 border-white/20"
+                          "w-12 h-12 rounded-full flex items-center justify-center border",
+                          active ? "bg-white/[0.10] border-white/35" : "bg-white/[0.05] border-white/15"
                         )}
                       >
                         <Icon
                           className={cn(
-                            "w-5 h-5 text-white",
-                            active ? "drop-shadow-[0_0_9px_rgba(255,255,255,0.9)]" : "drop-shadow-[0_0_7px_rgba(255,255,255,0.7)]"
+                            "w-6 h-6 text-white",
+                            active
+                              ? "drop-shadow-[0_0_10px_rgba(255,255,255,0.95)]"
+                              : "drop-shadow-[0_0_8px_rgba(255,255,255,0.75)]"
                           )}
                         />
                       </span>
