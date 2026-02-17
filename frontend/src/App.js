@@ -1,6 +1,7 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, lazy, Suspense, useMemo, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { MotionConfig } from 'framer-motion';
 import './i18n';
 import './App.css';
 
@@ -174,15 +175,26 @@ function AppRoutes() {
 
 function App() {
   const isIntroPreviewPath = typeof window !== 'undefined' && window.location.pathname === '/intro-preview';
-  const [isLocked, setIsLocked] = useState(true);
+  const [isLocked, setIsLocked] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('karion_access') !== 'granted';
+  });
+  const isMobileDevice = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 1024px)').matches;
+  }, []);
+
+  useEffect(() => {
+    // Preload the most common first routes while lock overlay is visible.
+    import('./components/pages/AuthPage');
+    import('./components/pages/LandingPage');
+  }, []);
 
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          {isLocked && !isIntroPreviewPath ? (
-            <LockScreen onUnlock={() => setIsLocked(false)} />
-          ) : (
+          <MotionConfig reducedMotion={isMobileDevice ? 'always' : 'never'}>
             <BrowserRouter>
               <AppRoutes />
               <Toaster
@@ -198,6 +210,9 @@ function App() {
                 }}
               />
             </BrowserRouter>
+          </MotionConfig>
+          {isLocked && !isIntroPreviewPath && (
+            <LockScreen onUnlock={() => setIsLocked(false)} />
           )}
         </AuthProvider>
       </ThemeProvider>

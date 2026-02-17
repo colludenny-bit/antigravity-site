@@ -249,6 +249,27 @@
   }
 }
 
+/* Mobile runtime performance tuning */
+@media (max-width: 1024px) {
+  [class*="backdrop-blur"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  [class*="blur-["] {
+    filter: none !important;
+  }
+
+  .animate-pulse,
+  .animate-ping {
+    animation-duration: 2.2s !important;
+  }
+
+  .shadow-2xl {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+  }
+}
+
 /* Print styles */
 @media print {
   .sidebar,

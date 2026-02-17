@@ -22,14 +22,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { WeeklyBiasScale } from '../ui/WeeklyBiasScale';
 import { detailedStrategies } from '../../data/strategies';
 
+const isMobileLiteMotion = () => {
+  if (typeof window === 'undefined') return false;
+  const isSmallScreen = window.matchMedia('(max-width: 1024px)').matches;
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return isSmallScreen || prefersReduced;
+};
 
 // Typewriter Text Component - reveals text character by character
 const TypewriterText = ({ text, speed = 25, delay = 0, className, children }) => {
   const [displayedChars, setDisplayedChars] = useState(0);
   const content = text || (typeof children === 'string' ? children : '');
+  const liteMotion = isMobileLiteMotion();
 
   useEffect(() => {
     if (!content) return;
+    if (liteMotion) {
+      setDisplayedChars(content.length);
+      return;
+    }
     setDisplayedChars(0);
     const startTimer = setTimeout(() => {
       let current = 0;
@@ -41,7 +52,7 @@ const TypewriterText = ({ text, speed = 25, delay = 0, className, children }) =>
       return () => clearInterval(interval);
     }, delay);
     return () => clearTimeout(startTimer);
-  }, [content, speed, delay]);
+  }, [content, speed, delay, liteMotion]);
 
   if (!content) return <span className={className}>{children}</span>;
 
@@ -60,8 +71,13 @@ const CountUp = ({ value, duration = 1500, delay = 0, prefix = '', suffix = '', 
   const [display, setDisplay] = useState(0);
   const numVal = typeof value === 'number' ? value : parseFloat(value) || 0;
   const isDecimal = String(numVal).includes('.') || String(value).includes('.');
+  const liteMotion = isMobileLiteMotion();
 
   useEffect(() => {
+    if (liteMotion) {
+      setDisplay(isDecimal ? Math.round(numVal * 10) / 10 : Math.round(numVal));
+      return;
+    }
     setDisplay(0);
     const startTimer = setTimeout(() => {
       const startTime = performance.now();
@@ -76,7 +92,7 @@ const CountUp = ({ value, duration = 1500, delay = 0, prefix = '', suffix = '', 
       requestAnimationFrame(animate);
     }, delay);
     return () => clearTimeout(startTimer);
-  }, [numVal, duration, delay, isDecimal]);
+  }, [numVal, duration, delay, isDecimal, liteMotion]);
 
   return <span className={className}>{prefix}{display}{suffix}</span>;
 };
