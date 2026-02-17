@@ -94,11 +94,13 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-background" />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      style={{ background: 'linear-gradient(to bottom, #2a2a2e 0%, #1a1a1d 30%, #0d0d0f 60%, #000000 100%)' }}
+    >
+      {/* Background Effects — hidden on mobile, shown on sm+ */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-background hidden sm:block" />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl hidden sm:block" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl hidden sm:block" />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -106,25 +108,25 @@ export default function AuthPage() {
         className="w-full max-w-md relative z-10"
       >
         <Card className="glass-card border-border/50 shadow-2xl" data-testid="auth-card">
-          <CardHeader className="text-center space-y-4 pb-8">
+          <CardHeader className="text-center space-y-2 sm:space-y-4 pb-4 sm:pb-8">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', delay: 0.2 }}
-              className="mx-auto w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center"
+              className="mx-auto w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-primary/20 flex items-center justify-center"
             >
-              <TrendingUp className="w-8 h-8 text-primary" />
+              <TrendingUp className="w-5 h-5 sm:w-8 sm:h-8 text-primary" />
             </motion.div>
             <div>
-              <CardTitle className="text-2xl font-bold tracking-widest">KARION</CardTitle>
-              <CardDescription className="text-muted-foreground mt-2">
+              <CardTitle className="text-lg sm:text-2xl font-bold tracking-widest">KARION</CardTitle>
+              <CardDescription className="text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm">
                 {isLogin ? 'Bentornato, trader' : 'Inizia il tuo viaggio'}
               </CardDescription>
             </div>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
               {!isLogin && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -132,7 +134,7 @@ export default function AuthPage() {
                   exit={{ opacity: 0, height: 0 }}
                   className="space-y-2"
                 >
-                  <Label htmlFor="name" className="text-sm font-medium">
+                  <Label htmlFor="name" className="text-xs sm:text-sm font-medium">
                     {t('auth.name')}
                   </Label>
                   <div className="relative">
@@ -143,7 +145,7 @@ export default function AuthPage() {
                       placeholder="Il tuo nome"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="pl-10 h-12 bg-white/5 border-border/50 rounded-xl"
+                      className="pl-10 h-10 sm:h-12 bg-white/5 border-border/50 rounded-xl text-sm sm:text-base"
                       required={!isLogin}
                       data-testid="auth-name-input"
                     />
@@ -163,7 +165,7 @@ export default function AuthPage() {
                     placeholder="trader@example.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="pl-10 h-12 bg-white/5 border-border/50 rounded-xl"
+                    className="pl-10 h-10 sm:h-12 bg-white/5 border-border/50 rounded-xl text-sm sm:text-base"
                     required
                     data-testid="auth-email-input"
                   />
@@ -182,7 +184,7 @@ export default function AuthPage() {
                     placeholder="••••••••"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="pl-10 h-12 bg-white/5 border-border/50 rounded-xl"
+                    className="pl-10 h-10 sm:h-12 bg-white/5 border-border/50 rounded-xl text-sm sm:text-base"
                     required
                     data-testid="auth-password-input"
                   />
@@ -192,7 +194,7 @@ export default function AuthPage() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold btn-press"
+                className="w-full h-10 sm:h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm sm:text-base btn-press"
                 data-testid="auth-submit-btn"
               >
                 {loading ? (
@@ -221,7 +223,7 @@ export default function AuthPage() {
             </div>
 
             {/* Divider */}
-            <div className="relative my-6">
+            <div className="relative my-4 sm:my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border/50" />
               </div>
@@ -231,11 +233,11 @@ export default function AuthPage() {
             </div>
 
             {/* Social Login Placeholder */}
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-12 rounded-xl border-border/50 hover:bg-white/5"
+                className="w-full h-10 sm:h-12 rounded-xl border-border/50 hover:bg-white/5 text-sm sm:text-base"
                 onClick={() => handleSocialLogin('google')}
                 disabled={loading}
                 data-testid="google-login-btn"
@@ -252,7 +254,7 @@ export default function AuthPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-12 rounded-xl border-border/50 hover:bg-white/5"
+                className="w-full h-10 sm:h-12 rounded-xl border-border/50 hover:bg-white/5 text-sm sm:text-base"
                 onClick={() => handleSocialLogin('apple')}
                 disabled={loading}
                 data-testid="apple-login-btn"

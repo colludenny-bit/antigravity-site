@@ -113,6 +113,17 @@ const normalizeStrategyId = (rawId) => {
   return rawId;
 };
 
+// Mobile detection hook
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isMobile;
+};
+
 // Asset Charts Grid (2-3 charts visible at once)
 const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false, onSyncAsset }) => {
   // State with LocalStorage Persistence
@@ -124,6 +135,8 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const [showInfo, setShowInfo] = useState(false);
   const [chartLineColor, setChartLineColor] = useState(() => localStorage.getItem('dashboard_chartLineColor') || '#00D9A5');
   const [syncEnabled, setSyncEnabled] = useState(() => localStorage.getItem('dashboard_syncEnabled') === 'true');
+  const [mobileChartIndex, setMobileChartIndex] = useState(0);
+  const isMobile = useIsMobile();
 
   // Persist State Changes
   useEffect(() => {
@@ -153,6 +166,12 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const visibleAssets = assets.filter(a => favoriteCharts.includes(a.symbol));
 
   const toggleFavorite = (symbol) => {
+    if (isMobile) {
+      // Mobile: allow only 1 favorite at a time — switch to this one
+      onFavoriteChange([symbol]);
+      setMobileChartIndex(0);
+      return;
+    }
     if (favoriteCharts.includes(symbol)) {
       if (favoriteCharts.length > 2) {
         onFavoriteChange(favoriteCharts.filter(s => s !== symbol));
@@ -467,7 +486,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                 >
                   {/* Asset Selection Section */}
                   <div className="mb-2 px-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset ({favoriteCharts.length}/3)</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset {isMobile ? '(1)' : `(${favoriteCharts.length}/3)`}</span>
                   </div>
                   <div className="space-y-1 mb-4">
                     {assets.map((a) => (
@@ -547,86 +566,176 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            className={cn(
-              "grid gap-4",
-              visibleAssets.length === 2 ? "grid-cols-2" : "grid-cols-3"
-            )}
           >
-            {visibleAssets.map((asset, index) => {
-              const color = chartColors[index % chartColors.length];
-              return (
-                <button
-                  key={asset.symbol}
-                  onClick={() => handleFocusAsset(asset.symbol)}
-                  className="group relative p-4 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.15)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:hover:!border-white/20 dark:shadow-none font-apple"
-                >
-                  <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
-
-                  <div className="mb-2 relative z-10 flex items-start justify-between">
-                    <div>
-                      <h3 className="text-lg font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl font-bold text-white tracking-tight">
-                          {asset.price?.toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Confidence Percentage - Repositioned to Top Right */}
-                    <div className="flex flex-col items-end">
-                      <span className="text-xs font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
-                      <span className="text-lg font-black leading-none text-[#00D9A5]">
-                        {asset.confidence}%
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="h-28 -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
-                    {animationsReady && (
-                      <GlowingChart
-                        data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
-                        width={400}
-                        height={110}
-                        color={color}
-                        showPrice={false}
-                      />
-                    )}
-                  </div>
-
-                  <div className="relative z-10 space-y-3 mt-4">
-                    {/* Bias & Confidence Row - HIGHLIGHTED */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all",
-                        getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 text-[#00D9A5]" :
-                          getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500/10 border-red-500/20 text-red-500" :
-                            "bg-yellow-500/10 border-yellow-500/20 text-yellow-500"
-                      )}>
-                        <div className={cn(
-                          "w-2 h-2 rounded-full",
-                          getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]" :
-                            getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500" :
-                              "bg-yellow-500"
-                        )} />
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] leading-none">
-                          {getDailyOutlook(asset).conclusion}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Analysis Points - LARGER TEXT */}
-                    <ul className="space-y-2">
-                      {getDailyOutlook(asset).outlookLines.slice(0, 3).map((line, i) => (
-                        <li key={i} className="flex items-start gap-3 text-base font-semibold text-white/95 leading-relaxed tracking-tight">
-                          <div className="mt-2.5 w-1.5 h-1.5 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
-                          <TypewriterText text={line} speed={20} delay={500 + i * 800} />
-                        </li>
+            {/* MOBILE: single zoomed chart with navigation */}
+            {isMobile ? (
+              <div className="relative">
+                {/* Navigation arrows */}
+                {assets.length > 1 && (
+                  <div className="flex items-center justify-between mb-3">
+                    <button
+                      onClick={() => setMobileChartIndex((prev) => (prev - 1 + assets.length) % assets.length)}
+                      className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {assets.map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setMobileChartIndex(i)}
+                          className={cn(
+                            "w-1.5 h-1.5 rounded-full transition-all",
+                            i === mobileChartIndex ? "bg-[#00D9A5] w-4" : "bg-white/20"
+                          )}
+                        />
                       ))}
-                    </ul>
+                    </div>
+                    <button
+                      onClick={() => setMobileChartIndex((prev) => (prev + 1) % assets.length)}
+                      className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
-                </button>
-              );
-            })}
+                )}
+                {/* Single chart card — zoomed */}
+                {(() => {
+                  const asset = assets[mobileChartIndex % assets.length];
+                  if (!asset) return null;
+                  const color = chartColors[mobileChartIndex % chartColors.length];
+                  return (
+                    <button
+                      onClick={() => handleFocusAsset(asset.symbol)}
+                      className="w-full group relative p-4 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:shadow-none font-apple"
+                    >
+                      <div className="mb-2 relative z-10 flex items-start justify-between">
+                        <div>
+                          <h3 className="text-lg font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
+                          <span className="text-2xl font-bold text-white tracking-tight">
+                            {asset.price?.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[9px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
+                          <span className="text-lg font-black leading-none text-[#00D9A5]">{asset.confidence}%</span>
+                        </div>
+                      </div>
+                      <div className="h-36 -ml-2 relative z-10 overflow-hidden rounded-lg mb-2">
+                        {animationsReady && (
+                          <GlowingChart
+                            data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
+                            width={380}
+                            height={140}
+                            color={color}
+                            showPrice={false}
+                          />
+                        )}
+                      </div>
+                      <div className="relative z-10">
+                        <div className={cn(
+                          "inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border",
+                          getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 text-[#00D9A5]" :
+                            getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500/10 border-red-500/20 text-red-500" :
+                              "bg-yellow-500/10 border-yellow-500/20 text-yellow-500"
+                        )}>
+                          <div className={cn(
+                            "w-2 h-2 rounded-full",
+                            getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]" :
+                              getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500" : "bg-yellow-500"
+                          )} />
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] leading-none">
+                            {getDailyOutlook(asset).conclusion}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })()}
+              </div>
+            ) : (
+              /* DESKTOP: original grid view */
+              <div className={cn(
+                "grid gap-4",
+                visibleAssets.length === 2 ? "grid-cols-2" : "grid-cols-3"
+              )}>
+                {visibleAssets.map((asset, index) => {
+                  const color = chartColors[index % chartColors.length];
+                  return (
+                    <button
+                      key={asset.symbol}
+                      onClick={() => handleFocusAsset(asset.symbol)}
+                      className="group relative p-4 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.15)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:hover:!border-white/20 dark:shadow-none font-apple"
+                    >
+                      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
+
+                      <div className="mb-2 relative z-10 flex items-start justify-between">
+                        <div>
+                          <h3 className="text-lg font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl font-bold text-white tracking-tight">
+                              {asset.price?.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Confidence Percentage - Repositioned to Top Right */}
+                        <div className="flex flex-col items-end">
+                          <span className="text-xs font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
+                          <span className="text-lg font-black leading-none text-[#00D9A5]">
+                            {asset.confidence}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="h-28 -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
+                        {animationsReady && (
+                          <GlowingChart
+                            data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
+                            width={400}
+                            height={110}
+                            color={color}
+                            showPrice={false}
+                          />
+                        )}
+                      </div>
+
+                      <div className="relative z-10 space-y-3 mt-4">
+                        {/* Bias & Confidence Row - HIGHLIGHTED */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all",
+                            getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 text-[#00D9A5]" :
+                              getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500/10 border-red-500/20 text-red-500" :
+                                "bg-yellow-500/10 border-yellow-500/20 text-yellow-500"
+                          )}>
+                            <div className={cn(
+                              "w-2 h-2 rounded-full",
+                              getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]" :
+                                getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500" :
+                                  "bg-yellow-500"
+                            )} />
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] leading-none">
+                              {getDailyOutlook(asset).conclusion}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Analysis Points - LARGER TEXT */}
+                        <ul className="space-y-2">
+                          {getDailyOutlook(asset).outlookLines.slice(0, 3).map((line, i) => (
+                            <li key={i} className="flex items-start gap-3 text-base font-semibold text-white/95 leading-relaxed tracking-tight">
+                              <div className="mt-2.5 w-1.5 h-1.5 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
+                              <TypewriterText text={line} speed={20} delay={500 + i * 800} />
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </motion.div>
         ) : (
           <motion.div
@@ -1905,85 +2014,85 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
       onMouseLeave={() => expandedItem && setExpandedItem(null)}
     >
       {/* Main Header Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 p-3 rounded-lg font-apple bg-white !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] dark:bg-white/5 dark:!border-white/5 dark:glass-edge dark:shadow-none">
+      <div className="flex items-center justify-between p-2 sm:p-3 rounded-lg font-apple bg-white !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] dark:bg-white/5 dark:!border-white/5 dark:glass-edge dark:shadow-none">
         {/* Left side: Bias + VIX + Regime */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-nowrap items-center gap-1 sm:gap-3">
           {/* Daily Bias */}
           <button
             onClick={() => toggleItem('bias')}
             className={cn(
-              "flex items-center gap-2 px-2 py-1 rounded-lg transition-all cursor-pointer",
+              "flex items-center gap-0.5 sm:gap-2 px-1 py-0.5 sm:px-2 sm:py-1 rounded-lg transition-all cursor-pointer",
               expandedItem === 'bias' ? "bg-slate-100 ring-1 ring-slate-300 dark:bg-white/10 dark:ring-white/20 tab-border-highlight" : "hover:bg-slate-100 dark:hover:bg-white/5"
             )}
           >
-            <Target className="w-5 h-5 text-[#00D9A5]" />
-            <span className="text-base text-slate-500 dark:text-white/50">Bias:</span>
+            <Target className="w-2.5 h-2.5 sm:w-5 sm:h-5 text-[#00D9A5]" />
+            <span className="text-[8px] sm:text-base text-slate-500 dark:text-white/50">Bias:</span>
             <span className={cn(
-              "text-lg font-bold",
+              "text-[9px] sm:text-lg font-bold",
               overallBias === 'BULLISH' ? "text-[#00D9A5]" : overallBias === 'BEARISH' ? "text-red-400" : "text-yellow-400"
             )}>
               {overallBias}
             </span>
-            <span className="text-base text-slate-400 dark:text-white/40">
+            <span className="hidden sm:inline text-base text-slate-400 dark:text-white/40">
               (<span className="text-[#00D9A5]">▲{bullishCount}</span> <span className="text-red-400">▼{bearishCount}</span>)
             </span>
             <ChevronDown className={cn(
-              "w-4 h-4 text-slate-400 dark:text-white/40 transition-transform",
+              "w-3 h-3 sm:w-4 sm:h-4 text-slate-400 dark:text-white/40 transition-transform hidden sm:block",
               expandedItem === 'bias' && "rotate-180"
             )} />
           </button>
 
-          <div className="w-px h-4 bg-slate-200 dark:bg-white/10" />
+          <div className="hidden sm:block w-px h-4 bg-slate-200 dark:bg-white/10" />
 
           {/* VIX */}
           <button
             onClick={() => toggleItem('vix')}
             className={cn(
-              "flex items-center gap-2 px-2 py-1 rounded-lg transition-all cursor-pointer",
+              "flex items-center gap-0.5 sm:gap-2 px-1 py-0.5 sm:px-2 sm:py-1 rounded-lg transition-all cursor-pointer",
               expandedItem === 'vix' ? "bg-slate-100 ring-1 ring-slate-300 dark:bg-white/10 dark:ring-white/20" : "hover:bg-slate-100 dark:hover:bg-white/5"
             )}
           >
-            <Shield className="w-5 h-5 text-[#00D9A5]" />
-            <span className="text-base text-slate-500 dark:text-white/50">VIX</span>
+            <Shield className="w-2.5 h-2.5 sm:w-5 sm:h-5 text-[#00D9A5]" />
+            <span className="text-[8px] sm:text-base text-slate-500 dark:text-white/50">VIX</span>
             <span className={cn(
-              "text-lg font-bold font-mono",
+              "text-[9px] sm:text-lg font-bold font-mono",
               vix?.current > 22 ? "text-red-400" : vix?.current > 18 ? "text-yellow-400" : "text-[#00D9A5]"
             )}>
               {vix?.current || '-'}
             </span>
             <ChevronDown className={cn(
-              "w-4 h-4 text-slate-400 dark:text-white/40 transition-transform",
+              "w-3 h-3 sm:w-4 sm:h-4 text-slate-400 dark:text-white/40 transition-transform hidden sm:block",
               expandedItem === 'vix' && "rotate-180"
             )} />
           </button>
 
-          <div className="w-px h-4 bg-slate-200 dark:bg-white/10" />
+          <div className="hidden sm:block w-px h-4 bg-slate-200 dark:bg-white/10" />
 
           {/* Regime */}
           <button
             onClick={() => toggleItem('regime')}
             className={cn(
-              "flex items-center gap-2 px-2 py-1 rounded-lg transition-all cursor-pointer",
+              "flex items-center gap-0.5 sm:gap-2 px-1 py-0.5 sm:px-2 sm:py-1 rounded-lg transition-all cursor-pointer",
               expandedItem === 'regime' ? "bg-slate-100 ring-1 ring-slate-300 dark:bg-white/10 dark:ring-white/20" : "hover:bg-slate-100 dark:hover:bg-white/5"
             )}
           >
-            <Activity className="w-5 h-5 text-[#00D9A5]" />
-            <span className="text-base text-slate-500 dark:text-white/50">Regime:</span>
+            <Activity className="w-2.5 h-2.5 sm:w-5 sm:h-5 text-[#00D9A5]" />
+            <span className="text-[8px] sm:text-base text-slate-500 dark:text-white/50">Regime:</span>
             <span className={cn(
-              "text-lg font-bold",
+              "text-[9px] sm:text-lg font-bold",
               regime === 'risk-off' ? "text-red-400" : regime === 'risk-on' ? "text-[#00D9A5]" : "text-yellow-400"
             )}>
               {regime?.toUpperCase() || '-'}
             </span>
             <ChevronDown className={cn(
-              "w-4 h-4 text-slate-400 dark:text-white/40 transition-transform",
+              "w-3 h-3 sm:w-4 sm:h-4 text-slate-400 dark:text-white/40 transition-transform hidden sm:block",
               expandedItem === 'regime' && "rotate-180"
             )} />
           </button>
         </div>
 
         {/* Right side: News + Subscription Plan Badge */}
-        <div className="flex items-center gap-3 sm:gap-6 flex-wrap">
+        <div className="hidden sm:flex items-center gap-6">
           {nextEvent && (
             <div className="flex items-center gap-2 text-base pl-4 border-l border-slate-200 dark:border-white/10 h-6">
               <AlertTriangle className="w-4 h-4 text-yellow-400" />
@@ -2286,7 +2395,7 @@ export default function DashboardPage() {
   const cursorBlink = introPhase === 'typing' ? 'animate-pulse' : '';
 
   return (
-    <div className="dashboard-page px-2 sm:px-0" data-testid="dashboard-page" id="dashboard-main">
+    <div className="dashboard-page max-sm:px-2" data-testid="dashboard-page" id="dashboard-main">
       {/* Header - Typewriter Animation */}
       {!headerHidden && (
         <motion.div
@@ -2295,7 +2404,7 @@ export default function DashboardPage() {
           transition={{ duration: 0.5, ease: 'easeInOut' }}
         >
           <div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white/95">
+            <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-white/95">
               {introPhase !== 'done' ? (
                 <>
                   {getVisibleText(0).main}
@@ -2344,8 +2453,8 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      {/* Daily Bias + VIX + Regime - Compact Row */}
-      <div className="mb-4 sm:mb-6" ref={biasBarRef} style={{ scrollMarginTop: '16px' }}>
+      {/* Daily Bias + VIX + Regime - Compact Row — sticky on mobile */}
+      <div className="mb-3 sm:mb-6 max-sm:sticky max-sm:top-10 max-sm:z-20" ref={biasBarRef} style={{ scrollMarginTop: '16px' }}>
         <DailyBiasHeader
           analyses={analysesData}
           vix={vix || { current: 17.62, change: -0.96 }}

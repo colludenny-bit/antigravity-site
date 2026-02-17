@@ -579,19 +579,27 @@ export const LandingPage = () => {
             </div>
 
             {/* ═══ NAVBAR ═══ */}
-            <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] bg-black/60 backdrop-blur-2xl">
-                <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <BullLogo className="h-10 w-auto" />
+            {/* NAVBAR — mobile classes (below sm:640px) add Dynamic Island padding + compact layout. Desktop unchanged via sm: overrides */}
+            <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] bg-black/60 backdrop-blur-2xl pt-[52px] sm:pt-0">
+                <div className="max-w-[1400px] mx-auto px-3 sm:px-6 h-10 sm:h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                        <BullLogo className="h-6 sm:h-10 w-auto" />
                         <div className="relative">
-                            <span className="text-xl font-black tracking-[0.2em] text-white uppercase" style={{
+                            <span className="text-xs sm:text-xl font-black tracking-[0.15em] sm:tracking-[0.2em] text-white uppercase" style={{
                                 fontFamily: 'Georgia, serif',
                                 textShadow: '0 0 10px rgba(255,255,255,0.4), 0 0 20px rgba(0,217,165,0.3)'
                             }}>KARION</span>
-                            {/* Luminescent underline glow */}
-                            <div className="absolute -bottom-1 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
-                            <div className="absolute -bottom-1 left-0 right-0 h-[6px] blur-[3px] opacity-60" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
+                            {/* Luminescent underline glow — hidden on mobile, shown on sm+ (desktop) */}
+                            <div className="absolute -bottom-1 left-0 right-0 h-[2px] hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
+                            <div className="absolute -bottom-1 left-0 right-0 h-[6px] blur-[3px] opacity-60 hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
                         </div>
+                    </div>
+                    {/* Tabs: on mobile (<sm) show compact, on md+ show original desktop style */}
+                    <div className="flex sm:hidden items-center gap-0.5 p-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl">
+                        <a href="#features" className="px-1.5 py-1 rounded-md text-[9px] font-semibold text-white/70 hover:text-white transition-all">Features</a>
+                        <a href="#showcase" className="px-1.5 py-1 rounded-md text-[9px] font-semibold text-white/70 hover:text-white transition-all">Showcase</a>
+                        <a href="#tools" className="px-1.5 py-1 rounded-md text-[9px] font-semibold text-white/70 hover:text-white transition-all">Tools</a>
+                        <Link to="/pricing" className="px-1.5 py-1 rounded-md text-[9px] font-semibold text-white/70 hover:text-white transition-all">Pricing</Link>
                     </div>
                     <div className="hidden md:flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl">
                         <a href="#features" className="px-5 py-2 rounded-xl text-sm font-semibold text-white/70 hover:text-white hover:bg-white/[0.08] transition-all duration-200">Features</a>
@@ -599,19 +607,19 @@ export const LandingPage = () => {
                         <a href="#tools" className="px-5 py-2 rounded-xl text-sm font-semibold text-white/70 hover:text-white hover:bg-white/[0.08] transition-all duration-200">Tools</a>
                         <Link to="/pricing" className="px-5 py-2 rounded-xl text-sm font-semibold text-white/70 hover:text-white hover:bg-white/[0.08] transition-all duration-200">Pricing</Link>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                         {!user ? (
                             <>
-                                <Link to="/auth?mode=login" className="text-sm font-medium text-white/40 hover:text-white transition-colors">
+                                <Link to="/auth?mode=login" className="hidden sm:inline text-sm font-medium text-white/40 hover:text-white transition-colors">
                                     Log in
                                 </Link>
                                 <Link to="/auth?mode=register">
                                     <motion.button
                                         whileHover={{ scale: 1.05, boxShadow: '0 0 25px rgba(0,217,165,0.5)' }}
                                         whileTap={{ scale: 0.95 }}
-                                        className="px-5 py-2 rounded-lg bg-[#00D9A5] text-black font-bold text-sm transition-shadow duration-300 flex items-center gap-1.5"
+                                        className="px-2.5 sm:px-5 py-1 sm:py-2 rounded-md sm:rounded-lg bg-[#00D9A5] text-black font-bold text-[10px] sm:text-sm transition-shadow duration-300 flex items-center gap-1 sm:gap-1.5"
                                     >
-                                        Get Access <ArrowRight className="w-3.5 h-3.5" />
+                                        <span className="sm:hidden">Accedi</span><span className="hidden sm:inline">Get Access</span> <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                     </motion.button>
                                 </Link>
                             </>
