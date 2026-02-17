@@ -2185,6 +2185,10 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
 export default function DashboardPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const isSmallMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 640px)').matches;
+  }, []);
   const [multiSourceData, setMultiSourceData] = useState(null);
   const [cotSummary, setCotSummary] = useState(null);
   const [engineData, setEngineData] = useState([]);
@@ -2198,9 +2202,9 @@ export default function DashboardPage() {
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   // Typewriter animation state
-  const [introPhase, setIntroPhase] = useState('typing'); // 'typing' | 'visible' | 'done'
+  const [introPhase, setIntroPhase] = useState(() => (isSmallMobile ? 'done' : 'typing')); // 'typing' | 'visible' | 'done'
   const [typedChars, setTypedChars] = useState(0);
-  const [headerHidden, setHeaderHidden] = useState(false);
+  const [headerHidden, setHeaderHidden] = useState(() => isSmallMobile);
   const biasBarRef = useRef(null);
 
   const fetchData = useCallback(async () => {
@@ -2345,7 +2349,7 @@ export default function DashboardPage() {
 
   // Typewriter animation effect
   useEffect(() => {
-    if (introPhase !== 'typing') return;
+    if (introPhase !== 'typing' || isSmallMobile) return;
 
     const speed = Math.max(20, Math.min(50, 2500 / totalChars)); // Adjust speed to fit in ~2.5s
 
@@ -2358,11 +2362,11 @@ export default function DashboardPage() {
       // All typed — hold for 1.5s then scroll
       setIntroPhase('visible');
     }
-  }, [typedChars, totalChars, introPhase]);
+  }, [typedChars, totalChars, introPhase, isSmallMobile]);
 
   // After "visible" phase, wait then scroll
   useEffect(() => {
-    if (introPhase !== 'visible') return;
+    if (introPhase !== 'visible' || isSmallMobile) return;
 
     const scrollTimer = setTimeout(() => {
       setIntroPhase('done');
@@ -2376,7 +2380,7 @@ export default function DashboardPage() {
     }, 1500);
 
     return () => clearTimeout(scrollTimer);
-  }, [introPhase]);
+  }, [introPhase, isSmallMobile]);
 
   // Helper: get visible text for a given line based on how many chars have been typed
   const getVisibleText = (lineIndex) => {
@@ -2470,7 +2474,11 @@ export default function DashboardPage() {
       )}
 
       {/* Daily Bias + VIX + Regime - Compact Row — sticky on mobile */}
-      <div className="mb-3 sm:mb-6 max-sm:sticky max-sm:top-10 max-sm:z-20" ref={biasBarRef} style={{ scrollMarginTop: '16px' }}>
+      <div
+        className="mb-3 sm:mb-6 max-sm:sticky max-sm:z-20"
+        ref={biasBarRef}
+        style={{ scrollMarginTop: '16px', top: 'calc(env(safe-area-inset-top, 0px) + 6px)' }}
+      >
         <DailyBiasHeader
           analyses={analysesData}
           vix={vix || { current: 17.62, change: -0.96 }}

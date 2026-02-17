@@ -77,22 +77,8 @@ export const Layout = () => {
           </div>
         </header>
 
-        {/* Mobile Logo Strip — fixed below safe area, only on small screens */}
-        <div className="md:hidden fixed left-0 right-0 flex justify-center z-10 pointer-events-none" style={{ top: '44px' }}>
-          <img
-            src={kairongLogo}
-            alt="Karion"
-            style={{
-              height: '22px',
-              width: 'auto',
-              filter: 'brightness(0) invert(1) drop-shadow(0 0 6px rgba(180,160,120,0.3))',
-              opacity: 0.7,
-            }}
-          />
-        </div>
-
-        {/* Page Content — extra top padding on mobile for Dynamic Island safe area */}
-        <div className="p-4 pt-14 md:p-6 md:pt-6 lg:p-8">
+        {/* Page Content — keep top compact on mobile, aligned under safe area */}
+        <div className="p-4 pt-[calc(env(safe-area-inset-top)+8px)] md:p-6 md:pt-6 lg:p-8">
           <Outlet />
         </div>
 
