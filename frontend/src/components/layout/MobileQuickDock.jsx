@@ -98,11 +98,10 @@ export const MobileQuickDock = () => {
                 mass: 0.6
               }}
               style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
-              className="relative mx-3 mb-3 pointer-events-auto rounded-[24px] border border-white/20 bg-[linear-gradient(180deg,rgba(14,18,30,0.80)_0%,rgba(8,12,22,0.92)_100%)] shadow-[0_20px_56px_rgba(0,0,0,0.62)] backdrop-blur-[8px] px-3 py-3 overflow-hidden"
+              className="relative mx-3 mb-3 pointer-events-auto rounded-[24px] border border-white/20 bg-[linear-gradient(180deg,rgba(0,0,0,0.84)_0%,rgba(0,0,0,0.95)_100%)] shadow-[0_20px_56px_rgba(0,0,0,0.70)] backdrop-blur-[8px] px-3 py-3 overflow-hidden"
             >
-              <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.08] via-white/[0.02] to-transparent" />
-              <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_22%,rgba(255,255,255,0.09),transparent_55%)]" />
-              <div className="absolute inset-x-0 bottom-0 h-24 pointer-events-none bg-gradient-to-t from-black/45 to-transparent" />
+              <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.06] via-transparent to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 h-28 pointer-events-none bg-gradient-to-t from-black/70 to-transparent" />
 
               <div className="relative grid grid-cols-3 gap-3 max-h-[50vh] overflow-y-auto no-scrollbar">
                 {launcherGrid.map((item) => {
@@ -146,11 +145,11 @@ export const MobileQuickDock = () => {
             type="button"
             aria-label="Torna in cima alla dashboard"
             onClick={goDashboardTop}
-            className={cn(
-              "w-12 h-12 rounded-full border flex items-center justify-center shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition-all backdrop-blur-[8px]",
-              isHomeRoute
-                ? "bg-[rgba(11,15,23,0.20)] border-white/40 ring-1 ring-white/25"
-                : "bg-[rgba(11,15,23,0.20)] border-white/25"
+              className={cn(
+                "w-12 h-12 rounded-full border flex items-center justify-center shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition-all backdrop-blur-[8px]",
+                isHomeRoute
+                ? "bg-[rgba(0,0,0,0.34)] border-white/40 ring-1 ring-white/25"
+                : "bg-[rgba(0,0,0,0.34)] border-white/25"
             )}
           >
             <Home className="w-5 h-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.75)]" />
@@ -160,11 +159,11 @@ export const MobileQuickDock = () => {
             type="button"
             aria-label={open ? "Chiudi launcher" : "Apri launcher"}
             onClick={() => setOpen((v) => !v)}
-            className={cn(
-              "w-12 h-12 rounded-full border flex items-center justify-center shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition-all backdrop-blur-[8px]",
-              open
-                ? "bg-[rgba(11,15,23,0.20)] border-white/40 ring-1 ring-white/25"
-                : "bg-[rgba(11,15,23,0.20)] border-white/25"
+              className={cn(
+                "w-12 h-12 rounded-full border flex items-center justify-center shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition-all backdrop-blur-[8px]",
+                open
+                ? "bg-[rgba(0,0,0,0.34)] border-white/40 ring-1 ring-white/25"
+                : "bg-[rgba(0,0,0,0.34)] border-white/25"
             )}
           >
             {open ? (
