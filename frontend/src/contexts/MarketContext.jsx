@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { MarketService } from '../services/MarketService';
-import { MacroService } from '../services/MacroService';
 import { AIService } from '../services/AIService';
 
 const MarketContext = createContext();
+const FOREGROUND_POLL_MS = 12000;
+const BACKGROUND_POLL_MS = 30000;
 
 export const useMarket = () => useContext(MarketContext);
 
@@ -41,14 +42,31 @@ export const MarketProvider = ({ children }) => {
 
     // Ref to hold latest data for the independent AI loop
     const marketDataRef = useRef(marketData);
+    const fetchInFlightRef = useRef(false);
+    const pollTimerRef = useRef(null);
 
     // Update ref whenever state changes
     useEffect(() => {
         marketDataRef.current = marketData;
     }, [marketData]);
 
-    // 1. High-Frequency Market Loop (3s) with FAIL-SAFE
+    const mapPricesToMacro = (prices, previousMacro) => {
+        if (!prices || typeof prices !== 'object') return previousMacro;
+
+        return {
+            ...(previousMacro || {}),
+            ...(prices.SP500 ? { SPX: { price: prices.SP500.price, change: prices.SP500.change, name: 'S&P 500' } } : {}),
+            ...(prices.NAS100 ? { NDX: { price: prices.NAS100.price, change: prices.NAS100.change, name: 'NASDAQ 100' } } : {}),
+            ...(prices.XAUUSD ? { XAU: { price: prices.XAUUSD.price, change: prices.XAUUSD.change, name: 'Gold' } } : {}),
+            ...(prices.VIX ? { VIX: { price: prices.VIX.price, change: prices.VIX.change, name: 'Volatility' } } : {}),
+            ...(prices.DXY ? { DXY: { price: prices.DXY.price, change: prices.DXY.change, name: 'Dollar Index' } } : {})
+        };
+    };
+
+    // 1. Market loop with dedupe + backpressure (no overlapping requests)
     useEffect(() => {
+        let cancelled = false;
+
         // Seed initials news
         const now = new Date();
         const initialNews = Array(5).fill(0).map((_, i) => ({
@@ -59,16 +77,16 @@ export const MarketProvider = ({ children }) => {
         setMarketData(prev => ({ ...prev, news: initialNews }));
 
         const fetchAllData = async () => {
+            if (cancelled || fetchInFlightRef.current) return;
+            fetchInFlightRef.current = true;
             try {
                 const fetchSafe = async (fn, fallback) => {
                     try { return await fn(); }
                     catch (e) { console.warn("API Fail:", e); return fallback; }
                 };
 
-                const [crypto, macro] = await Promise.all([
-                    fetchSafe(MarketService.getPrices, marketDataRef.current.crypto),
-                    fetchSafe(MacroService.getLiveIndices, marketDataRef.current.macro)
-                ]);
+                const crypto = await fetchSafe(MarketService.getPrices, marketDataRef.current.crypto);
+                const macro = mapPricesToMacro(crypto, marketDataRef.current.macro);
 
                 setMarketData(prev => ({
                     ...prev,
@@ -79,21 +97,30 @@ export const MarketProvider = ({ children }) => {
             } catch (error) {
                 console.error("Global Data Loop Error", error);
                 setMarketData(prev => ({ ...prev, loading: false }));
+            } finally {
+                fetchInFlightRef.current = false;
+                if (!cancelled) {
+                    const nextDelay = document.hidden ? BACKGROUND_POLL_MS : FOREGROUND_POLL_MS;
+                    pollTimerRef.current = setTimeout(fetchAllData, nextDelay);
+                }
             }
         };
 
         fetchAllData();
-        const interval = setInterval(fetchAllData, 3000);
-        return () => clearInterval(interval);
+        return () => {
+            cancelled = true;
+            if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+        };
     }, []);
 
     // 2. AI & Fast News Loop (Independent Interval)
     useEffect(() => {
         const aiLoop = async () => {
+            if (document.hidden) return;
             const currentData = marketDataRef.current; // Access fresh data from Ref
 
-            // A. Generate News (Higher frequency: 50% chance every 15s)
-            if (Math.random() > 0.4) {
+            // A. Generate News (throttled on low-power/mobile devices)
+            if (Math.random() > 0.75) {
                 const newNews = {
                     ...generateNews(),
                     time: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
@@ -135,7 +162,7 @@ export const MarketProvider = ({ children }) => {
         };
 
         // Run interval independently of state changes
-        const interval = setInterval(aiLoop, 15000);
+        const interval = setInterval(aiLoop, 30000);
         return () => clearInterval(interval);
     }, []); // Empty dependency array = stable interval
 

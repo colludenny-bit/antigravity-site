@@ -137,7 +137,9 @@ function AppRoutes() {
           path="/app"
           element={
             <ProtectedRoute>
-              <Layout />
+              <MarketProvider>
+                <Layout />
+              </MarketProvider>
             </ProtectedRoute>
           }
         >
@@ -178,27 +180,25 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <MarketProvider>
-            {isLocked && !isIntroPreviewPath ? (
-              <LockScreen onUnlock={() => setIsLocked(false)} />
-            ) : (
-              <BrowserRouter>
-                <AppRoutes />
-                <Toaster
-                  position="top-right"
-                  richColors
-                  theme="dark"
-                  toastOptions={{
-                    style: {
-                      background: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      color: 'hsl(var(--foreground))',
-                    }
-                  }}
-                />
-              </BrowserRouter>
-            )}
-          </MarketProvider>
+          {isLocked && !isIntroPreviewPath ? (
+            <LockScreen onUnlock={() => setIsLocked(false)} />
+          ) : (
+            <BrowserRouter>
+              <AppRoutes />
+              <Toaster
+                position="top-right"
+                richColors
+                theme="dark"
+                toastOptions={{
+                  style: {
+                    background: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    color: 'hsl(var(--foreground))',
+                  }
+                }}
+              />
+            </BrowserRouter>
+          )}
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

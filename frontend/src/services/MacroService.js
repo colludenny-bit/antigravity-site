@@ -11,69 +11,89 @@ let cache = {
     },
     lastUpdate: Date.now()
 };
+let inFlightRequest = null;
+const CACHE_TTL_MS = 15000;
+const REQUEST_TIMEOUT_MS = 6000;
+
+const mapBackendToIndices = (data) => {
+    if (!data || typeof data !== 'object') return;
+
+    if (data.SP500) {
+        cache.indices.SPX = { price: data.SP500.price, change: data.SP500.change, name: 'S&P 500' };
+    }
+    if (data.NAS100) {
+        cache.indices.NDX = { price: data.NAS100.price, change: data.NAS100.change, name: 'NASDAQ 100' };
+    }
+    if (data.XAUUSD) {
+        cache.indices.XAU = { price: data.XAUUSD.price, change: data.XAUUSD.change, name: 'Gold' };
+    }
+    if (data.VIX) {
+        cache.indices.VIX = { price: data.VIX.price, change: data.VIX.change, name: 'Volatility' };
+    }
+    if (data.DXY) {
+        cache.indices.DXY = { price: data.DXY.price, change: data.DXY.change, name: 'Dollar Index' };
+    }
+};
 
 export const MacroService = {
     // Get live macro data (simulated random walk)
     // Get live macro data (REAL FROM BACKEND)
     getLiveIndices: async () => {
         const now = Date.now();
-        // Fallback to cache if recent (e.g. 5s)
-        if (now - cache.lastUpdate < 5000) {
+        // Reuse recent cache for smoother UI and less backend pressure.
+        if (now - cache.lastUpdate < CACHE_TTL_MS) {
             return cache.indices;
         }
 
-        try {
-            // Fetch from our backend
-            const FETCH_URL = `${process.env.REACT_APP_BACKEND_URL || ''}/api/market/prices`;
-            const response = await fetch(FETCH_URL);
-
-            if (!response.ok) throw new Error("API call failed");
-
-            const data = await response.json();
-
-            // Map backend keys to frontend keys
-            // Backend: "XAUUSD", "NAS100", "SP500", "EURUSD", "VIX", "DXY"
-
-            if (data.SP500) {
-                cache.indices.SPX = { price: data.SP500.price, change: data.SP500.change, name: 'S&P 500' };
-            }
-            if (data.NAS100) {
-                cache.indices.NDX = { price: data.NAS100.price, change: data.NAS100.change, name: 'NASDAQ 100' };
-            }
-            if (data.XAUUSD) {
-                cache.indices.XAU = { price: data.XAUUSD.price, change: data.XAUUSD.change, name: 'Gold' };
-            }
-            if (data.VIX) {
-                cache.indices.VIX = { price: data.VIX.price, change: data.VIX.change, name: 'Volatility' };
-            }
-            if (data.DXY) {
-                cache.indices.DXY = { price: data.DXY.price, change: data.DXY.change, name: 'Dollar Index' };
-            }
-
-            cache.lastUpdate = now;
-            return cache.indices;
-
-        } catch (error) {
-            console.warn("MacroService: Live data fetch failed, using fallback", error);
-
-            // FALLBACK to Simulation
-            const elapsed = (now - cache.lastUpdate) / 1000;
-            Object.keys(cache.indices).forEach(key => {
-                const volatility = key === 'VIX' ? 0.05 : key === 'NDX' ? 0.02 : 0.01;
-                const change = (Math.random() - 0.5) * volatility * (elapsed || 1);
-                let current = cache.indices[key];
-                let newPrice = current.price * (1 + change / 100);
-                let newPercent = current.change + (change * 10);
-
-                cache.indices[key] = {
-                    ...current,
-                    price: parseFloat(newPrice.toFixed(2)),
-                    change: parseFloat(newPercent.toFixed(2))
-                };
-            });
-            cache.lastUpdate = now;
-            return cache.indices;
+        if (inFlightRequest) {
+            return inFlightRequest;
         }
+
+        inFlightRequest = (async () => {
+            try {
+                const FETCH_URL = `${process.env.REACT_APP_BACKEND_URL || ''}/api/market/prices`;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+                let response;
+                try {
+                    response = await fetch(FETCH_URL, { signal: controller.signal });
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+
+                if (!response.ok) throw new Error("API call failed");
+
+                const data = await response.json();
+                mapBackendToIndices(data);
+                cache.lastUpdate = Date.now();
+                return cache.indices;
+
+            } catch (error) {
+                console.warn("MacroService: Live data fetch failed, using fallback", error);
+
+                // FALLBACK to simulation
+                const elapsed = (Date.now() - cache.lastUpdate) / 1000;
+                Object.keys(cache.indices).forEach(key => {
+                    const volatility = key === 'VIX' ? 0.05 : key === 'NDX' ? 0.02 : 0.01;
+                    const change = (Math.random() - 0.5) * volatility * (elapsed || 1);
+                    const current = cache.indices[key];
+                    const newPrice = current.price * (1 + change / 100);
+                    const newPercent = current.change + (change * 10);
+
+                    cache.indices[key] = {
+                        ...current,
+                        price: parseFloat(newPrice.toFixed(2)),
+                        change: parseFloat(newPercent.toFixed(2))
+                    };
+                });
+                cache.lastUpdate = Date.now();
+                return cache.indices;
+            } finally {
+                inFlightRequest = null;
+            }
+        })();
+
+        return inFlightRequest;
     },
 
     // Get COT Data (Weekly) — Report date: Feb 3, 2026 (published Feb 6)

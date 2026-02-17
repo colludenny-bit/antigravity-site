@@ -1309,6 +1309,7 @@ async def analyze_pdf(file: UploadFile = File(...), current_user: dict = Depends
 # Cache for market data (refresh every 5 minutes)
 _market_cache = {"data": None, "timestamp": None}
 _vix_cache = {"data": None, "timestamp": None}
+_market_fetch_lock = asyncio.Lock()
 
 # CoinGecko Proxy Cache
 _cg_cache = {
@@ -1403,52 +1404,49 @@ async def get_vix_data():
 
 @api_router.get("/market/prices")
 async def get_market_prices():
-    """Get real-time market prices using Hybrid (TradingView + Yahoo) approach"""
+    """Get market prices with non-blocking refresh and stale-cache fallback."""
     global _market_cache
     now = datetime.now(timezone.utc)
-    
-    # Use cache if less than 10 seconds old (Scalper needs fast updates)
+
+    # Serve hot cache quickly for UI smoothness.
     if _market_cache["data"] and _market_cache["timestamp"]:
         age = (now - _market_cache["timestamp"]).total_seconds()
-        if age < 10:
+        if age < 20:
             return _market_cache["data"]
-    
-    prices = {}
-    
-    # 1. Yahoo Finance (Fastest Free Source)
-    # Scalper optimization: Use Spot/Cash tickers where possible for real-time data
+
     yf_map = {
-        "XAUUSD": "GC=F",      # Gold Futures (XAUUSD=X failed)
-        "NAS100": "NQ=F",      # Javascript polling might need to handle delay, currently best free source
-        "SP500": "ES=F",       
-        "EURUSD": "EURUSD=X",  # Real-time
+        "XAUUSD": "GC=F",
+        "NAS100": "NQ=F",
+        "SP500": "ES=F",
+        "EURUSD": "EURUSD=X",
         "DOW": "YM=F",
         "VIX": "^VIX",
         "DXY": "DX-Y.NYB"
     }
-    
-    for key, yf_symbol in yf_map.items():
-        if key not in prices:
+
+    def fetch_prices_sync():
+        prices = {}
+        for key, yf_symbol in yf_map.items():
             try:
-                # Use 1m interval for better accuracy if available
                 ticker = yf.Ticker(yf_symbol)
-                # fast_info is often faster/realtime for forex
                 price = None
-                change = 0
-                
-                # Check fast_info first (often Real-time for Forex/Crypto)
-                if hasattr(ticker, 'fast_info') and ticker.fast_info.last_price:
-                    price = ticker.fast_info.last_price
-                    prev = ticker.fast_info.previous_close
-                    change = ((price - prev) / prev) * 100
+                change = 0.0
+
+                fast_info = getattr(ticker, "fast_info", None)
+                if fast_info and getattr(fast_info, "last_price", None):
+                    price = float(fast_info.last_price)
+                    prev = getattr(fast_info, "previous_close", None)
+                    if prev:
+                        change = ((price - float(prev)) / float(prev)) * 100
                 else:
-                    # Fallback to history
-                    hist = ticker.history(period="1d", interval="1m")
+                    # Daily fallback is far lighter than 1m history.
+                    hist = ticker.history(period="2d", interval="1d")
                     if not hist.empty:
-                        price = hist['Close'].iloc[-1]
-                        prev = hist['Open'].iloc[0] # Approx
-                        change = ((price - prev) / prev) * 100
-                
+                        price = float(hist["Close"].iloc[-1])
+                        prev = float(hist["Close"].iloc[-2]) if len(hist) > 1 else float(hist["Open"].iloc[0])
+                        if prev:
+                            change = ((price - prev) / prev) * 100
+
                 if price is not None:
                     prices[key] = {
                         "symbol": yf_symbol,
@@ -1458,10 +1456,32 @@ async def get_market_prices():
                     }
             except Exception as e:
                 logger.warning(f"Yahoo fetch failed for {key}: {e}")
+        return prices
 
-    _market_cache["data"] = prices
-    _market_cache["timestamp"] = now
-    return prices
+    # Ensure only one refresh runs; others reuse stale cache.
+    if _market_fetch_lock.locked() and _market_cache["data"]:
+        return _market_cache["data"]
+
+    async with _market_fetch_lock:
+        # Re-check cache in case another waiter already refreshed.
+        now = datetime.now(timezone.utc)
+        if _market_cache["data"] and _market_cache["timestamp"]:
+            age = (now - _market_cache["timestamp"]).total_seconds()
+            if age < 20:
+                return _market_cache["data"]
+
+        try:
+            prices = await asyncio.wait_for(asyncio.to_thread(fetch_prices_sync), timeout=8.0)
+            if not prices and _market_cache["data"]:
+                return _market_cache["data"]
+            _market_cache["data"] = prices
+            _market_cache["timestamp"] = now
+            return prices
+        except asyncio.TimeoutError:
+            logger.warning("Market prices refresh timed out, serving stale cache")
+            if _market_cache["data"]:
+                return _market_cache["data"]
+            return {}
 
 # ==================== MULTI-SOURCE ENGINE (Hourly Analysis) ====================
 
