@@ -223,13 +223,24 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const dayRule = SEASONALITY_RULES.days[dayKey] || {};
   const isIndex = currentAsset?.symbol === 'NAS100' || currentAsset?.symbol === 'SP500';
   const monthlyBias = currentAsset?.symbol ? STAT_BIAS[currentAsset.symbol]?.monthly_bias : null;
-  const atrValue = currentAsset?.atr || (currentAsset?.price ? currentAsset.price * 0.01 : 0);
-  const dayMovePoints = Math.abs(
-    currentAsset?.dayChangePoints ?? (currentAsset?.price ? (currentAsset.price * (currentAsset.change || 0) / 100) : 0)
-  );
+  const toFiniteNumber = (value, fallback = 0) => {
+    const parsed = typeof value === 'string' ? parseFloat(value.replace('%', '').trim()) : Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const safePrice = toFiniteNumber(currentAsset?.price, 0);
+  const safeAtr = toFiniteNumber(currentAsset?.atr, 0);
+  const safeChangePct = toFiniteNumber(currentAsset?.change, 0);
+  const safeDayChangePoints = toFiniteNumber(currentAsset?.dayChangePoints, NaN);
+  const safeMonthChangePoints = toFiniteNumber(currentAsset?.monthChangePoints, 0);
+
+  const atrValue = safeAtr > 0 ? safeAtr : (safePrice > 0 ? safePrice * 0.01 : 0);
+  const dayMovePoints = Number.isFinite(safeDayChangePoints)
+    ? Math.abs(safeDayChangePoints)
+    : Math.abs(safePrice * safeChangePct / 100);
   const atrRemaining = Math.max(0, atrValue - dayMovePoints);
   const atrProgress = atrValue > 0 ? Math.min(100, (dayMovePoints / atrValue) * 100) : 0;
-  const monthMovePoints = currentAsset?.monthChangePoints ?? 0;
+  const monthMovePoints = safeMonthChangePoints;
   const formatPoints = (val) => {
     if (!Number.isFinite(val)) return '-';
     const absVal = Math.abs(val);
@@ -244,6 +255,12 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
     if (Math.abs(monthMovePoints) <= atrValue * 0.5) return 'Accumulo';
     return 'Slancio';
   })();
+  const dayBiasNormalized = dayRule.note
+    ? `${dayRule.note.charAt(0).toLowerCase()}${dayRule.note.slice(1)}`
+    : '—';
+  const statisticalBiasSummary = isIndex
+    ? `Week ${weekNum} ${weekRule.description || '—'}, giornata statistica di ${dayBiasNormalized}, bias mensile ${monthlyBias || '—'}`
+    : `Seasonality ${seasonalityBias} • MTD ${formatPoints(monthMovePoints)} pts`;
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
   const handleFocusAsset = (symbol) => {
@@ -710,37 +727,12 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                         <span>Percorso: {formatPoints(dayMovePoints)} pts ({Math.round(atrProgress)}%)</span>
                         <span>Rimanente: {formatPoints(atrRemaining)} pts ({Math.max(0, 100 - Math.round(atrProgress))}%)</span>
                       </div>
-                      <p className="text-xs text-white/50 mt-1">
-                        Stato: {atrProgress < 40 ? 'Range Early' : atrProgress < 70 ? 'Mid Range' : 'Range Esteso'}
-                      </p>
                     </div>
 
-                    {isIndex && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Bias Settimanale</p>
-                        <p className="text-sm font-bold text-[#00D9A5]">{weekRule.description || '—'}</p>
-                      </div>
-                    )}
-
-                    {isIndex && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Bias Giornaliero</p>
-                        <p className="text-sm text-white/80">{dayRule.note || '—'}</p>
-                      </div>
-                    )}
-
-                    {isIndex ? (
-                      <div className="space-y-1">
-                        <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Bias Mensile</p>
-                        <p className="text-sm font-bold text-[#00D9A5]">{monthlyBias || '—'}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Seasonality</p>
-                        <p className="text-sm font-bold text-[#00D9A5]">{seasonalityBias}</p>
-                        <p className="text-xs text-white/50">MTD: {formatPoints(monthMovePoints)} pts</p>
-                      </div>
-                    )}
+                    <div className="space-y-1">
+                      <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Statistical Bias</p>
+                      <p className="text-base font-bold text-[#00D9A5] leading-relaxed">{statisticalBiasSummary}</p>
+                    </div>
                   </div>
 
                   {/* Source Breakdown removed per request */}

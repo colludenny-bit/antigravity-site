@@ -56,7 +56,8 @@ class MarketDataService:
         return None
 
     def _fetch_yf_price(self, ticker: str) -> dict:
-        if not ticker: return None
+        if not ticker:
+            return None
         try:
             dat = yf.Ticker(ticker)
             

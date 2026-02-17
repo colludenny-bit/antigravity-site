@@ -352,13 +352,14 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 @api_router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):
+    email = user_data.email.strip().lower()
     if DEMO_MODE:
-        if user_data.email in demo_users:
+        if email in demo_users:
             raise HTTPException(status_code=400, detail="Email already registered")
         user_id = str(uuid.uuid4())
-        demo_users[user_data.email] = {
+        demo_users[email] = {
             "id": user_id,
-            "email": user_data.email,
+            "email": email,
             "name": user_data.name,
             "password": hash_password(user_data.password),
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -366,13 +367,13 @@ async def register(user_data: UserCreate):
             "xp": 0
         }
     else:
-        existing = await db.users.find_one({"email": user_data.email})
+        existing = await db.users.find_one({"email": email})
         if existing:
             raise HTTPException(status_code=400, detail="Email already registered")
         user_id = str(uuid.uuid4())
         user_doc = {
             "id": user_id,
-            "email": user_data.email,
+            "email": email,
             "name": user_data.name,
             "password": hash_password(user_data.password),
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -381,10 +382,10 @@ async def register(user_data: UserCreate):
         }
         await db.users.insert_one(user_doc)
     
-    token = create_token(user_id, user_data.email)
+    token = create_token(user_id, email)
     user_response = UserResponse(
         id=user_id,
-        email=user_data.email,
+        email=email,
         name=user_data.name,
         created_at=datetime.now(timezone.utc).isoformat(),
         level="Novice",
@@ -394,10 +395,24 @@ async def register(user_data: UserCreate):
 
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(credentials: UserLogin):
+    email = credentials.email.strip().lower()
     if DEMO_MODE:
-        user = demo_users.get(credentials.email)
+        user = demo_users.get(email)
+        if not user:
+            # Local-only convenience: first login in demo mode creates an in-memory user.
+            user_id = str(uuid.uuid4())
+            user = {
+                "id": user_id,
+                "email": email,
+                "name": email.split("@")[0],
+                "password": hash_password(credentials.password),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "level": "Novice",
+                "xp": 0
+            }
+            demo_users[email] = user
     else:
-        user = await db.users.find_one({"email": credentials.email})
+        user = await db.users.find_one({"email": email})
     
     if not user or not verify_password(credentials.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")

@@ -38,6 +38,7 @@ import CalculatorPage from './components/pages/CalculatorPage';
 import PricingPage from './components/pages/PricingPage';
 import CheckoutSuccessPage from './components/pages/CheckoutSuccessPage';
 import IntroPreviewPage from './components/pages/IntroPreviewPage';
+import MobilePreviewPage from './components/pages/MobilePreviewPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -116,6 +117,10 @@ function AppRoutes() {
       <Route
         path="/welcome"
         element={<LandingPage />}
+      />
+      <Route
+        path="/dev/mobile-preview"
+        element={<MobilePreviewPage />}
       />
 
       {/* Protected Routes - Main App */}
