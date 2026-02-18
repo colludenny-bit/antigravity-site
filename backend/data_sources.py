@@ -16,11 +16,11 @@ class MarketDataService:
             "EURUSD": [("EURUSD", "forex", "FXCM"), ("EURUSD", "forex", "OANDA")],
             "VIX": [("VIX", "cfd", "TVC"), ("VIX", "america", "CBOE")]
         }
-        # YFinance Map for reliable price
+        # Output/UI keeps CFD naming; internal Yahoo feed uses cash indices for index alignment
         self.yf_map = {
-            "NAS100": "NQ=F",  # Nasdaq Futures
-            "SP500": "ES=F",   # S&P Futures
-            "XAUUSD": "GC=F",  # Gold Futures
+            "NAS100": "^NDX",      # Nasdaq 100 cash index
+            "SP500": "^GSPC",      # S&P 500 cash index
+            "XAUUSD": "GC=F",      # Gold feed fallback (Yahoo has no XAUUSD spot ticker)
             "EURUSD": "EURUSD=X",
             "VIX": "^VIX"
         }

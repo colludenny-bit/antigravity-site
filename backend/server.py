@@ -1310,6 +1310,23 @@ async def analyze_pdf(file: UploadFile = File(...), current_user: dict = Depends
 _market_cache = {"data": None, "timestamp": None}
 _vix_cache = {"data": None, "timestamp": None}
 _market_fetch_lock = asyncio.Lock()
+MARKET_CACHE_HOT_TTL = 8  # seconds
+_capital_session_lock = asyncio.Lock()
+_capital_session = {
+    "cst": None,
+    "security_token": None,
+    "expires_at": None,
+    "base_url": None
+}
+
+# Capital.com epic candidates to align CFD feeds with dashboard symbols.
+CAPITAL_EPIC_CANDIDATES = {
+    "NAS100": ["US100", "US100USD"],
+    "SP500": ["US500", "US500USD"],
+    "DOW": ["US30", "US30USD"],
+    "XAUUSD": ["GOLD", "XAUUSD"],
+    "EURUSD": ["EURUSD"]
+}
 
 # CoinGecko Proxy Cache
 _cg_cache = {
@@ -1332,6 +1349,192 @@ def get_yf_ticker_safe(symbol: str, period: str = "5d", interval: str = "1d"):
     except Exception as e:
         logger.error(f"yfinance error for {symbol}: {e}")
         return None
+
+def get_capital_credentials():
+    api_key = os.environ.get("CAPITAL_COM_KEY") or os.environ.get("CAPITAL_COM_API_KEY")
+    identifier = os.environ.get("CAPITAL_COM_ID") or os.environ.get("CAPITAL_COM_IDENTIFIER")
+    password = os.environ.get("CAPITAL_COM_PASSWORD")
+    if not api_key or not identifier or not password:
+        return None
+
+    raw_demo = (os.environ.get("CAPITAL_COM_DEMO", "true") or "true").strip().lower()
+    is_demo = raw_demo not in {"0", "false", "no"}
+    default_base = "https://demo-api-capital.backend-capital.com/api/v1" if is_demo else "https://api-capital.backend-capital.com/api/v1"
+    base_url = (os.environ.get("CAPITAL_COM_BASE_URL") or default_base).rstrip("/")
+
+    return {
+        "api_key": api_key,
+        "identifier": identifier,
+        "password": password,
+        "base_url": base_url
+    }
+
+def extract_capital_mid_price(price_block: Optional[Dict[str, Any]]) -> Optional[float]:
+    if not isinstance(price_block, dict):
+        return None
+    bid = price_block.get("bid")
+    ask = price_block.get("ask")
+    if bid is not None and ask is not None:
+        return (float(bid) + float(ask)) / 2.0
+    if bid is not None:
+        return float(bid)
+    if ask is not None:
+        return float(ask)
+    last_traded = price_block.get("lastTraded")
+    if last_traded is not None:
+        return float(last_traded)
+    return None
+
+def parse_capital_prices_payload(payload: Dict[str, Any]) -> Optional[Dict[str, float]]:
+    rows = payload.get("prices")
+    if not isinstance(rows, list) or len(rows) == 0:
+        return None
+
+    # Ensure deterministic order and pick the latest snapshots.
+    def sort_key(row: Dict[str, Any]):
+        return row.get("snapshotTimeUTC") or row.get("snapshotTime") or ""
+
+    ordered = sorted((r for r in rows if isinstance(r, dict)), key=sort_key)
+    if not ordered:
+        return None
+
+    current = extract_capital_mid_price(ordered[-1].get("closePrice"))
+    if current is None:
+        return None
+
+    prev = None
+    if len(ordered) > 1:
+        prev = extract_capital_mid_price(ordered[-2].get("closePrice"))
+    if prev is None:
+        prev = extract_capital_mid_price(ordered[-1].get("openPrice"))
+
+    change = 0.0
+    if prev is not None and prev != 0:
+        change = ((current - prev) / prev) * 100.0
+
+    return {"price": current, "change": change}
+
+async def ensure_capital_session(force_refresh: bool = False) -> bool:
+    creds = get_capital_credentials()
+    if not creds:
+        return False
+
+    now = datetime.now(timezone.utc)
+    if (
+        not force_refresh
+        and _capital_session["cst"]
+        and _capital_session["security_token"]
+        and _capital_session["base_url"] == creds["base_url"]
+        and _capital_session["expires_at"]
+        and _capital_session["expires_at"] > now + timedelta(seconds=30)
+    ):
+        return True
+
+    async with _capital_session_lock:
+        now = datetime.now(timezone.utc)
+        if (
+            not force_refresh
+            and _capital_session["cst"]
+            and _capital_session["security_token"]
+            and _capital_session["base_url"] == creds["base_url"]
+            and _capital_session["expires_at"]
+            and _capital_session["expires_at"] > now + timedelta(seconds=30)
+        ):
+            return True
+
+        try:
+            import httpx
+            headers = {
+                "X-CAP-API-KEY": creds["api_key"],
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            }
+            body = {
+                "identifier": creds["identifier"],
+                "password": creds["password"],
+            }
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(f"{creds['base_url']}/session", headers=headers, json=body)
+        except Exception as exc:
+            logger.warning(f"Capital.com session error: {exc}")
+            return False
+
+        if response.status_code >= 400:
+            logger.warning(f"Capital.com session rejected ({response.status_code})")
+            return False
+
+        cst = response.headers.get("CST")
+        security_token = response.headers.get("X-SECURITY-TOKEN")
+        if not cst or not security_token:
+            logger.warning("Capital.com session missing auth headers")
+            return False
+
+        _capital_session["cst"] = cst
+        _capital_session["security_token"] = security_token
+        _capital_session["base_url"] = creds["base_url"]
+        _capital_session["expires_at"] = now + timedelta(minutes=20)
+        return True
+
+async def fetch_capital_market_prices(provider_symbols: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
+    creds = get_capital_credentials()
+    if not creds:
+        return {}
+    if not await ensure_capital_session():
+        return {}
+
+    import httpx
+    prices: Dict[str, Dict[str, Any]] = {}
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for symbol, epic_candidates in CAPITAL_EPIC_CANDIDATES.items():
+            for epic in epic_candidates:
+                auth_headers = {
+                    "X-CAP-API-KEY": creds["api_key"],
+                    "CST": _capital_session["cst"],
+                    "X-SECURITY-TOKEN": _capital_session["security_token"],
+                    "Accept": "application/json",
+                }
+                endpoint = f"{creds['base_url']}/prices/{epic}"
+
+                try:
+                    response = await client.get(endpoint, headers=auth_headers, params={"resolution": "MINUTE", "max": 2})
+                except Exception as exc:
+                    logger.warning(f"Capital.com fetch error for {symbol}/{epic}: {exc}")
+                    continue
+
+                if response.status_code in (401, 403):
+                    # Session likely expired; refresh once and retry this epic.
+                    if await ensure_capital_session(force_refresh=True):
+                        auth_headers["CST"] = _capital_session["cst"]
+                        auth_headers["X-SECURITY-TOKEN"] = _capital_session["security_token"]
+                        try:
+                            response = await client.get(endpoint, headers=auth_headers, params={"resolution": "MINUTE", "max": 2})
+                        except Exception as exc:
+                            logger.warning(f"Capital.com retry failed for {symbol}/{epic}: {exc}")
+                            continue
+
+                if response.status_code >= 400:
+                    continue
+
+                try:
+                    payload = response.json()
+                except Exception:
+                    continue
+
+                parsed = parse_capital_prices_payload(payload)
+                if not parsed:
+                    continue
+
+                prices[symbol] = {
+                    "symbol": symbol,
+                    "provider_symbol": provider_symbols.get(symbol, f"CAPITALCOM:{epic}"),
+                    "price": round(parsed["price"], 2 if symbol != "EURUSD" else 5),
+                    "change": round(parsed["change"], 2),
+                    "source": "capitalcom_api",
+                }
+                break
+
+    return prices
 
 @api_router.get("/market/vix")
 async def get_vix_data():
@@ -1411,22 +1614,37 @@ async def get_market_prices():
     # Serve hot cache quickly for UI smoothness.
     if _market_cache["data"] and _market_cache["timestamp"]:
         age = (now - _market_cache["timestamp"]).total_seconds()
-        if age < 20:
+        if age < MARKET_CACHE_HOT_TTL:
             return _market_cache["data"]
 
+    # CFD naming in output; internal feed uses cash indices to align better with CFD quotes
     yf_map = {
+        # Yahoo does not provide XAUUSD spot directly; use gold feed fallback
         "XAUUSD": "GC=F",
-        "NAS100": "NQ=F",
-        "SP500": "ES=F",
+        "NAS100": "^NDX",
+        "SP500": "^GSPC",
         "EURUSD": "EURUSD=X",
-        "DOW": "YM=F",
+        "DOW": "^DJI",
         "VIX": "^VIX",
         "DXY": "DX-Y.NYB"
     }
+    provider_symbols = {
+        "XAUUSD": "FOREXCOM:XAUUSD",
+        "NAS100": "CAPITALCOM:US100",
+        "SP500": "CAPITALCOM:US500",
+        "EURUSD": "FX:EURUSD",
+        "DOW": "CAPITALCOM:US30",
+        "VIX": "CBOE:VIX",
+        "DXY": "ICEUS:DXY"
+    }
 
-    def fetch_prices_sync():
+    def fetch_yahoo_prices_sync(symbols_to_fetch: Optional[List[str]] = None):
         prices = {}
-        for key, yf_symbol in yf_map.items():
+        symbols = symbols_to_fetch or list(yf_map.keys())
+        for key in symbols:
+            yf_symbol = yf_map.get(key)
+            if not yf_symbol:
+                continue
             try:
                 ticker = yf.Ticker(yf_symbol)
                 price = None
@@ -1449,7 +1667,8 @@ async def get_market_prices():
 
                 if price is not None:
                     prices[key] = {
-                        "symbol": yf_symbol,
+                        "symbol": key,
+                        "provider_symbol": provider_symbols.get(key, key),
                         "price": round(price, 2 if key != "EURUSD" else 5),
                         "change": round(change, 2),
                         "source": "yahoo_realtime"
@@ -1467,11 +1686,26 @@ async def get_market_prices():
         now = datetime.now(timezone.utc)
         if _market_cache["data"] and _market_cache["timestamp"]:
             age = (now - _market_cache["timestamp"]).total_seconds()
-            if age < 20:
+            if age < MARKET_CACHE_HOT_TTL:
                 return _market_cache["data"]
 
         try:
-            prices = await asyncio.wait_for(asyncio.to_thread(fetch_prices_sync), timeout=8.0)
+            capital_prices: Dict[str, Dict[str, Any]] = {}
+            try:
+                capital_prices = await asyncio.wait_for(fetch_capital_market_prices(provider_symbols), timeout=6.0)
+            except asyncio.TimeoutError:
+                logger.warning("Capital.com fetch timed out, using fallback feeds")
+
+            missing_symbols = [symbol for symbol in yf_map.keys() if symbol not in capital_prices]
+            yahoo_prices: Dict[str, Dict[str, Any]] = {}
+            if missing_symbols:
+                yahoo_prices = await asyncio.wait_for(
+                    asyncio.to_thread(fetch_yahoo_prices_sync, missing_symbols),
+                    timeout=8.0
+                )
+
+            # Prefer Capital.com for supported CFD symbols, fallback to Yahoo for the rest.
+            prices = {**yahoo_prices, **capital_prices}
             if not prices and _market_cache["data"]:
                 return _market_cache["data"]
             _market_cache["data"] = prices

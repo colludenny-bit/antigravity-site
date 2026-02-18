@@ -121,6 +121,99 @@ const STAT_BIAS = {
 };
 
 const API = `${process.env.REACT_APP_BACKEND_URL || ''}/api`;
+let hasPlayedDashboardIntro = false;
+
+const PRICE_DECIMALS = {
+  EURUSD: 5
+};
+
+const STATIC_OPTIONS_DATA = {
+  XAUUSD: {
+    call_ratio: 55, put_ratio: 45, net_flow: 52, bias: 'bullish',
+    call_million: 128, put_million: 105, net_million: 23,
+    call_change: -5.2, put_change: 8.4, net_change: -12.5,
+    gamma_exposure: 55, gamma_billion: 0.9,
+    interpretation: [
+      'Flusso Gold moderatamente bullish ma in rallentamento.',
+      'Long liquidation significativa: -14.9% gross longs speculativi.',
+      'Supporto a $5000, resistenza chiave a $5100.'
+    ]
+  },
+  NAS100: {
+    call_ratio: 50, put_ratio: 50, net_flow: 48, bias: 'neutral',
+    call_million: 88, put_million: 90, net_million: -2,
+    call_change: -2.8, put_change: 4.5, net_change: -6.2,
+    gamma_exposure: 48, gamma_billion: 0.6,
+    interpretation: [
+      'Flusso NAS100 neutrale, equilibrio call/put.',
+      'Tech in pressione post-NFP forte (ritardo tagli).',
+      'COT speculatori net short, cautela su posizioni long.'
+    ]
+  },
+  SP500: {
+    call_ratio: 48, put_ratio: 52, net_flow: 45, bias: 'neutral',
+    call_million: 165, put_million: 178, net_million: -13,
+    call_change: -3.5, put_change: 5.2, net_change: -8.1,
+    gamma_exposure: 48, gamma_billion: 4.8,
+    interpretation: [
+      'SP500 in equilibrio post-NFP beat (+130K vs 65K attesi).',
+      'Speculatori COT net short -132.9K contratti.',
+      'Range 6850-7000, gamma flip a 6900.'
+    ]
+  },
+  EURUSD: {
+    call_ratio: 62, put_ratio: 38, net_flow: 68, bias: 'bullish',
+    call_million: 78, put_million: 48, net_million: 30,
+    call_change: 8.5, put_change: -4.2, net_change: 14.2,
+    gamma_exposure: 65, gamma_billion: 0.5,
+    interpretation: [
+      'Flusso EURUSD decisamente bullish.',
+      'EUR net long speculativo a 163K (max 6 mesi).',
+      'DXY in calo a 96.60, supporta EUR sopra 1.18.'
+    ]
+  },
+  BTCUSD: {
+    call_ratio: 38, put_ratio: 62, net_flow: 32, bias: 'bearish',
+    call_million: 142, put_million: 232, net_million: -90,
+    call_change: -18.5, put_change: 22.8, net_change: -35.4,
+    gamma_exposure: 30, gamma_billion: -2.1,
+    interpretation: [
+      'BTCUSD flusso fortemente bearish.',
+      'Sell-off da $100K a $67K, put premium dominante.',
+      'Liquidazioni long cascata, supporto critico $65K.'
+    ]
+  }
+};
+
+const getCotReleaseKey = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+  const data = payload.data;
+  if (!data || typeof data !== 'object') return null;
+  const firstEntry = Object.values(data).find((entry) => entry && typeof entry === 'object');
+  return firstEntry?.release_date || firstEntry?.as_of_date || null;
+};
+
+const parseNumericValue = (value) => {
+  if (typeof value === 'number') return value;
+  if (typeof value !== 'string') return Number(value);
+  const raw = value.trim();
+  if (!raw) return NaN;
+
+  const normalized = raw.includes('.') && raw.includes(',')
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw.replace(',', '.');
+  return Number(normalized);
+};
+
+const formatAssetPrice = (value, symbol) => {
+  const numeric = parseNumericValue(value);
+  if (!Number.isFinite(numeric)) return '-';
+  const decimals = PRICE_DECIMALS[symbol] ?? 2;
+  return numeric.toLocaleString('it-IT', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+};
 
 const normalizeStrategyId = (rawId) => {
   if (!rawId) return rawId;
@@ -263,9 +356,9 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
     return Number.isFinite(parsed) ? parsed : fallback;
   };
 
-  const safePrice = toFiniteNumber(currentAsset?.price, 0);
+  const safePrice = toFiniteNumber(currentAsset?.analysisPrice ?? currentAsset?.price, 0);
   const safeAtr = toFiniteNumber(currentAsset?.atr, 0);
-  const safeChangePct = toFiniteNumber(currentAsset?.change, 0);
+  const safeChangePct = toFiniteNumber(currentAsset?.analysisChange ?? currentAsset?.change, 0);
   const safeDayChangePoints = toFiniteNumber(currentAsset?.dayChangePoints, NaN);
   const safeMonthChangePoints = toFiniteNumber(currentAsset?.monthChangePoints, 0);
 
@@ -296,6 +389,37 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const statisticalBiasSummary = isIndex
     ? `Week ${weekNum} ${weekRule.description || '—'}, giornata statistica di ${dayBiasNormalized}, bias mensile ${monthlyBias || '—'}`
     : `Seasonality ${seasonalityBias} • MTD ${formatPoints(monthMovePoints)} pts`;
+  const currentSymbol = currentAsset?.symbol || null;
+  const currentConfidence = Math.round(toFiniteNumber(currentAsset?.confidence, 0));
+  const statisticalNarrative = useMemo(() => {
+    if (!currentSymbol) return 'Dati in questo momento non disponibili.';
+
+    const directionalTone = dailyOutlook?.conclusionType === 'bullish'
+      ? 'impostazione rialzista'
+      : dailyOutlook?.conclusionType === 'bearish'
+        ? 'impostazione ribassista'
+        : 'fase laterale';
+    const atrTone = atrProgress >= 70
+      ? 'gran parte del range medio giornaliero e gia stata percorsa'
+      : atrProgress >= 35
+        ? 'il range medio giornaliero e in espansione regolare'
+        : 'resta spazio tecnico per ulteriori estensioni';
+
+    if (isIndex) {
+      return `Oggi su ${currentSymbol} la lettura multi-sorgente segnala ${directionalTone} con confidenza prudente (${currentConfidence}%). Il contesto statistico resta coerente con ${weekRule.description || 'uno scenario neutrale'} e ${dayRule.note ? dayRule.note.toLowerCase() : 'una sessione di ribilanciamento'}. Finora ${atrTone}.`;
+    }
+
+    return `Su ${currentSymbol} lo scenario e ${directionalTone} con confidenza ${currentConfidence}%. La stagionalita corrente indica fase ${seasonalityBias?.toLowerCase() || 'neutrale'} e finora ${atrTone}.`;
+  }, [
+    atrProgress,
+    currentConfidence,
+    currentSymbol,
+    dailyOutlook?.conclusionType,
+    dayRule.note,
+    isIndex,
+    seasonalityBias,
+    weekRule.description
+  ]);
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
   const handleFocusAsset = (symbol) => {
@@ -629,7 +753,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                         <div>
                           <h3 className="text-lg font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
                           <span className="text-2xl font-bold text-white tracking-tight">
-                            {asset.price?.toLocaleString()}
+                            {formatAssetPrice(asset.price, asset.symbol)}
                           </span>
                         </div>
                         <div className="flex flex-col items-end">
@@ -690,7 +814,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                           <h3 className="text-lg font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
                           <div className="flex items-center gap-2">
                             <span className="text-xl font-bold text-white tracking-tight">
-                              {asset.price?.toLocaleString()}
+                              {formatAssetPrice(asset.price, asset.symbol)}
                             </span>
                           </div>
                         </div>
@@ -769,7 +893,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                 </h3>
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-bold text-white tracking-tight">
-                    {currentAsset.price?.toLocaleString() || '-'}
+                    {formatAssetPrice(currentAsset.price, currentAsset.symbol)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
@@ -803,20 +927,14 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
             {/* Details Grid - Compact */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-2">
-                <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Analisi Strutturale</h5>
-                <ul className="space-y-3">
-                  {dailyOutlook.outlookLines.map((line, i) => (
-                    <li key={i} className="flex items-start gap-4 text-base font-semibold text-white/95 leading-relaxed tracking-tight">
-                      <div className="mt-2.5 w-1.5 h-1.5 rounded-full bg-[#00D9A5] shadow-[0_0_10px_#00D9A5] flex-shrink-0" />
-                      <TypewriterText text={line} speed={20} delay={600 + i * 1000} />
-                    </li>
-                  ))}
-                  <li className="flex items-start gap-4 text-sm text-white/70 leading-relaxed tracking-tight">
-                    <div className="mt-2.5 w-1.5 h-1.5 rounded-full bg-white/40 flex-shrink-0" />
-                    <span>
-                      Correlazione: {isIndex ? `${weekRule.description || '—'} • ${dayRule.note || '—'}` : `Seasonality ${seasonalityBias}`} • ATR {Math.round(atrProgress)}%
-                    </span>
-                  </li>
+                <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Analisi statistica</h5>
+                <div className="space-y-4">
+                  <p className="text-base font-semibold text-white/95 leading-relaxed tracking-tight">
+                    {statisticalNarrative}
+                  </p>
+                  <p className="text-sm text-white/70 leading-relaxed tracking-tight">
+                    Contesto: {isIndex ? `${weekRule.description || '—'} • ${dayRule.note || '—'} • Bias mensile ${monthlyBias || '—'}` : `Seasonality ${seasonalityBias}`} • ATR {Math.round(atrProgress)}%
+                  </p>
                   {/* Engine Drivers - Integrated */}
                   {currentAsset.drivers?.length > 0 && (
                     <div className="mt-8 pt-6 border-t border-white/5">
@@ -833,7 +951,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                       </div>
                     </div>
                   )}
-                </ul>
+                </div>
               </div>
 
               <div className="flex flex-col justify-between">
@@ -907,7 +1025,7 @@ const RiskPanel = ({ vix, regime }) => (
 );
 
 // COT Summary Panel - Premium Carousel Style
-const COTPanel = ({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady = false }) => {
+const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady = false }) => {
   const [showSelector, setShowSelector] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -965,8 +1083,11 @@ const COTPanel = ({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady =
     const ratio = total > 0 ? Math.round((pos.long / total) * 100) : 50;
     const confidence = Math.min(95, Math.max(40, ratio > 60 ? ratio + 10 : 100 - ratio + 10));
     const crowding = Math.min(98, Math.max(30, Math.abs(ratio - 50) + 50));
-    const squeezeRisk = data?.bias === 'Bear' ? Math.min(95, 70 + Math.random() * 25) :
-      data?.bias === 'Bull' ? Math.max(20, 30 + Math.random() * 25) : 50;
+    const squeezeRisk = data?.bias === 'Bear'
+      ? Math.min(95, 55 + (crowding * 0.45))
+      : data?.bias === 'Bull'
+        ? Math.max(20, 65 - ((ratio - 50) * 0.8))
+        : 50;
     return {
       confidence: Math.round(confidence),
       crowding: Math.round(crowding),
@@ -978,7 +1099,14 @@ const COTPanel = ({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady =
 
   // Generate interpretive text - 4 bullet points technical summary
   const getInterpretation = (data, metrics) => {
-    if (!data) return ['Caricamento dati...', 'Attendere prego.', '...', '...'];
+    if (!data) {
+      return [
+        'Dati COT in questo momento non disponibili.',
+        'Aggiornamento in attesa della prossima pubblicazione ufficiale.',
+        'Verifica fonti esterne e sincronizzazione backend.',
+        'Nessuna lettura direzionale finche i dati non tornano disponibili.'
+      ];
+    }
     if (data.bias === 'Bull') {
       return [
         `Accumulo istituzionale forte con confidence al ${metrics.confidence}%.`,
@@ -1231,13 +1359,13 @@ const COTPanel = ({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady =
       </div>
     </TechCard >
   );
-};
+});
 
 
 
 
 // Options Flow Panel - Enhanced Interactive
-const OptionsPanel = ({ optionsData, animationsReady = false, selectedAsset: propAsset, onAssetChange }) => {
+const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propAsset, onAssetChange }) => {
   const [showSelector, setShowSelector] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [internalSelectedAsset, setInternalSelectedAsset] = useState('XAUUSD');
@@ -1254,66 +1382,7 @@ const OptionsPanel = ({ optionsData, animationsReady = false, selectedAsset: pro
 
   const availableAssets = ['XAUUSD', 'NAS100', 'SP500', 'EURUSD', 'BTCUSD'];
 
-  // Asset-specific options data with millions values (simulated - will come from backend)
-  const assetOptionsData = {
-    XAUUSD: {
-      call_ratio: 55, put_ratio: 45, net_flow: 52, bias: 'bullish',
-      call_million: 128, put_million: 105, net_million: 23,
-      call_change: -5.2, put_change: 8.4, net_change: -12.5,
-      gamma_exposure: 55, gamma_billion: 0.9,
-      interpretation: [
-        'Flusso Gold moderatamente bullish ma in rallentamento.',
-        'Long liquidation significativa: -14.9% gross longs speculativi.',
-        'Supporto a $5000, resistenza chiave a $5100.'
-      ]
-    },
-    NAS100: {
-      call_ratio: 50, put_ratio: 50, net_flow: 48, bias: 'neutral',
-      call_million: 88, put_million: 90, net_million: -2,
-      call_change: -2.8, put_change: 4.5, net_change: -6.2,
-      gamma_exposure: 48, gamma_billion: 0.6,
-      interpretation: [
-        'Flusso NAS100 neutrale, equilibrio call/put.',
-        'Tech in pressione post-NFP forte (ritardo tagli).',
-        'COT speculatori net short, cautela su posizioni long.'
-      ]
-    },
-    SP500: {
-      call_ratio: 48, put_ratio: 52, net_flow: 45, bias: 'neutral',
-      call_million: 165, put_million: 178, net_million: -13,
-      call_change: -3.5, put_change: 5.2, net_change: -8.1,
-      gamma_exposure: 48, gamma_billion: 4.8,
-      interpretation: [
-        'SP500 in equilibrio post-NFP beat (+130K vs 65K attesi).',
-        'Speculatori COT net short -132.9K contratti.',
-        'Range 6850-7000, gamma flip a 6900.'
-      ]
-    },
-    EURUSD: {
-      call_ratio: 62, put_ratio: 38, net_flow: 68, bias: 'bullish',
-      call_million: 78, put_million: 48, net_million: 30,
-      call_change: 8.5, put_change: -4.2, net_change: 14.2,
-      gamma_exposure: 65, gamma_billion: 0.5,
-      interpretation: [
-        'Flusso EURUSD decisamente bullish.',
-        'EUR net long speculativo a 163K (max 6 mesi).',
-        'DXY in calo a 96.60, supporta EUR sopra 1.18.'
-      ]
-    },
-    BTCUSD: {
-      call_ratio: 38, put_ratio: 62, net_flow: 32, bias: 'bearish',
-      call_million: 142, put_million: 232, net_million: -90,
-      call_change: -18.5, put_change: 22.8, net_change: -35.4,
-      gamma_exposure: 30, gamma_billion: -2.1,
-      interpretation: [
-        'BTCUSD flusso fortemente bearish.',
-        'Sell-off da $100K a $67K, put premium dominante.',
-        'Liquidazioni long cascata, supporto critico $65K.'
-      ]
-    }
-  };
-
-  const currentData = assetOptionsData[selectedAsset] || assetOptionsData.XAUUSD;
+  const currentData = STATIC_OPTIONS_DATA[selectedAsset] || STATIC_OPTIONS_DATA.XAUUSD;
 
   return (
     <TechCard className="p-3 h-full font-apple relative">
@@ -1606,7 +1675,7 @@ const OptionsPanel = ({ optionsData, animationsReady = false, selectedAsset: pro
 
     </TechCard>
   );
-};
+});
 
 // Strategy Selector Panel - data from Strategy Projection Engine
 const StrategySelectorPanel = ({ projections = [], strategiesCatalog = [], expandedNews, setExpandedNews }) => {
@@ -2192,6 +2261,7 @@ export default function DashboardPage() {
   const [multiSourceData, setMultiSourceData] = useState(null);
   const [cotSummary, setCotSummary] = useState(null);
   const [engineData, setEngineData] = useState([]);
+  const [livePrices, setLivePrices] = useState({});
   const [strategyProjections, setStrategyProjections] = useState([]);
   const [strategiesCatalog, setStrategiesCatalog] = useState([]);
   const [newsBriefing, setNewsBriefing] = useState(null);
@@ -2200,21 +2270,28 @@ export default function DashboardPage() {
   const [favoriteCOT, setFavoriteCOT] = useState(['NAS100', 'SP500']);
   const [optionsSelectedAsset, setOptionsSelectedAsset] = useState('XAUUSD');
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const playIntro = !isSmallMobile && !hasPlayedDashboardIntro;
+  const cotReleaseKeyRef = useRef(null);
 
   // Typewriter animation state
-  const [introPhase, setIntroPhase] = useState(() => (isSmallMobile ? 'done' : 'typing')); // 'typing' | 'visible' | 'done'
+  const [introPhase, setIntroPhase] = useState(() => (playIntro ? 'typing' : 'done')); // 'typing' | 'visible' | 'done'
   const [typedChars, setTypedChars] = useState(0);
-  const [headerHidden, setHeaderHidden] = useState(() => isSmallMobile);
+  const [headerHidden, setHeaderHidden] = useState(() => !playIntro);
   const biasBarRef = useRef(null);
+
+  useEffect(() => {
+    if (!hasPlayedDashboardIntro) {
+      hasPlayedDashboardIntro = true;
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const [multiRes, cotRes, engineRes, strategyRes, strategyCatalogRes, newsRes] = await Promise.all([
+      const [multiRes, engineRes, strategyRes, strategyCatalogRes, newsRes] = await Promise.all([
         axios.get(`${API}/analysis/multi-source`),
-        axios.get(`${API}/cot/data`).catch(() => ({ data: null })),
         axios.get(`${API}/engine/cards`, { headers: authHeader }).catch(() => ({ data: null })),
         axios.get(`${API}/strategy/projections`, { headers: authHeader }).catch(() => ({ data: null })),
         axios.get(`${API}/strategy/catalog`, { headers: authHeader }).catch(() => ({ data: null })),
@@ -2222,7 +2299,6 @@ export default function DashboardPage() {
       ]);
 
       setMultiSourceData(multiRes.data);
-      setCotSummary(cotRes.data);
       setEngineData(Array.isArray(engineRes.data) ? engineRes.data : []);
       setStrategiesCatalog(Array.isArray(strategyCatalogRes.data?.strategies) ? strategyCatalogRes.data.strategies : []);
       setStrategyProjections(Array.isArray(strategyRes.data?.projections) ? strategyRes.data.projections : []);
@@ -2245,6 +2321,51 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  const fetchCotData = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/cot/data`);
+      const payload = response?.data;
+      if (!payload || typeof payload !== 'object') return;
+
+      const nextReleaseKey = getCotReleaseKey(payload);
+      if (cotReleaseKeyRef.current === null) {
+        cotReleaseKeyRef.current = nextReleaseKey || 'initial-load';
+        setCotSummary(payload);
+        return;
+      }
+
+      if (nextReleaseKey && nextReleaseKey !== cotReleaseKeyRef.current) {
+        cotReleaseKeyRef.current = nextReleaseKey;
+        setCotSummary(payload);
+      }
+    } catch (error) {
+      console.error('Error fetching COT data:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCotData();
+    const interval = setInterval(fetchCotData, 3 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchCotData]);
+
+  const fetchLivePrices = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/market/prices`);
+      if (response?.data && typeof response.data === 'object') {
+        setLivePrices(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching live prices:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLivePrices();
+    const interval = setInterval(fetchLivePrices, 8000);
+    return () => clearInterval(interval);
+  }, [fetchLivePrices]);
+
   const { analyses, vix, regime, next_event } = multiSourceData || {};
 
   // Mock data for demo mode when backend is unavailable
@@ -2262,11 +2383,14 @@ export default function DashboardPage() {
   const assetsList = useMemo(() => Object.entries(analysesData).map(([symbol, data]) => {
     // Find engine data for this symbol
     const assetEngineData = engineData?.find(card => card.asset === symbol);
+    const live = livePrices?.[symbol];
 
     return {
       symbol,
-      price: data.price,
-      change: data.change ?? 0,
+      analysisPrice: data.price,
+      analysisChange: data.change ?? 0,
+      price: live?.price ?? data.price,
+      change: live?.change ?? data.change ?? 0,
       direction: assetEngineData?.direction === 'UP' ? 'Up' : assetEngineData?.direction === 'DOWN' ? 'Down' : data.direction,
       confidence: assetEngineData?.probability ?? data.confidence,
       impulse: assetEngineData?.impulse ?? data.impulse,
@@ -2280,14 +2404,7 @@ export default function DashboardPage() {
       monthChangePct: assetEngineData?.month_change_pct,
       sparkData: [30, 35, 28, 42, 38, 55, 48, 52]
     };
-  }), [analysesData, engineData]);
-
-  // Options mock data
-  const optionsData = useMemo(() => ({
-    call_ratio: 52,
-    put_ratio: 48,
-    bias: 'neutral'
-  }), []);
+  }), [analysesData, engineData, livePrices]);
 
   // Mock COT data for demo mode
   const mockCotData = useMemo(() => ({
@@ -2510,7 +2627,6 @@ export default function DashboardPage() {
           {/* Options + COT Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
             <OptionsPanel
-              optionsData={optionsData}
               animationsReady={headerHidden}
               selectedAsset={optionsSelectedAsset}
               onAssetChange={setOptionsSelectedAsset}
