@@ -215,6 +215,61 @@ const formatAssetPrice = (value, symbol) => {
   });
 };
 
+const TRADINGVIEW_MINI_SYMBOL = {
+  XAUUSD: 'FOREXCOM:XAUUSD',
+  NAS100: 'CAPITALCOM:US100',
+  SP500: 'CAPITALCOM:US500',
+  DOW: 'CAPITALCOM:US30',
+  EURUSD: 'FX:EURUSD',
+  BTCUSD: 'BINANCE:BTCUSDT'
+};
+const XAU_LINE_GOLD = '#F6C244';
+
+const buildTradingViewMiniUrl = (assetSymbol, { interval = '15', lineMode = false, interactive = false } = {}) => {
+  const tvSymbol = TRADINGVIEW_MINI_SYMBOL[assetSymbol];
+  if (!tvSymbol) return null;
+  const overrides = assetSymbol === 'XAUUSD'
+    ? {
+      "mainSeriesProperties.style": 3,
+      "mainSeriesProperties.lineStyle.color": XAU_LINE_GOLD,
+      "mainSeriesProperties.color": XAU_LINE_GOLD
+    }
+    : {};
+  const params = new URLSearchParams({
+    symbol: tvSymbol,
+    interval,
+    hidesidetoolbar: interactive ? '0' : '1',
+    symboledit: interactive ? '1' : '0',
+    saveimage: interactive ? '1' : '0',
+    toolbarbg: interactive ? '0f1720' : 'f1f3f6',
+    studies: '[]',
+    theme: 'dark',
+    style: lineMode ? '3' : '3',
+    timezone: 'exchange',
+    withdateranges: interactive ? '1' : '0',
+    showpopupbutton: interactive ? '1' : '0',
+    studies_overrides: '{}',
+    overrides: JSON.stringify(overrides),
+    locale: 'it'
+  });
+  return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
+};
+
+const TradingViewMiniChart = ({ assetSymbol, title, interval = '15', lineMode = false, interactive = false }) => {
+  const forceLineMode = lineMode || assetSymbol === 'XAUUSD';
+  const src = buildTradingViewMiniUrl(assetSymbol, { interval, lineMode: forceLineMode, interactive });
+  if (!src) return null;
+  return (
+    <iframe
+      title={title || `tv-mini-${assetSymbol}`}
+      src={src}
+      style={{ width: '100%', height: '100%', border: 'none' }}
+      loading="lazy"
+      allowFullScreen
+    />
+  );
+};
+
 const normalizeStrategyId = (rawId) => {
   if (!rawId) return rawId;
   if (rawId === 'rate-vol-alignment') return 'rate-volatility';
@@ -420,6 +475,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
     seasonalityBias,
     weekRule.description
   ]);
+
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
   const handleFocusAsset = (symbol) => {
@@ -587,116 +643,118 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
           </AnimatePresence>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Outlook Giornaliero */}
-          {viewMode === 'focus' && currentAsset && (
-            <div className="text-right">
-              <p className="text-sm text-white uppercase font-black tracking-[0.15em] mb-1">Outlook Giornaliero</p>
-              <div className={cn(
-                "px-3 py-1.5 rounded-lg border text-xs font-bold shadow-lg uppercase tracking-widest",
-                getDailyOutlook(currentAsset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 text-[#00D9A5] border-[#00D9A5]/20" :
-                  getDailyOutlook(currentAsset).conclusionType === 'bearish' ? "bg-red-500/10 text-red-400 border-red-400/20" :
-                    "bg-yellow-500/10 text-yellow-400 border-yellow-400/20"
-              )}>
-                {getDailyOutlook(currentAsset).conclusion}
+        {!(viewMode === 'focus' && currentAsset?.symbol === 'XAUUSD') && (
+          <div className="flex items-center gap-3">
+            {/* Outlook Giornaliero */}
+            {viewMode === 'focus' && currentAsset && (
+              <div className="text-right">
+                <p className="text-sm text-white uppercase font-black tracking-[0.15em] mb-1">Outlook Giornaliero</p>
+                <div className={cn(
+                  "px-3 py-1.5 rounded-lg border text-xs font-bold shadow-lg uppercase tracking-widest",
+                  getDailyOutlook(currentAsset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 text-[#00D9A5] border-[#00D9A5]/20" :
+                    getDailyOutlook(currentAsset).conclusionType === 'bearish' ? "bg-red-500/10 text-red-400 border-red-400/20" :
+                      "bg-yellow-500/10 text-yellow-400 border-yellow-400/20"
+                )}>
+                  {getDailyOutlook(currentAsset).conclusion}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Favorite Eye Icon & Color Selector */}
-          <div className="relative" onMouseLeave={() => setShowSelector(false)}>
-            <button
-              onClick={() => setShowSelector(!showSelector)}
-              className={cn(
-                "p-2 rounded-lg border transition-all flex items-center gap-2",
-                showSelector ? "bg-[#00D9A5]/10 border-[#00D9A5]/30 text-[#00D9A5]" : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:bg-white/5 dark:border-white/10 dark:text-white/40 dark:hover:text-white dark:hover:border-white/20"
-              )}
-            >
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartLineColor }} />
-              <Eye className="w-5 h-5" />
-            </button>
+            {/* Favorite Eye Icon & Color Selector */}
+            <div className="relative" onMouseLeave={() => setShowSelector(false)}>
+              <button
+                onClick={() => setShowSelector(!showSelector)}
+                className={cn(
+                  "p-2 rounded-lg border transition-all flex items-center gap-2",
+                  showSelector ? "bg-[#00D9A5]/10 border-[#00D9A5]/30 text-[#00D9A5]" : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:bg-white/5 dark:border-white/10 dark:text-white/40 dark:hover:text-white dark:hover:border-white/20"
+                )}
+              >
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartLineColor }} />
+                <Eye className="w-5 h-5" />
+              </button>
 
-            <AnimatePresence>
-              {showSelector && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200/50 rounded-xl shadow-2xl min-w-[220px] backdrop-blur-xl dark:bg-[#0B0F17]/95 dark:border-white/10"
-                >
-                  {/* Asset Selection Section */}
-                  <div className="mb-2 px-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset {isMobile ? '(1)' : `(${favoriteCharts.length}/3)`}</span>
-                  </div>
-                  <div className="space-y-1 mb-4">
-                    {assets.map((a) => (
-                      <button
-                        key={a.symbol}
-                        onClick={() => toggleFavorite(a.symbol)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all font-medium",
-                          favoriteCharts.includes(a.symbol)
-                            ? "bg-[#00D9A5]/10 text-[#00D9A5]"
-                            : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white"
-                        )}
-                      >
-                        <span>{a.symbol}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Color Selection Section */}
-                  <div className="border-t border-white/5 pt-3 mb-4">
+              <AnimatePresence>
+                {showSelector && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200/50 rounded-xl shadow-2xl min-w-[220px] backdrop-blur-xl dark:bg-[#0B0F17]/95 dark:border-white/10"
+                  >
+                    {/* Asset Selection Section */}
                     <div className="mb-2 px-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Colore Grafico</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset {isMobile ? '(1)' : `(${favoriteCharts.length}/3)`}</span>
                     </div>
-                    <div className="flex items-center justify-between px-2">
-                      {chartColors.map((color) => (
+                    <div className="space-y-1 mb-4">
+                      {assets.map((a) => (
                         <button
-                          key={color}
-                          onClick={() => setChartLineColor(color)}
+                          key={a.symbol}
+                          onClick={() => toggleFavorite(a.symbol)}
                           className={cn(
-                            "w-5 h-5 rounded-full border-2 transition-all hover:scale-110",
-                            chartLineColor === color ? "border-white shadow-[0_0_8px_rgba(255,255,255,0.5)] scale-110" : "border-transparent opacity-50 hover:opacity-100"
+                            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all font-medium",
+                            favoriteCharts.includes(a.symbol)
+                              ? "bg-[#00D9A5]/10 text-[#00D9A5]"
+                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white"
                           )}
-                          style={{ backgroundColor: color }}
-                          title={color}
-                        />
+                        >
+                          <span>{a.symbol}</span>
+                        </button>
                       ))}
                     </div>
-                  </div>
 
-                  {/* Sync Tickers Switch */}
-                  <div className="border-t border-white/5 pt-3">
-                    <button
-                      onClick={() => setSyncEnabled(!syncEnabled)}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all hover:bg-slate-100 dark:hover:bg-white/5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <RefreshCw className={cn("w-4 h-4 transition-transform duration-500", syncEnabled && "rotate-180 text-[#00D9A5]")} />
-                        <span className={cn("font-medium", syncEnabled ? "text-[#00D9A5]" : "text-slate-500 dark:text-white/50")}>Sync Tickers</span>
+                    {/* Color Selection Section */}
+                    <div className="border-t border-white/5 pt-3 mb-4">
+                      <div className="mb-2 px-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Colore Grafico</span>
                       </div>
-                      <div className={cn(
-                        "w-8 h-4 rounded-full relative transition-colors",
-                        syncEnabled ? "bg-[#00D9A5]" : "bg-slate-200 dark:bg-white/10"
-                      )}>
+                      <div className="flex items-center justify-between px-2">
+                        {chartColors.map((color) => (
+                          <button
+                            key={color}
+                            onClick={() => setChartLineColor(color)}
+                            className={cn(
+                              "w-5 h-5 rounded-full border-2 transition-all hover:scale-110",
+                              chartLineColor === color ? "border-white shadow-[0_0_8px_rgba(255,255,255,0.5)] scale-110" : "border-transparent opacity-50 hover:opacity-100"
+                            )}
+                            style={{ backgroundColor: color }}
+                            title={color}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Sync Tickers Switch */}
+                    <div className="border-t border-white/5 pt-3">
+                      <button
+                        onClick={() => setSyncEnabled(!syncEnabled)}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all hover:bg-slate-100 dark:hover:bg-white/5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className={cn("w-4 h-4 transition-transform duration-500", syncEnabled && "rotate-180 text-[#00D9A5]")} />
+                          <span className={cn("font-medium", syncEnabled ? "text-[#00D9A5]" : "text-slate-500 dark:text-white/50")}>Sync Tickers</span>
+                        </div>
                         <div className={cn(
-                          "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all shadow-sm",
-                          syncEnabled ? "left-4.5" : "left-0.5"
-                        )} />
-                      </div>
-                    </button>
-                    {syncEnabled && (
-                      <p className="text-[9px] text-[#00D9A5]/60 mt-1 px-3 leading-tight italic">
-                        Link charts, COT & Options
-                      </p>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                          "w-8 h-4 rounded-full relative transition-colors",
+                          syncEnabled ? "bg-[#00D9A5]" : "bg-slate-200 dark:bg-white/10"
+                        )}>
+                          <div className={cn(
+                            "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all shadow-sm",
+                            syncEnabled ? "left-4.5" : "left-0.5"
+                          )} />
+                        </div>
+                      </button>
+                      {syncEnabled && (
+                        <p className="text-[9px] text-[#00D9A5]/60 mt-1 px-3 leading-tight italic">
+                          Link charts, COT & Options
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
@@ -763,13 +821,17 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                       </div>
                       <div className="h-36 -ml-2 relative z-10 overflow-hidden rounded-lg mb-2">
                         {animationsReady && (
-                          <GlowingChart
-                            data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
-                            width={380}
-                            height={140}
-                            color={color}
-                            showPrice={false}
-                          />
+                          asset.symbol === 'XAUUSD' ? (
+                            <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-mobile-${asset.symbol}`} />
+                          ) : (
+                            <GlowingChart
+                              data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
+                              width={380}
+                              height={140}
+                              color={color}
+                              showPrice={false}
+                            />
+                          )
                         )}
                       </div>
                       <div className="relative z-10">
@@ -830,13 +892,17 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 
                       <div className="h-28 -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
                         {animationsReady && (
-                          <GlowingChart
-                            data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
-                            width={400}
-                            height={110}
-                            color={color}
-                            showPrice={false}
-                          />
+                          asset.symbol === 'XAUUSD' ? (
+                            <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-grid-${asset.symbol}`} />
+                          ) : (
+                            <GlowingChart
+                              data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
+                              width={400}
+                              height={110}
+                              color={color}
+                              showPrice={false}
+                            />
+                          )
                         )}
                       </div>
 
@@ -885,103 +951,121 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
             exit={{ opacity: 0, x: -10 }}
             className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms]"
           >
-            {/* Focus View Header - Compact */}
-            <div className="flex flex-wrap items-center justify-between mb-5 gap-4">
-              <div>
-                <h3 className="text-xl font-bold text-white mb-1 uppercase tracking-widest leading-none select-none">
-                  {currentAsset.symbol}
-                </h3>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-bold text-white tracking-tight">
-                    {formatAssetPrice(currentAsset.price, currentAsset.symbol)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <TechBadge variant={currentAsset.direction === 'Up' ? 'success' : 'warning'} className="px-3 py-1.5 font-bold uppercase tracking-[0.2em] leading-none flex flex-col items-center gap-0.5">
-                    <span className="text-xs">Confidenza</span>
-                    <span className="text-sm font-black">{currentAsset.confidence}%</span>
-                  </TechBadge>
-                </div>
-              </div>
-            </div>
-
-            {/* Big Chart - Compatto */}
-            <div className="h-[100px] mb-6 relative group overflow-hidden">
-              {/* Hover Gradient - Neutral */}
-              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
-              <div className="w-full h-full flex items-center justify-center">
-                {animationsReady && (
-                  <DetailChart
-                    data={(currentAsset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]).map((val, i) => ({
-                      date: `${10 + (i * 2)}:00`,
-                      value: val
-                    }))}
-                    height={100}
-                    color={chartLineColor}
-                    showgrid={false}
+            {currentAsset.symbol === 'XAUUSD' ? (
+              <div className="w-full h-[72vh] min-h-[420px] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
+                {animationsReady ? (
+                  <TradingViewMiniChart
+                    assetSymbol={currentAsset.symbol}
+                    title={`tv-focus-${currentAsset.symbol}`}
+                    interval="15"
+                    lineMode
+                    interactive
                   />
+                ) : (
+                  <div className="w-full h-full rounded-lg bg-white/5 animate-pulse" />
                 )}
               </div>
-            </div>
-
-            {/* Details Grid - Compact */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="md:col-span-2">
-                <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Analisi statistica</h5>
-                <div className="space-y-4">
-                  <p className="text-base font-semibold text-white/95 leading-relaxed tracking-tight">
-                    {statisticalNarrative}
-                  </p>
-                  <p className="text-sm text-white/70 leading-relaxed tracking-tight">
-                    Contesto: {isIndex ? `${weekRule.description || '—'} • ${dayRule.note || '—'} • Bias mensile ${monthlyBias || '—'}` : `Seasonality ${seasonalityBias}`} • ATR {Math.round(atrProgress)}%
-                  </p>
-                  {/* Engine Drivers - Integrated */}
-                  {currentAsset.drivers?.length > 0 && (
-                    <div className="mt-8 pt-6 border-t border-white/5">
-                      <h5 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-3">Engine Drivers</h5>
-                      <div className="flex flex-wrap gap-2">
-                        {currentAsset.drivers.map((driver, i) => (
-                          <span
-                            key={i}
-                            className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-bold text-white/60 uppercase tracking-widest"
-                          >
-                            {driver}
-                          </span>
-                        ))}
-                      </div>
+            ) : (
+              <>
+                {/* Focus View Header - Compact */}
+                <div className="flex flex-wrap items-center justify-between mb-5 gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-1 uppercase tracking-widest leading-none select-none">
+                      {currentAsset.symbol}
+                    </h3>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-bold text-white tracking-tight">
+                        {formatAssetPrice(currentAsset.price, currentAsset.symbol)}
+                      </span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-2 mt-1">
+                      <TechBadge variant={currentAsset.direction === 'Up' ? 'success' : 'warning'} className="px-3 py-1.5 font-bold uppercase tracking-[0.2em] leading-none flex flex-col items-center gap-0.5">
+                        <span className="text-xs">Confidenza</span>
+                        <span className="text-sm font-black">{currentAsset.confidence}%</span>
+                      </TechBadge>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex flex-col justify-between">
-                <div>
-                  <h5 className="text-sm font-bold text-white uppercase tracking-[0.2em] mb-4">Metriche Rapide</h5>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs text-white uppercase font-black tracking-[0.2em] mb-2 leading-none">ATR Daily Range</p>
-                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                        <div
-                          style={{ width: `${atrProgress}%` }}
-                          className="h-full rounded-full bg-[#00D9A5] transition-all duration-700"
-                        />
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-xs text-white/70 font-bold">
-                        <span>Percorso: {formatPoints(dayMovePoints)} pts ({Math.round(atrProgress)}%)</span>
-                        <span>Rimanente: {formatPoints(atrRemaining)} pts ({Math.max(0, 100 - Math.round(atrProgress))}%)</span>
-                      </div>
-                    </div>
+                {/* Big Chart - Compatto */}
+                <div className="h-[100px] mb-6 relative group overflow-hidden">
+                  {/* Hover Gradient - Neutral */}
+                  <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
+                  <div className="w-full h-full flex items-center justify-center">
+                    {animationsReady && (
+                      <DetailChart
+                        data={(currentAsset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]).map((val, i) => ({
+                          date: `${10 + (i * 2)}:00`,
+                          value: val
+                        }))}
+                        height={100}
+                        color={chartLineColor}
+                        showgrid={false}
+                      />
+                    )}
+                  </div>
+                </div>
 
-                    <div className="space-y-1">
-                      <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Statistical Bias</p>
-                      <p className="text-base font-bold text-[#00D9A5] leading-relaxed">{statisticalBiasSummary}</p>
+                {/* Details Grid - Compact */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 rounded-2xl border border-white/10 bg-[#13171C]/85 p-5">
+                  <div className="md:col-span-2">
+                    <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Analisi statistica</h5>
+                    <div className="space-y-4">
+                      <p className="text-base font-semibold text-white/95 leading-relaxed tracking-tight">
+                        {statisticalNarrative}
+                      </p>
+                      <p className="text-sm text-white/70 leading-relaxed tracking-tight">
+                        Contesto: {isIndex ? `${weekRule.description || '—'} • ${dayRule.note || '—'} • Bias mensile ${monthlyBias || '—'}` : `Seasonality ${seasonalityBias}`} • ATR {Math.round(atrProgress)}%
+                      </p>
+                      {/* Engine Drivers - Integrated */}
+                      {currentAsset.drivers?.length > 0 && (
+                        <div className="mt-8 pt-6 border-t border-white/5">
+                          <h5 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-3">Engine Drivers</h5>
+                          <div className="flex flex-wrap gap-2">
+                            {currentAsset.drivers.map((driver, i) => (
+                              <span
+                                key={i}
+                                className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-bold text-white/60 uppercase tracking-widest"
+                              >
+                                {driver}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Source Breakdown removed per request */}
+                  <div className="flex flex-col justify-between">
+                    <div>
+                      <h5 className="text-sm font-bold text-white uppercase tracking-[0.2em] mb-4">Metriche Rapide</h5>
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-xs text-white uppercase font-black tracking-[0.2em] mb-2 leading-none">ATR Daily Range</p>
+                          <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              style={{ width: `${atrProgress}%` }}
+                              className="h-full rounded-full bg-[#00D9A5] transition-all duration-700"
+                            />
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-xs text-white/70 font-bold">
+                            <span>Percorso: {formatPoints(dayMovePoints)} pts ({Math.round(atrProgress)}%)</span>
+                            <span>Rimanente: {formatPoints(atrRemaining)} pts ({Math.max(0, 100 - Math.round(atrProgress))}%)</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Statistical Bias</p>
+                          <p className="text-base font-bold text-[#00D9A5] leading-relaxed">{statisticalBiasSummary}</p>
+                        </div>
+                      </div>
+
+                      {/* Source Breakdown removed per request */}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
