@@ -20,6 +20,7 @@ const DashboardPage = lazy(() => import('./components/pages/DashboardPage'));
 const ProfilePage = lazy(() => import('./components/pages/ProfilePage'));
 const StrategyPage = lazy(() => import('./components/pages/StrategyPage'));
 const ChartsPage = lazy(() => import('./components/pages/ChartsPage'));
+const TradingViewFeedPage = lazy(() => import('./components/pages/TradingViewFeedPage'));
 const PsychologyPage = lazy(() => import('./components/pages/PsychologyPage'));
 const JournalPage = lazy(() => import('./components/pages/JournalPage'));
 const AIPage = lazy(() => import('./components/pages/AIPage'));
@@ -58,6 +59,32 @@ const ProtectedRoute = ({ children }) => {
 
   if (!user) {
     return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
+const OWNER_EMAIL = 'colludenny@gmail.com';
+const OwnerOnlyRoute = ({ children }) => {
+  const { user, isInitialized } = useAuth();
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Caricamento...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if ((user.email || '').toLowerCase() !== OWNER_EMAIL) {
+    return <Navigate to="/app" replace />;
   }
 
   return children;
@@ -149,6 +176,14 @@ function AppRoutes() {
           <Route path="report" element={<ReportPage />} />
           <Route path="strategy" element={<StrategyPage />} />
           <Route path="charts" element={<ChartsPage />} />
+          <Route
+            path="tv-feed"
+            element={
+              <OwnerOnlyRoute>
+                <TradingViewFeedPage />
+              </OwnerOnlyRoute>
+            }
+          />
           <Route path="news" element={<NewsPage />} />
           <Route path="macro" element={<MacroEconomyPage />} />
           <Route path="risk" element={<RiskPage />} />

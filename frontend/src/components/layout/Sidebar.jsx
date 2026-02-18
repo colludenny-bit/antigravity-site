@@ -31,7 +31,9 @@ import {
 } from 'lucide-react';
 import kaironBull from '../../assets/kairon-bull.png';
 
-const navItems = [
+const OWNER_EMAIL = 'colludenny@gmail.com';
+
+const baseNavItems = [
   { path: '/app', icon: LayoutDashboard, label: 'Dashboard', iconClass: 'icon-home' },
   { path: '/app/crypto', icon: Bitcoin, label: 'Crypto', iconClass: 'icon-crypto' },
   { path: '/app/statistics', icon: BarChart3, label: 'Grafici', iconClass: 'icon-stats' },
@@ -55,6 +57,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
+  const isOwner = (user?.email || '').toLowerCase() === OWNER_EMAIL;
+  const navItems = isOwner
+    ? [...baseNavItems, { path: '/app/tv-feed', icon: Gauge, label: 'TV Feed', iconClass: 'icon-options' }]
+    : baseNavItems;
 
   // Voice analysis function for logo click
   const speakMarketAnalysis = () => {
