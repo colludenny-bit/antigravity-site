@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { MobileQuickDock } from './MobileQuickDock';
@@ -34,9 +34,15 @@ const KarionLogo = ({ className = "", size = "default" }) => {
 
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+  const isDashboardRoute = /^\/app\/?$/.test(location.pathname);
 
   return (
-    <div className="min-h-screen bg-background relative transition-colors duration-300">
+    <div
+      className={`min-h-screen relative transition-colors duration-300 ${
+        isDashboardRoute ? 'dashboard-shell-bg' : 'bg-background'
+      }`}
+    >
       {/* Clean Subtle Background - Reference Style */}
       <div className="fixed inset-0 pointer-events-none z-0">
         {/* Very subtle corner glow only */}
@@ -53,7 +59,7 @@ export const Layout = () => {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Content */}
-      <main className="lg:ml-20 min-h-screen lg:pb-0">
+      <main className="lg:ml-24 min-h-screen lg:pb-0">
 
         {/* Mobile Header - hidden on small mobile, visible on tablet-ish screens */}
         <header className="hidden md:block lg:hidden sticky top-0 z-30 glass border-b border-border">

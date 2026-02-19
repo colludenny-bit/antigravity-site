@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, status, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -16,6 +16,7 @@ from PyPDF2 import PdfReader
 import io
 import random
 import math
+import re
 import yfinance as yf
 from functools import lru_cache
 import asyncio
@@ -244,11 +245,14 @@ class TradeRecord(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     symbol: str
+    side: Optional[str] = None
     entry_price: float
     exit_price: float
     profit_loss: float
     profit_loss_r: float
     date: str
+    strategy_name: Optional[str] = None
+    source: Optional[str] = None
     notes: str = ""
     rules_followed: List[str] = []
     rules_violated: List[str] = []
@@ -256,14 +260,21 @@ class TradeRecord(BaseModel):
 
 class TradeRecordCreate(BaseModel):
     symbol: str
+    side: Optional[str] = None
     entry_price: float
     exit_price: float
     profit_loss: float
     profit_loss_r: float
     date: str
+    strategy_name: Optional[str] = None
+    source: Optional[str] = None
     notes: str = ""
     rules_followed: List[str] = []
     rules_violated: List[str] = []
+
+
+class TradeBulkDeleteRequest(BaseModel):
+    trade_ids: List[str]
 
 class DisciplineRule(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -987,15 +998,807 @@ async def optimize_strategy(strategy_id: str, current_user: dict = Depends(get_c
 
 # ==================== TRADES ROUTES ====================
 
+MT5_DATE_PATTERN = re.compile(r"\b(\d{4}[./-]\d{2}[./-]\d{2})\b")
+MT5_TIME_PATTERN = re.compile(r"\b(\d{2}:\d{2}(?::\d{2})?)\b")
+MT5_SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9._-]{2,14}$")
+
+
+def _parse_number_token(token: str) -> Optional[float]:
+    raw = token.strip().replace(" ", "")
+    if not raw:
+        return None
+
+    if "," in raw and "." in raw:
+        if raw.rfind(",") > raw.rfind("."):
+            normalized = raw.replace(".", "").replace(",", ".")
+        else:
+            normalized = raw.replace(",", "")
+    elif "," in raw:
+        normalized = raw.replace(",", ".")
+    else:
+        normalized = raw
+
+    try:
+        return float(normalized)
+    except ValueError:
+        return None
+
+
+def _normalize_trade_datetime(date_raw: str, time_raw: Optional[str]) -> str:
+    normalized_date = date_raw.replace(".", "-").replace("/", "-")
+    if not time_raw:
+        return f"{normalized_date}T00:00:00"
+
+    if len(time_raw) == 5:
+        return f"{normalized_date}T{time_raw}:00"
+    return f"{normalized_date}T{time_raw}"
+
+
+def _find_symbol_token(tokens: List[str], side_index: int) -> Optional[Tuple[int, str]]:
+    blacklist = {"buy", "sell", "balance", "credit", "commission", "swap", "tax"}
+    preferred_indices = [side_index + 2, side_index + 1, side_index + 3, side_index - 1, side_index - 2]
+
+    for idx in preferred_indices:
+        if idx < 0 or idx >= len(tokens):
+            continue
+        token = re.sub(r"[^A-Za-z0-9._-]", "", tokens[idx]).upper()
+        if not token or token.lower() in blacklist:
+            continue
+        if MT5_SYMBOL_PATTERN.match(token):
+            return idx, token
+    return None
+
+
+def _parse_mt5_trade_line(line: str) -> Optional[Dict[str, Any]]:
+    lowered = line.lower()
+    side_match = re.search(r"\b(buy|sell)\b", lowered)
+    date_match = MT5_DATE_PATTERN.search(line)
+    if not side_match or not date_match:
+        return None
+
+    tokens = [t for t in re.split(r"\s+", line.strip()) if t]
+    side_token = side_match.group(1)
+    try:
+        side_index = next(i for i, token in enumerate(tokens) if token.lower() == side_token)
+    except StopIteration:
+        return None
+
+    symbol_data = _find_symbol_token(tokens, side_index)
+    if not symbol_data:
+        return None
+    symbol_index, symbol = symbol_data
+
+    numeric_tokens: List[Tuple[int, str, float]] = []
+    for i, token in enumerate(tokens):
+        cleaned = token.strip().replace("%", "")
+        if not re.fullmatch(r"[-+]?\d+(?:[.,]\d+)?", cleaned):
+            continue
+        parsed = _parse_number_token(cleaned)
+        if parsed is None:
+            continue
+        numeric_tokens.append((i, cleaned, parsed))
+
+    if len(numeric_tokens) < 2:
+        return None
+
+    profit_token_index, _, profit_value = numeric_tokens[-1]
+    price_candidates = [
+        parsed
+        for idx, raw, parsed in numeric_tokens
+        if idx > symbol_index and idx < profit_token_index and ('.' in raw or ',' in raw)
+    ]
+    positive_prices = [p for p in price_candidates if p > 0]
+
+    if not positive_prices:
+        return None
+
+    entry_price = positive_prices[0]
+    exit_price = positive_prices[-1] if len(positive_prices) > 1 else positive_prices[0]
+    date_value = date_match.group(1)
+    time_match = MT5_TIME_PATTERN.search(line)
+    iso_date = _normalize_trade_datetime(date_value, time_match.group(1) if time_match else None)
+
+    note = f"Import MT5 ({side_token.upper()})"
+    return {
+        "symbol": symbol,
+        "side": "long" if side_token.lower() == "buy" else "short",
+        "entry_price": round(entry_price, 6),
+        "exit_price": round(exit_price, 6),
+        "profit_loss": round(profit_value, 2),
+        "profit_loss_r": 0.0,
+        "date": iso_date,
+        "notes": note,
+    }
+
+
+def _extract_mt5_trades_from_text(text: str) -> List[Dict[str, Any]]:
+    trades: List[Dict[str, Any]] = []
+    seen = set()
+
+    for raw_line in text.splitlines():
+        line = " ".join(raw_line.split())
+        if not line:
+            continue
+        parsed = _parse_mt5_trade_line(line)
+        if not parsed:
+            continue
+        key = (
+            parsed["symbol"],
+            parsed["entry_price"],
+            parsed["exit_price"],
+            parsed["profit_loss"],
+            parsed["date"],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        trades.append(parsed)
+    return trades
+
+
+MT5_REPORT_SECTION_PATTERNS = {
+    "summary": re.compile(r"\b1\.\s*Summary\b", re.IGNORECASE),
+    "profit_loss": re.compile(r"\b2\.\s*Profit\s*&\s*Loss\b", re.IGNORECASE),
+    "long_short": re.compile(r"\b3\.\s*Long\s*&\s*Short\b", re.IGNORECASE),
+    "symbols": re.compile(r"\b4\.\s*Symbols\b", re.IGNORECASE),
+    "risks": re.compile(r"\b5\.\s*Risks\b", re.IGNORECASE),
+}
+
+MT5_REPORT_SECTIONS = {
+    "summary": {
+        "title": "Summary",
+        "metrics": [
+            {"label": "Growth", "patterns": [r"Growth"], "orders": ["before", "after"], "require_percent": True, "window": 24},
+            {"label": "Drawdown", "patterns": [r"Drawdown", r"Max\.?\s*Drawdown"], "orders": ["before", "after"], "require_percent": True, "window": 26},
+            {"label": "Profit Factor", "patterns": [r"Profit\s*Factor"], "orders": ["after", "before"], "require_percent": False, "window": 52},
+            {"label": "Recovery Factor", "patterns": [r"Recovery\s*Factor"], "orders": ["after", "before"], "require_percent": False, "window": 52},
+            {"label": "Sharp Ratio", "patterns": [r"Sharp\s*Ratio", r"Sharpe\s*Ratio"], "orders": ["after", "before"], "require_percent": False, "window": 52},
+            {"label": "Trades per Week", "patterns": [r"Trades\s*per\s*Week"], "orders": ["after", "before"], "window": 36},
+            {"label": "Gross Profit", "patterns": [r"Gross\s*Profit"], "orders": ["before", "after"], "require_percent": False, "window": 28},
+            {"label": "Gross Loss", "patterns": [r"Gross\s*Loss"], "orders": ["before", "after"], "require_percent": False, "window": 28},
+        ],
+    },
+    "profit_loss": {
+        "title": "Profit & Loss",
+        "metrics": [
+            {"label": "Profit", "patterns": [r"\bProfit\b"], "orders": ["before", "after"], "require_percent": False, "window": 24},
+            {"label": "Loss", "patterns": [r"\bLoss\b"], "orders": ["before", "after"], "require_percent": False, "window": 24},
+            {"label": "Gross Profit", "patterns": [r"Gross\s*Profit"], "orders": ["before", "after"], "require_percent": False, "window": 28},
+            {"label": "Gross Loss", "patterns": [r"Gross\s*Loss"], "orders": ["before", "after"], "require_percent": False, "window": 28},
+            {"label": "Commissions", "patterns": [r"Commissions"], "orders": ["after", "before"], "window": 24},
+            {"label": "Swaps", "patterns": [r"Swaps"], "orders": ["after", "before"], "window": 24},
+            {"label": "Dividends", "patterns": [r"Dividends"], "orders": ["after", "before"], "window": 24},
+        ],
+    },
+    "long_short": {
+        "title": "Long & Short",
+        "metrics": [
+            {"label": "Long", "patterns": [r"\bLong\b"], "orders": ["before", "after"], "window": 24},
+            {"label": "Short", "patterns": [r"\bShort\b"], "orders": ["before", "after"], "window": 24},
+            {"label": "Netto P/L", "patterns": [r"Netto\s*P\/L", r"Net\s*P\/L"], "orders": ["after", "before"], "window": 28},
+            {"label": "Average P/L", "patterns": [r"Average\s*P\/L"], "orders": ["after", "before"], "require_percent": False, "window": 26},
+            {"label": "Trades", "patterns": [r"\bTrades\b"], "orders": ["after", "before"], "window": 22},
+            {"label": "Win Trades", "patterns": [r"Win\s*Trades"], "orders": ["after", "before"], "window": 24},
+            {"label": "Win Rate", "patterns": [r"Win\s*Trades"], "orders": ["after", "before"], "require_percent": True, "window": 32},
+        ],
+    },
+    "symbols": {
+        "title": "Symbols",
+        "metrics": [
+            {"label": "Netto Profit", "patterns": [r"Netto\s*Profit", r"Net\s*Profit"], "orders": ["before", "after"], "window": 26},
+            {"label": "Profit Factor by Symbols", "patterns": [r"Profit\s*Factor\s*by\s*Symbols"], "orders": ["after", "before"], "require_percent": False, "window": 52},
+            {"label": "Fees by Symbols", "patterns": [r"Fees\s*by\s*Symbols"], "orders": ["after", "before"], "window": 22},
+            {"label": "Manual Trading", "patterns": [r"Manual\s*Trading"], "orders": ["before", "after"], "window": 20},
+            {"label": "Trading Signals", "patterns": [r"Trading\s*Signals"], "orders": ["before", "after"], "window": 20},
+        ],
+    },
+    "risks": {
+        "title": "Risks",
+        "metrics": [
+            {"label": "Balance", "patterns": [r"Balance"], "orders": ["before", "after"], "require_percent": False, "window": 26},
+            {"label": "Drawdown", "patterns": [r"Drawdown"], "orders": ["after", "before"], "require_percent": True, "window": 18},
+            {"label": "Deposit Load", "patterns": [r"Deposit\s*Load"], "orders": ["after", "before"], "require_percent": True, "window": 18},
+            {"label": "Best trade", "patterns": [r"Best\s*trade"], "orders": ["after", "before"], "require_percent": False, "window": 24},
+            {"label": "Worst trade", "patterns": [r"Worst\s*trade"], "orders": ["after", "before"], "require_percent": False, "window": 24},
+            {"label": "Max. consecutive wins", "patterns": [r"Max\.?\s*consecutive\s*wins"], "orders": ["after", "before"], "window": 18},
+            {"label": "Max. consecutive losses", "patterns": [r"Max\.?\s*consecutive\s*losses"], "orders": ["after", "before"], "window": 18},
+            {"label": "Max. consecutive profit", "patterns": [r"Max\.?\s*consecutive\s*profit"], "orders": ["after", "before"], "window": 24},
+            {"label": "Max. consecutive loss", "patterns": [r"Max\.?\s*consecutive\s*loss"], "orders": ["after", "before"], "window": 24},
+        ],
+    },
+}
+
+MT5_METRIC_VALUE_PATTERN = r"([+-]?\d[\d\s.,]*%?(?:\s*\(\s*\d[\d\s.,]*%?\s*\))?)"
+MT5_METRIC_TOKEN_RE = re.compile(
+    r"[-+]?\d[\d\s.,]*(?:%|k|m)?(?:\s*\(\s*[-+]?\d[\d\s.,]*%?\s*\))?",
+    re.IGNORECASE,
+)
+
+
+def _compress_spaces(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "")).strip()
+
+
+def _normalize_metric_token(token: str) -> str:
+    cleaned = _compress_spaces(token)
+    return cleaned.rstrip(",:;")
+
+
+def _extract_tokens(fragment: str) -> List[str]:
+    tokens = [_normalize_metric_token(match.group(0)) for match in MT5_METRIC_TOKEN_RE.finditer(fragment)]
+    return [token for token in tokens if token]
+
+
+def _extract_metric_value(text: str, metric_cfg: Dict[str, Any]) -> Optional[str]:
+    compact = _compress_spaces(text)
+    if not compact:
+        return None
+
+    patterns = metric_cfg.get("patterns", [])
+    orders = metric_cfg.get("orders", ["after", "before"])
+    window = int(metric_cfg.get("window", 40))
+    require_percent = metric_cfg.get("require_percent", None)
+
+    for label_pattern in patterns:
+        label_re = re.compile(label_pattern, re.IGNORECASE)
+        for label_match in label_re.finditer(compact):
+            for order in orders:
+                if order == "after":
+                    fragment = compact[label_match.end(): label_match.end() + window]
+                    tokens = _extract_tokens(fragment)
+                else:
+                    fragment = compact[max(0, label_match.start() - window): label_match.start()]
+                    tokens = list(reversed(_extract_tokens(fragment)))
+
+                if not tokens:
+                    continue
+
+                for token in tokens:
+                    has_percent = "%" in token
+                    if require_percent is True and not has_percent:
+                        continue
+                    if require_percent is False and has_percent:
+                        continue
+                    return token
+
+    return None
+
+
+def _metric_to_float(raw_value: Optional[str]) -> Optional[float]:
+    if not raw_value:
+        return None
+    match = re.search(r"[-+]?\d[\d\s.,]*", raw_value)
+    if not match:
+        return None
+    return _parse_number_token(match.group(0))
+
+
+def _metric_to_percent(raw_value: Optional[str]) -> Optional[float]:
+    if not raw_value:
+        return None
+
+    bracket_percent = re.search(r"\(\s*([-+]?\d[\d\s.,]*)\s*%\s*\)", raw_value)
+    if bracket_percent:
+        return _parse_number_token(bracket_percent.group(1))
+
+    plain_percent = re.search(r"([-+]?\d[\d\s.,]*)\s*%", raw_value)
+    if plain_percent:
+        return _parse_number_token(plain_percent.group(1))
+    return None
+
+
+def _extract_primary_symbol(text: str) -> Optional[str]:
+    tokens = re.findall(r"\b[A-Z]{2,8}\d{0,3}\b", text)
+    if not tokens:
+        return None
+
+    blacklist = {
+        "DEMO", "USD", "MTWTFSS", "CFD", "YEAR", "TOTAL",
+        "NETTO", "PROFIT", "SYMBOLS", "RISKS", "LONG", "SHORT",
+        "GAIN", "LOSS", "BALANCE", "EQUITY",
+    }
+    for token in tokens:
+        if token in blacklist:
+            continue
+        return token
+    return None
+
+
+def _extract_report_period(report_title: str) -> Dict[str, Optional[str]]:
+    match = re.search(r"\[(\d{2}\.\d{2}\.\d{4})\s*[–-]\s*(\d{2}\.\d{2}\.\d{4})\]", report_title)
+    if not match:
+        return {"start": None, "end": None}
+
+    def _to_iso(raw: str) -> str:
+        day, month, year = raw.split(".")
+        return f"{year}-{month}-{day}"
+
+    return {"start": _to_iso(match.group(1)), "end": _to_iso(match.group(2))}
+
+
+def _build_pdf_trade_visuals(
+    parsed_trades: List[Dict[str, Any]],
+    start_balance: Optional[float],
+    end_balance: Optional[float],
+    period_start: Optional[str],
+    period_end: Optional[str],
+) -> Dict[str, Any]:
+    if not parsed_trades:
+        if start_balance is None:
+            return {"equity_curve": [], "weekday_distribution": []}
+        default_end = period_end or period_start or datetime.now(timezone.utc).date().isoformat()
+        start_date = period_start or default_end
+        end_date = period_end or default_end
+        if start_date != end_date:
+            try:
+                dt_start = datetime.fromisoformat(start_date)
+                dt_end = datetime.fromisoformat(end_date)
+                days = max((dt_end - dt_start).days, 1)
+                steps = min(max(days // 30, 2), 8)
+                curve = []
+                for i in range(steps + 1):
+                    ratio = i / steps
+                    current_dt = dt_start + timedelta(days=int(days * ratio))
+                    curve_value = start_balance if end_balance is None else (start_balance + ((end_balance - start_balance) * ratio))
+                    curve.append({"date": current_dt.date().isoformat(), "value": round(curve_value, 2)})
+                return {
+                    "equity_curve": curve,
+                    "weekday_distribution": [],
+                }
+            except Exception:
+                pass
+        return {
+            "equity_curve": [
+                {"date": start_date, "value": round(start_balance, 2)},
+                {"date": default_end, "value": round(end_balance if end_balance is not None else start_balance, 2)},
+            ],
+            "weekday_distribution": [],
+        }
+
+    sorted_trades = sorted(
+        parsed_trades,
+        key=lambda t: datetime.fromisoformat((t.get("date") or "").replace("Z", "+00:00"))
+        if t.get("date") else datetime.now(timezone.utc),
+    )
+    equity_curve: List[Dict[str, Any]] = []
+    weekday_counts = {k: 0 for k in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
+
+    running_value = start_balance if start_balance is not None else 0.0
+    for trade in sorted_trades:
+        trade_dt = datetime.fromisoformat((trade.get("date") or "").replace("Z", "+00:00")) if trade.get("date") else datetime.now(timezone.utc)
+        pnl = float(trade.get("profit_loss", 0.0))
+        running_value += pnl
+        equity_curve.append({
+            "date": trade_dt.date().isoformat(),
+            "value": round(running_value, 2),
+        })
+        weekday_counts[trade_dt.strftime("%a")] += 1
+
+    weekday_distribution = [{"day": day, "count": count} for day, count in weekday_counts.items()]
+    return {
+        "equity_curve": equity_curve,
+        "weekday_distribution": weekday_distribution,
+    }
+
+
+def _derive_report_metrics(
+    sections: Dict[str, Any],
+    report_title: str,
+    parsed_trades: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    summary_text = sections.get("summary", {}).get("raw_text") or sections.get("summary", {}).get("excerpt", "")
+    pnl_text = sections.get("profit_loss", {}).get("raw_text") or sections.get("profit_loss", {}).get("excerpt", "")
+    ls_text = sections.get("long_short", {}).get("raw_text") or sections.get("long_short", {}).get("excerpt", "")
+    symbols_text = sections.get("symbols", {}).get("raw_text") or sections.get("symbols", {}).get("excerpt", "")
+    risks_text = sections.get("risks", {}).get("raw_text") or sections.get("risks", {}).get("excerpt", "")
+    report_period = _extract_report_period(report_title or "")
+
+    def _find_number(text: str, patterns: List[str]) -> Optional[float]:
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                value = _parse_number_token(match.group(1))
+                if value is not None:
+                    return value
+        return None
+
+    def _find_int(text: str, patterns: List[str]) -> Optional[int]:
+        value = _find_number(text, patterns)
+        if value is None:
+            return None
+        return int(round(value))
+
+    growth_pct = _find_number(summary_text, [r"([+-]?\d[\d\s.,]*)%Growth"])
+    summary_drawdown_pct = _find_number(summary_text, [r"([+-]?\d[\d\s.,]*)%Drawdown"])
+    summary_cluster_match = re.search(
+        r"Total0?5(?P<sharp>\d+\.\d{2})0?5(?P<pf>\d+\.\d{2})0?10(?P<recovery>\d+\.\d{2})0%100%(?P<maxdd>\d+\.\d+)%0%100%(?P<deposit>\d+\.\d+)%011(?P<tradesw>\d)0s1d(?P<holdm>\d+)m",
+        summary_text,
+        re.IGNORECASE,
+    )
+
+    gross_profit = _find_number(pnl_text, [r"([+-]?\d[\d\s.,]*)\s*Gross\s*Profit", r"([+-]?\d[\d\s.,]*)\s*Profit"])
+    gross_loss = _find_number(pnl_text, [r"([+-]?\d[\d\s.,]*)\s*Gross\s*Loss", r"([+-]?\d[\d\s.,]*)\s*Loss"])
+    if gross_profit is None:
+        gross_profit = _find_number(summary_text, [r"([+-]?\d[\d\s.,]*)\s*Gross\s*Profit"])
+    if gross_loss is None:
+        gross_loss = _find_number(summary_text, [r"([+-]?\d[\d\s.,]*)\s*Gross\s*Loss"])
+
+    net_pnl = _find_number(ls_text, [r"Netto\s*P\/L:\s*([+-]?\d[\d\s.,]*)"])
+    if net_pnl is None and (gross_profit is not None or gross_loss is not None):
+        net_pnl = (gross_profit or 0.0) + (gross_loss or 0.0)
+
+    long_pair = re.search(r"(\d+)\s*\(([\d.,]+)%\)\s*Long", ls_text, re.IGNORECASE)
+    short_pair = re.search(r"(\d+)\s*\(([\d.,]+)%\)\s*Short", ls_text, re.IGNORECASE)
+    long_count = int(long_pair.group(1)) if long_pair else None
+    long_pct = _parse_number_token(long_pair.group(2)) if long_pair else None
+    short_count = int(short_pair.group(1)) if short_pair else None
+    short_pct = _parse_number_token(short_pair.group(2)) if short_pair else None
+
+    total_trades = _find_int(ls_text, [r"Trades:\s*(\d+)"])
+    if total_trades is None and long_count is not None and short_count is not None:
+        total_trades = long_count + short_count
+
+    win_rate_pct = _find_number(ls_text, [r"Win\s*Trades:\s*([+-]?\d[\d.,]*)%"])
+    win_trades = _find_int(ls_text, [r"Win\s*Trades:\s*(\d+)"])
+
+    avg_pl = None
+    avg_pl_matches = re.findall(r"Average\s*P\/L:\s*([+-]?\d[\d\s.,]*%?)", ls_text, re.IGNORECASE)
+    for match in avg_pl_matches:
+        if "%" in match:
+            continue
+        parsed = _parse_number_token(match)
+        if parsed is not None:
+            avg_pl = parsed
+            break
+
+    symbol_head_match = re.search(r"4\.\s*Symbols\s*([+-]?\d[\d\s.,]*)\s*([A-Z][A-Z0-9]{2,10})", symbols_text, re.IGNORECASE)
+    primary_symbol = symbol_head_match.group(2) if symbol_head_match else _extract_primary_symbol(symbols_text)
+    symbol_net = _parse_number_token(symbol_head_match.group(1)) if symbol_head_match else None
+
+    pf_segment_match = re.search(r"Profit\s*Factor\s*by\s*Symbols(.*?)Netto\s*Profit\s*by\s*Symbols", symbols_text, re.IGNORECASE)
+    symbol_pf = None
+    if pf_segment_match:
+        pf_segment = pf_segment_match.group(1)
+        if primary_symbol:
+            pf_segment = pf_segment.replace(primary_symbol, " ")
+        pf_candidates = re.findall(r"([+-]?\d{1,2}\.\d{1,4})", pf_segment)
+        if pf_candidates:
+            parsed_pf = _parse_number_token(pf_candidates[-1])
+            if parsed_pf is not None:
+                symbol_pf = parsed_pf
+
+    manual_trades = _find_int(symbols_text, [r"(\d+)\s*Manual\s*Trading"])
+    signals = _find_int(symbols_text, [r"(\d+)\s*Trading\s*Signals"])
+
+    risk_balance = _find_number(risks_text, [r"Risks\s*([+-]?\d[\d\s.,]*)\s*Balance"])
+    risk_drawdown_pct = _find_number(risks_text, [r"Balance\s*([+-]?\d[\d\s.,]*)%Drawdown"])
+    risk_deposit_load_pct = _find_number(risks_text, [r"Balance\s*([+-]?\d[\d\s.,]*)%Deposit\s*Load"])
+    best_trade = _find_number(risks_text, [r"Best\s*trade:\s*([+-]?\d[\d\s.,]*)"])
+    worst_trade = _find_number(risks_text, [r"Worst\s*trade:\s*([+-]?\d[\d\s.,]*)"])
+    max_consecutive_wins = _find_int(risks_text, [r"Max\.?\s*consecutive\s*wins:\s*([+-]?\d[\d\s.,]*)"])
+    max_consecutive_losses = _find_int(risks_text, [r"Max\.?\s*consecutive\s*losses:\s*([+-]?\d[\d\s.,]*)"])
+    max_consecutive_profit = _find_number(risks_text, [r"Max\.?\s*consecutive\s*profit:\s*([+-]?\d[\d\s.,]*)"])
+    max_consecutive_loss = _find_number(risks_text, [r"Max\.?\s*consecutive\s*loss:\s*([+-]?\d[\d\s.,]*)"])
+
+    profit_factor = None
+    if gross_profit is not None and gross_loss not in (None, 0):
+        profit_factor = abs(gross_profit / gross_loss)
+    elif symbol_pf is not None:
+        profit_factor = symbol_pf
+    if summary_cluster_match:
+        profit_factor = _parse_number_token(summary_cluster_match.group("pf")) or profit_factor
+
+    sharp_ratio = _parse_number_token(summary_cluster_match.group("sharp")) if summary_cluster_match else None
+    recovery_factor = _parse_number_token(summary_cluster_match.group("recovery")) if summary_cluster_match else None
+    cluster_max_drawdown_pct = _parse_number_token(summary_cluster_match.group("maxdd")) if summary_cluster_match else None
+    max_deposit_load_pct = _parse_number_token(summary_cluster_match.group("deposit")) if summary_cluster_match else None
+    trades_per_week = _parse_number_token(summary_cluster_match.group("tradesw")) if summary_cluster_match else None
+    avg_hold_minutes = _parse_number_token(summary_cluster_match.group("holdm")) if summary_cluster_match else None
+
+    start_balance = None
+    if isinstance(risk_balance, (int, float)) and isinstance(net_pnl, (int, float)):
+        start_balance = risk_balance - net_pnl
+
+    if recovery_factor is None and isinstance(net_pnl, (int, float)):
+        dd_pct = cluster_max_drawdown_pct if cluster_max_drawdown_pct is not None else summary_drawdown_pct
+        if isinstance(start_balance, (int, float)) and isinstance(dd_pct, (int, float)) and dd_pct > 0:
+            dd_abs = start_balance * (dd_pct / 100.0)
+            if dd_abs > 0:
+                recovery_factor = net_pnl / dd_abs
+
+    if trades_per_week is None:
+        total_for_week = total_trades if isinstance(total_trades, (int, float)) else None
+        if total_for_week and report_period.get("start") and report_period.get("end"):
+            try:
+                dt_start = datetime.fromisoformat(report_period["start"])
+                dt_end = datetime.fromisoformat(report_period["end"])
+                total_weeks = max((dt_end - dt_start).days / 7.0, 1 / 7)
+                trades_per_week = total_for_week / total_weeks
+            except Exception:
+                pass
+
+    visuals = _build_pdf_trade_visuals(
+        parsed_trades or [],
+        start_balance,
+        risk_balance,
+        report_period.get("start"),
+        report_period.get("end"),
+    )
+
+    return {
+        "report_period": report_period,
+        "summary": {
+            "growth_pct": growth_pct,
+            "drawdown_pct": summary_drawdown_pct if summary_drawdown_pct is not None else risk_drawdown_pct,
+            "profit_factor": round(profit_factor, 4) if isinstance(profit_factor, (int, float)) else None,
+            "avg_r": None,
+            "start_balance": round(start_balance, 2) if isinstance(start_balance, (int, float)) else None,
+            "final_balance": round(risk_balance, 2) if isinstance(risk_balance, (int, float)) else None,
+            "sharp_ratio": round(sharp_ratio, 4) if isinstance(sharp_ratio, (int, float)) else None,
+            "recovery_factor": round(recovery_factor, 4) if isinstance(recovery_factor, (int, float)) else None,
+            "max_drawdown_pct": cluster_max_drawdown_pct if isinstance(cluster_max_drawdown_pct, (int, float)) else (summary_drawdown_pct if summary_drawdown_pct is not None else risk_drawdown_pct),
+            "max_deposit_load_pct": max_deposit_load_pct,
+            "trades_per_week": round(trades_per_week, 3) if isinstance(trades_per_week, (int, float)) else None,
+            "avg_hold_minutes": avg_hold_minutes,
+        },
+        "profit_loss": {
+            "gross_profit": round(gross_profit, 2) if isinstance(gross_profit, (int, float)) else None,
+            "gross_loss": round(gross_loss, 2) if isinstance(gross_loss, (int, float)) else None,
+            "net_pnl": round(net_pnl, 2) if isinstance(net_pnl, (int, float)) else None,
+            "commissions": _find_number(pnl_text, [r"([+-]?\d[\d\s.,]*)\s*Commissions"]),
+            "swaps": _find_number(pnl_text, [r"([+-]?\d[\d\s.,]*)\s*Swaps"]),
+            "dividends": _find_number(pnl_text, [r"([+-]?\d[\d\s.,]*)\s*Dividends"]),
+        },
+        "long_short": {
+            "long_count": long_count,
+            "long_pct": long_pct,
+            "short_count": short_count,
+            "short_pct": short_pct,
+            "total_trades": total_trades,
+            "win_rate_pct": round(win_rate_pct, 2) if isinstance(win_rate_pct, (int, float)) else None,
+            "win_trades": win_trades,
+            "net_pnl": net_pnl,
+            "avg_pl": avg_pl,
+        },
+        "symbols": {
+            "primary_symbol": primary_symbol,
+            "net_profit": symbol_net if symbol_net is not None else _find_number(symbols_text, [r"([+-]?\d[\d\s.,]*)\s*Netto\s*Profit"]),
+            "profit_factor": symbol_pf,
+            "manual_trades": manual_trades,
+            "signals": signals,
+            "items": ([{
+                "symbol": primary_symbol,
+                "net_pnl": symbol_net if symbol_net is not None else None,
+                "profit_factor": symbol_pf,
+            }] if primary_symbol else []),
+        },
+        "risks": {
+            "balance": risk_balance,
+            "drawdown_pct": risk_drawdown_pct,
+            "deposit_load_pct": risk_deposit_load_pct,
+            "best_trade": best_trade,
+            "worst_trade": worst_trade,
+            "max_consecutive_wins": max_consecutive_wins,
+            "max_consecutive_losses": max_consecutive_losses,
+            "max_consecutive_profit": max_consecutive_profit,
+            "max_consecutive_loss": max_consecutive_loss,
+        },
+        "visuals": visuals,
+    }
+
+
+def _extract_report_title(pdf_reader: PdfReader, pages_text: List[str]) -> str:
+    metadata = pdf_reader.metadata or {}
+    raw_title = (metadata.get("/Title") or "").strip()
+    if raw_title:
+        return raw_title
+
+    if pages_text:
+        first_page_lines = [line.strip() for line in pages_text[0].splitlines() if line.strip()]
+        if first_page_lines:
+            return first_page_lines[0][:180]
+    return "Trade Report MT5"
+
+
+def _extract_report_sections(pages_text: List[str]) -> Dict[str, Any]:
+    section_texts: Dict[str, str] = {key: "" for key in MT5_REPORT_SECTIONS.keys()}
+    ordered_keys = list(MT5_REPORT_SECTIONS.keys())
+
+    for idx, raw_text in enumerate(pages_text):
+        compact = _compress_spaces(raw_text)
+        if not compact:
+            continue
+
+        detected_key = None
+        for key, pattern in MT5_REPORT_SECTION_PATTERNS.items():
+            if pattern.search(compact):
+                detected_key = key
+                break
+
+        if not detected_key and idx < len(ordered_keys):
+            detected_key = ordered_keys[idx]
+
+        if detected_key:
+            if section_texts[detected_key]:
+                section_texts[detected_key] = f"{section_texts[detected_key]} {compact}"
+            else:
+                section_texts[detected_key] = compact
+
+    output: Dict[str, Any] = {}
+    for key, cfg in MT5_REPORT_SECTIONS.items():
+        section_text = section_texts.get(key, "")
+        metrics: Dict[str, str] = {}
+        for metric_cfg in cfg["metrics"]:
+            metric_label = metric_cfg.get("label")
+            metric_value = _extract_metric_value(section_text, metric_cfg)
+            if metric_value:
+                metrics[metric_label] = metric_value
+
+        output[key] = {
+            "title": cfg["title"],
+            "metrics": metrics,
+            "excerpt": section_text[:700],
+            "raw_text": section_text,
+        }
+
+    return output
+
 @api_router.post("/trades", response_model=TradeRecord)
 async def create_trade(data: TradeRecordCreate, current_user: dict = Depends(get_current_user)):
     trade = TradeRecord(user_id=current_user["id"], **data.model_dump())
-    await db.trades.insert_one(trade.model_dump())
-    await db.users.update_one({"id": current_user["id"]}, {"$inc": {"xp": 5}})
+    if DEMO_MODE or db is None:
+        demo_data.setdefault("trades", []).append(trade.model_dump())
+        for user in demo_users.values():
+            if user.get("id") == current_user["id"]:
+                user["xp"] = user.get("xp", 0) + 5
+                break
+    else:
+        await db.trades.insert_one(trade.model_dump())
+        await db.users.update_one({"id": current_user["id"]}, {"$inc": {"xp": 5}})
     return trade
+
+
+@api_router.post("/trades/import/pdf")
+async def import_trades_from_pdf(
+    file: UploadFile = File(...),
+    mode: str = Form(default="summary"),
+    strategy_name: Optional[str] = Form(default=None),
+    current_user: dict = Depends(get_current_user),
+):
+    normalized_mode = (mode or "summary").strip().lower()
+    if normalized_mode not in {"summary", "trades"}:
+        raise HTTPException(status_code=400, detail="Mode non valido. Usa 'summary' o 'trades'")
+
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    try:
+        content = await file.read()
+        pdf_reader = PdfReader(io.BytesIO(content))
+        pages_text = [(page.extract_text() or "") for page in pdf_reader.pages]
+        text = "\n".join(pages_text)
+    except Exception as e:
+        logger.error(f"PDF trade import read error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid or unreadable PDF")
+
+    cleaned_strategy = strategy_name.strip() if strategy_name else None
+
+    if normalized_mode == "summary":
+        sections = _extract_report_sections(pages_text)
+        report_title = _extract_report_title(pdf_reader, pages_text)
+        parsed_trades = _extract_mt5_trades_from_text(text)
+        return {
+            "filename": file.filename,
+            "mode": "summary",
+            "report_title": report_title,
+            "page_count": len(pdf_reader.pages),
+            "strategy_name": cleaned_strategy,
+            "imported_count": 0,
+            "sections": sections,
+            "derived": _derive_report_metrics(sections, report_title, parsed_trades),
+        }
+
+    parsed_trades = _extract_mt5_trades_from_text(text)
+    if not parsed_trades:
+        raise HTTPException(
+            status_code=422,
+            detail="Nessuna operazione trovata nel PDF. Carica un report dettagliato MT5/MT4 con storico trade chiusi."
+        )
+
+    trade_docs: List[Dict[str, Any]] = []
+    for parsed in parsed_trades:
+        trade = TradeRecord(
+            user_id=current_user["id"],
+            strategy_name=cleaned_strategy,
+            source="pdf_import",
+            **parsed,
+        )
+        trade_docs.append(trade.model_dump())
+
+    if DEMO_MODE or db is None:
+        demo_data.setdefault("trades", []).extend(trade_docs)
+        xp_gain = min(len(trade_docs) * 2, 150)
+        for user in demo_users.values():
+            if user.get("id") == current_user["id"]:
+                user["xp"] = user.get("xp", 0) + xp_gain
+                break
+    else:
+        await db.trades.insert_many(trade_docs)
+        await db.users.update_one(
+            {"id": current_user["id"]},
+            {"$inc": {"xp": min(len(trade_docs) * 2, 150)}}
+        )
+
+    return {
+        "filename": file.filename,
+        "imported_count": len(trade_docs),
+        "page_count": len(pdf_reader.pages),
+        "strategy_name": cleaned_strategy,
+        "trades": trade_docs[:30],
+    }
+
+
+@api_router.delete("/trades/{trade_id}")
+async def delete_trade(trade_id: str, current_user: dict = Depends(get_current_user)):
+    if DEMO_MODE or db is None:
+        trades = demo_data.setdefault("trades", [])
+        initial_len = len(trades)
+        demo_data["trades"] = [
+            t for t in trades if not (t.get("id") == trade_id and t.get("user_id") == current_user["id"])
+        ]
+        deleted_count = initial_len - len(demo_data["trades"])
+        if deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Trade not found")
+        return {"status": "deleted", "deleted_count": deleted_count}
+
+    result = await db.trades.delete_one({"id": trade_id, "user_id": current_user["id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    return {"status": "deleted", "deleted_count": 1}
+
+
+@api_router.post("/trades/delete-bulk")
+async def delete_trades_bulk(data: TradeBulkDeleteRequest, current_user: dict = Depends(get_current_user)):
+    unique_ids = [tid for tid in dict.fromkeys(data.trade_ids) if tid]
+    if not unique_ids:
+        raise HTTPException(status_code=400, detail="No trade IDs provided")
+
+    if DEMO_MODE or db is None:
+        trades = demo_data.setdefault("trades", [])
+        initial_len = len(trades)
+        id_set = set(unique_ids)
+        demo_data["trades"] = [
+            t for t in trades if not (t.get("id") in id_set and t.get("user_id") == current_user["id"])
+        ]
+        deleted_count = initial_len - len(demo_data["trades"])
+        return {
+            "status": "deleted",
+            "requested_count": len(unique_ids),
+            "deleted_count": deleted_count
+        }
+
+    result = await db.trades.delete_many({
+        "id": {"$in": unique_ids},
+        "user_id": current_user["id"]
+    })
+
+    return {
+        "status": "deleted",
+        "requested_count": len(unique_ids),
+        "deleted_count": result.deleted_count
+    }
 
 @api_router.get("/trades", response_model=List[TradeRecord])
 async def get_trades(current_user: dict = Depends(get_current_user)):
+    if DEMO_MODE or db is None:
+        trades = [
+            t for t in demo_data.get("trades", [])
+            if t.get("user_id") == current_user["id"]
+        ]
+        trades.sort(key=lambda t: t.get("created_at", ""), reverse=True)
+        return trades[:500]
+
     trades = await db.trades.find(
         {"user_id": current_user["id"]}, {"_id": 0}
     ).sort("created_at", -1).to_list(500)
@@ -1003,7 +1806,13 @@ async def get_trades(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/trades/stats")
 async def get_trade_stats(current_user: dict = Depends(get_current_user)):
-    trades = await db.trades.find({"user_id": current_user["id"]}, {"_id": 0}).to_list(1000)
+    if DEMO_MODE or db is None:
+        trades = [
+            t for t in demo_data.get("trades", [])
+            if t.get("user_id") == current_user["id"]
+        ][:1000]
+    else:
+        trades = await db.trades.find({"user_id": current_user["id"]}, {"_id": 0}).to_list(1000)
     
     if not trades:
         return {"total_trades": 0, "win_rate": 0, "avg_r": 0, "total_pnl": 0, "max_dd": 0}
@@ -1309,9 +2118,9 @@ async def analyze_pdf(file: UploadFile = File(...), current_user: dict = Depends
 # Cache for market data (refresh every 5 minutes)
 _market_cache = {"data": None, "timestamp": None}
 _vix_cache = {"data": None, "timestamp": None}
-_market_fetch_lock = asyncio.Lock()
+_market_fetch_locks: Dict[int, asyncio.Lock] = {}
 MARKET_CACHE_HOT_TTL = 8  # seconds
-_capital_session_lock = asyncio.Lock()
+_capital_session_locks: Dict[int, asyncio.Lock] = {}
 _capital_session = {
     "cst": None,
     "security_token": None,
@@ -1337,6 +2146,20 @@ _cg_cache = {
     "charts": {} # cache by coin id
 }
 CG_CACHE_TTL = 300 # 5 minutes
+
+def get_loop_bound_lock(lock_pool: Dict[int, asyncio.Lock]) -> asyncio.Lock:
+    """
+    Return one asyncio.Lock per running loop.
+    Prevents "Future attached to a different loop" when scheduler and requests
+    touch the same async critical section from different event loops.
+    """
+    loop = asyncio.get_running_loop()
+    loop_id = id(loop)
+    lock = lock_pool.get(loop_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        lock_pool[loop_id] = lock
+    return lock
 
 def get_yf_ticker_safe(symbol: str, period: str = "5d", interval: str = "1d"):
     """Safely fetch data from yfinance with error handling"""
@@ -1430,7 +2253,9 @@ async def ensure_capital_session(force_refresh: bool = False) -> bool:
     ):
         return True
 
-    async with _capital_session_lock:
+    capital_session_lock = get_loop_bound_lock(_capital_session_locks)
+
+    async with capital_session_lock:
         now = datetime.now(timezone.utc)
         if (
             not force_refresh
@@ -1678,10 +2503,12 @@ async def get_market_prices():
         return prices
 
     # Ensure only one refresh runs; others reuse stale cache.
-    if _market_fetch_lock.locked() and _market_cache["data"]:
+    market_fetch_lock = get_loop_bound_lock(_market_fetch_locks)
+
+    if market_fetch_lock.locked() and _market_cache["data"]:
         return _market_cache["data"]
 
-    async with _market_fetch_lock:
+    async with market_fetch_lock:
         # Re-check cache in case another waiter already refreshed.
         now = datetime.now(timezone.utc)
         if _market_cache["data"] and _market_cache["timestamp"]:

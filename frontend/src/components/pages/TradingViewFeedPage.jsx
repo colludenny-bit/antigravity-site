@@ -9,8 +9,21 @@ const FEED_ASSETS = [
   { code: 'XAUUSD', label: 'Gold', tvSymbol: 'FOREXCOM:XAUUSD' },
   { code: 'EURUSD', label: 'EURUSD', tvSymbol: 'FX:EURUSD' },
 ];
+const TV_CANDLE_UP = '#22c55e';
+const TV_CANDLE_DOWN = '#ef4444';
 
 const buildTradingViewUrl = (tvSymbol) => {
+  const overrides = {
+    "mainSeriesProperties.style": 1,
+    "mainSeriesProperties.candleStyle.upColor": TV_CANDLE_UP,
+    "mainSeriesProperties.candleStyle.downColor": TV_CANDLE_DOWN,
+    "mainSeriesProperties.candleStyle.drawWick": true,
+    "mainSeriesProperties.candleStyle.drawBorder": true,
+    "mainSeriesProperties.candleStyle.wickUpColor": TV_CANDLE_UP,
+    "mainSeriesProperties.candleStyle.wickDownColor": TV_CANDLE_DOWN,
+    "mainSeriesProperties.candleStyle.borderUpColor": TV_CANDLE_UP,
+    "mainSeriesProperties.candleStyle.borderDownColor": TV_CANDLE_DOWN,
+  };
   const params = new URLSearchParams({
     symbol: tvSymbol,
     interval: '15',
@@ -20,12 +33,12 @@ const buildTradingViewUrl = (tvSymbol) => {
     toolbarbg: 'f1f3f6',
     studies: '[]',
     theme: 'dark',
-    style: '3',
+    style: '1',
     timezone: 'exchange',
     withdateranges: '0',
     showpopupbutton: '0',
     studies_overrides: '{}',
-    overrides: '{}',
+    overrides: JSON.stringify(overrides),
     enabled_features: '[]',
     disabled_features: '[]',
     locale: 'it',
@@ -54,7 +67,7 @@ export default function TradingViewFeedPage() {
           <h1 className="text-xl font-bold text-white">TradingView Feed (Owner)</h1>
         </div>
         <p className="text-sm text-white/60">
-          Feed live da widget TradingView, timeframe 15m e stile linea.
+          Feed live da widget TradingView, timeframe 15m e candele semplici.
         </p>
       </motion.div>
 
@@ -66,7 +79,7 @@ export default function TradingViewFeedPage() {
                 <h3 className="text-sm font-bold text-white">{asset.code}</h3>
                 <p className="text-xs text-white/50">{asset.label}</p>
               </div>
-              <span className="text-[10px] font-bold text-[#00D9A5] uppercase tracking-widest">TV 15m Line</span>
+              <span className="text-[10px] font-bold text-[#00D9A5] uppercase tracking-widest">TV 15m Candles</span>
             </div>
             <div className="rounded-xl overflow-hidden border border-white/10 bg-black/20 h-[300px]">
               <iframe

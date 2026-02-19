@@ -20,7 +20,7 @@ export const TechCard = ({
     const cardClasses = cn(
         "tech-card p-4",
         active && "tech-card-active",
-        glow && "hover:shadow-[0_0_30px_rgba(0,217,165,0.15)]",
+        glow && "hover:shadow-[0_0_30px_rgba(255,255,255,0.12)]",
         className
     );
 

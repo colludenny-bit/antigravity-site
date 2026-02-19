@@ -111,13 +111,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
       {/* Desktop Sidebar - Premium Dark Theme */}
       <aside
         className={cn(
-          "fixed top-0 left-0 h-full z-50",
+          "fixed top-3 bottom-3 left-3 z-50",
           "hidden lg:flex flex-col items-center py-4",
-          "w-20",
-          "bg-gradient-to-b from-[#0a0e12] to-[#060809]",
-          "border-r border-[#00D9A5]/15",
+          "w-20 rounded-[22px]",
+          "bg-gradient-to-b from-[#060606] to-[#000000]",
+          "border border-white/14",
           "backdrop-blur-2xl",
-          "shadow-[4px_0_30px_rgba(0,217,165,0.05)]"
+          "shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
         )}
         data-testid="sidebar-desktop"
       >
@@ -136,7 +136,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
               className="w-28 h-28 object-contain transition-all"
               style={{ transform: 'translateX(12px)' }}
             />
-            <span className="absolute -bottom-1 text-[8px] text-primary opacity-0 group-hover:opacity-100 transition-opacity font-bold">
+            <span className="absolute -bottom-1 text-[8px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity font-bold">
               🎤 Analizza
             </span>
           </button>
@@ -154,18 +154,19 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 to={item.path}
                 className={cn(
                   "w-full py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all duration-200",
-                  "hover:bg-primary/10",
-                  isActive && "bg-primary/20"
+                  "hover:bg-white/10",
+                  isActive && "bg-white/14"
                 )}
                 data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
               >
                 <Icon className={cn(
-                  "w-7 h-7 sidebar-icon-animate",
-                  isActive ? item.iconClass : "text-muted-foreground"
+                  "w-7 h-7 sidebar-icon-animate transition-all",
+                  "text-white/72",
+                  isActive && "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
                 )} />
                 <span className={cn(
                   "text-[9px] font-medium leading-tight text-center",
-                  isActive ? "text-primary" : "text-muted-foreground"
+                  isActive ? "text-white/92" : "text-white/64"
                 )}>
                   {item.label}
                 </span>
@@ -180,15 +181,16 @@ export const Sidebar = ({ isOpen, onClose }) => {
           <NavLink
             to="/welcome"
             className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center transition-colors hover:bg-secondary",
-              location.pathname === '/welcome' && "bg-primary/20"
+              "w-12 h-12 rounded-xl flex items-center justify-center transition-colors hover:bg-white/10",
+              location.pathname === '/welcome' && "bg-white/14"
             )}
             title="Torna alla Home"
             data-testid="nav-home"
           >
             <Home className={cn(
-              "w-7 h-7",
-              location.pathname === '/welcome' ? "text-primary" : "text-muted-foreground"
+              "w-7 h-7 transition-all",
+              "text-white/72",
+              location.pathname === '/welcome' && "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
             )} />
           </NavLink>
 
@@ -196,14 +198,15 @@ export const Sidebar = ({ isOpen, onClose }) => {
           <NavLink
             to="/app/settings"
             className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center transition-colors hover:bg-secondary",
-              location.pathname === '/app/settings' && "bg-primary/20"
+              "w-12 h-12 rounded-xl flex items-center justify-center transition-colors hover:bg-white/10",
+              location.pathname === '/app/settings' && "bg-white/14"
             )}
             data-testid="nav-settings"
           >
             <Settings className={cn(
-              "w-7 h-7",
-              location.pathname === '/app/settings' ? "text-primary" : "text-muted-foreground"
+              "w-7 h-7 transition-all",
+              "text-white/72",
+              location.pathname === '/app/settings' && "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
             )} />
           </NavLink>
         </div>

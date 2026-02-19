@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -12,12 +11,13 @@ import {
   Target, Plus, Zap, TrendingUp, TrendingDown,
   Percent, Shield, AlertTriangle, ArrowRight, Download,
   Play, BarChart3, Activity, Layers, Settings2, DollarSign,
-  ChevronDown, ChevronUp, Trophy, Pause, Ban, Scale,
-  CheckCircle, XCircle, Minus, ArrowUp, ArrowDown
+  ChevronDown, ChevronUp, Trophy, Pause, Ban,
+  CheckCircle, Minus, ArrowUp, ArrowDown, BookOpen, Upload, Loader2, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { detailedStrategies } from '../../data/strategies';
+import api from '../../services/api';
 
 const dataQualityMetrics = {
   completeness: 94,
@@ -34,6 +34,56 @@ const portfolioMetrics = {
   portfolioDrawdown: Math.max(...detailedStrategies.map(s => s.maxDrawdown || 0)),
   sharpeRatio: 1.85,
   netPnl: detailedStrategies.reduce((acc, s) => acc + (s.netPnl || 0), 0)
+};
+
+const getDefaultTradeDateTime = () => {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
+const formatTradeDate = (rawValue) => {
+  if (!rawValue) return '-';
+  const parsed = new Date(rawValue);
+  return Number.isNaN(parsed.getTime()) ? rawValue : parsed.toLocaleString('it-IT');
+};
+
+const toNumber = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const toNullableNumber = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const formatFixed = (value, digits = 2) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return 'N/D';
+  return Number(value).toFixed(digits);
+};
+
+const formatSignedFixed = (value, digits = 2) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return 'N/D';
+  const n = Number(value);
+  return `${n >= 0 ? '+' : ''}${n.toFixed(digits)}`;
+};
+
+const inferTradeSide = (trade) => {
+  const normalized = (trade?.side || '').toLowerCase();
+  if (normalized === 'long' || normalized === 'buy') return 'long';
+  if (normalized === 'short' || normalized === 'sell') return 'short';
+
+  const entry = toNumber(trade?.entry_price);
+  const exit = toNumber(trade?.exit_price);
+  const pnl = toNumber(trade?.profit_loss);
+
+  if (entry === exit) return 'unknown';
+  const movedUp = exit > entry;
+
+  if (pnl > 0) return movedUp ? 'long' : 'short';
+  if (pnl < 0) return movedUp ? 'short' : 'long';
+  return movedUp ? 'long' : 'short';
 };
 
 const StrategyCard = ({ strategy, onExportToMonteCarlo }) => {
@@ -382,6 +432,501 @@ export default function StrategyPage() {
     ...s,
     probabilityFactors: ['Definiti dall\'utente']
   }))];
+  const selectableStrategies = allStrategies.filter((s) => !s.isModulator).map((s) => s.name);
+  const fileInputRef = useRef(null);
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [selectedJournalStrategy, setSelectedJournalStrategy] = useState('');
+  const [journalStatsTab, setJournalStatsTab] = useState('summary');
+  const [tradeRows, setTradeRows] = useState([]);
+  const [pdfReportSummary, setPdfReportSummary] = useState(null);
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [selectedTradeIds, setSelectedTradeIds] = useState([]);
+  const [isTradesLoading, setIsTradesLoading] = useState(false);
+  const [isManualSaving, setIsManualSaving] = useState(false);
+  const [isPdfImporting, setIsPdfImporting] = useState(false);
+  const [isDeletingTrades, setIsDeletingTrades] = useState(false);
+  const [manualTrade, setManualTrade] = useState({
+    symbol: '',
+    side: 'long',
+    entry_price: '',
+    exit_price: '',
+    profit_loss: '',
+    profit_loss_r: '',
+    date: getDefaultTradeDateTime(),
+    notes: ''
+  });
+
+  useEffect(() => {
+    if (!selectedJournalStrategy && selectableStrategies.length > 0) {
+      setSelectedJournalStrategy(selectableStrategies[0]);
+    }
+  }, [selectableStrategies, selectedJournalStrategy]);
+
+  const filteredTradeRows = useMemo(() => {
+    if (!selectedJournalStrategy) return tradeRows;
+    return tradeRows.filter((trade) => (trade.strategy_name || '') === selectedJournalStrategy);
+  }, [tradeRows, selectedJournalStrategy]);
+
+  const journalAnalytics = useMemo(() => {
+    const rows = [...filteredTradeRows];
+    const totalTrades = rows.length;
+    const wins = rows.filter((trade) => toNumber(trade.profit_loss) > 0).length;
+    const losses = rows.filter((trade) => toNumber(trade.profit_loss) < 0).length;
+    const grossProfit = rows.reduce((acc, trade) => {
+      const pnl = toNumber(trade.profit_loss);
+      return pnl > 0 ? acc + pnl : acc;
+    }, 0);
+    const grossLoss = rows.reduce((acc, trade) => {
+      const pnl = toNumber(trade.profit_loss);
+      return pnl < 0 ? acc + pnl : acc;
+    }, 0);
+    const netPnl = grossProfit + grossLoss;
+    const avgTrade = totalTrades > 0 ? netPnl / totalTrades : 0;
+    const avgWin = wins > 0 ? grossProfit / wins : 0;
+    const avgLoss = losses > 0 ? grossLoss / losses : 0;
+    const avgR = totalTrades > 0
+      ? rows.reduce((acc, trade) => acc + toNumber(trade.profit_loss_r), 0) / totalTrades
+      : 0;
+    const grossLossAbs = Math.abs(grossLoss);
+    const profitFactor = grossLossAbs > 0 ? grossProfit / grossLossAbs : (grossProfit > 0 ? Infinity : 0);
+    const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+
+    const sortedRows = [...rows].sort((a, b) => {
+      const aTs = new Date(a.date || 0).getTime();
+      const bTs = new Date(b.date || 0).getTime();
+      return aTs - bTs;
+    });
+
+    let runningPnl = 0;
+    let peakPnl = 0;
+    let maxDrawdown = 0;
+    let currentWinStreak = 0;
+    let currentLossStreak = 0;
+    let maxWinStreak = 0;
+    let maxLossStreak = 0;
+    let currentProfitRun = 0;
+    let currentLossRun = 0;
+    let maxConsecutiveProfit = 0;
+    let maxConsecutiveLoss = 0;
+
+    sortedRows.forEach((trade) => {
+      const pnl = toNumber(trade.profit_loss);
+      runningPnl += pnl;
+      peakPnl = Math.max(peakPnl, runningPnl);
+      maxDrawdown = Math.min(maxDrawdown, runningPnl - peakPnl);
+
+      if (pnl > 0) {
+        currentWinStreak += 1;
+        currentLossStreak = 0;
+        maxWinStreak = Math.max(maxWinStreak, currentWinStreak);
+        currentProfitRun += pnl;
+        maxConsecutiveProfit = Math.max(maxConsecutiveProfit, currentProfitRun);
+        currentLossRun = 0;
+      } else if (pnl < 0) {
+        currentLossStreak += 1;
+        currentWinStreak = 0;
+        maxLossStreak = Math.max(maxLossStreak, currentLossStreak);
+        currentLossRun += pnl;
+        maxConsecutiveLoss = Math.min(maxConsecutiveLoss, currentLossRun);
+        currentProfitRun = 0;
+      } else {
+        currentWinStreak = 0;
+        currentLossStreak = 0;
+      }
+    });
+
+    const sideStats = {
+      long: { count: 0, wins: 0, netPnl: 0 },
+      short: { count: 0, wins: 0, netPnl: 0 },
+      unknown: { count: 0, wins: 0, netPnl: 0 }
+    };
+    const symbolsMap = new Map();
+
+    rows.forEach((trade) => {
+      const pnl = toNumber(trade.profit_loss);
+      const side = inferTradeSide(trade);
+      const safeSide = sideStats[side] ? side : 'unknown';
+      sideStats[safeSide].count += 1;
+      if (pnl > 0) sideStats[safeSide].wins += 1;
+      sideStats[safeSide].netPnl += pnl;
+
+      const symbol = (trade.symbol || 'N/A').toUpperCase().trim() || 'N/A';
+      if (!symbolsMap.has(symbol)) {
+        symbolsMap.set(symbol, { symbol, count: 0, wins: 0, losses: 0, netPnl: 0 });
+      }
+      const symbolItem = symbolsMap.get(symbol);
+      symbolItem.count += 1;
+      symbolItem.netPnl += pnl;
+      if (pnl > 0) symbolItem.wins += 1;
+      if (pnl < 0) symbolItem.losses += 1;
+    });
+
+    const symbols = Array.from(symbolsMap.values())
+      .map((item) => ({
+        ...item,
+        winRate: item.count > 0 ? (item.wins / item.count) * 100 : 0
+      }))
+      .sort((a, b) => Math.abs(b.netPnl) - Math.abs(a.netPnl));
+
+    const bestTrade = rows.reduce((best, trade) => {
+      const pnl = toNumber(trade.profit_loss);
+      return pnl > best ? pnl : best;
+    }, Number.NEGATIVE_INFINITY);
+    const worstTrade = rows.reduce((worst, trade) => {
+      const pnl = toNumber(trade.profit_loss);
+      return pnl < worst ? pnl : worst;
+    }, Number.POSITIVE_INFINITY);
+
+    const withRates = (sideData) => ({
+      ...sideData,
+      winRate: sideData.count > 0 ? (sideData.wins / sideData.count) * 100 : 0
+    });
+
+    return {
+      summary: {
+        totalTrades,
+        wins,
+        losses,
+        winRate,
+        avgR,
+        profitFactor,
+        maxDrawdown: Math.abs(maxDrawdown),
+      },
+      profitLoss: {
+        grossProfit,
+        grossLoss,
+        netPnl,
+        avgTrade,
+        avgWin,
+        avgLoss
+      },
+      longShort: {
+        long: withRates(sideStats.long),
+        short: withRates(sideStats.short),
+        unknown: withRates(sideStats.unknown),
+      },
+      symbols,
+      risks: {
+        bestTrade: Number.isFinite(bestTrade) ? bestTrade : 0,
+        worstTrade: Number.isFinite(worstTrade) ? worstTrade : 0,
+        maxWinStreak,
+        maxLossStreak,
+        maxConsecutiveProfit,
+        maxConsecutiveLoss,
+      }
+    };
+  }, [filteredTradeRows]);
+
+  const strategyStats = useMemo(() => ({
+    total: journalAnalytics.summary.totalTrades,
+    wins: journalAnalytics.summary.wins,
+    losses: journalAnalytics.summary.losses,
+    winRate: journalAnalytics.summary.winRate,
+    totalPnl: journalAnalytics.profitLoss.netPnl,
+    avgR: journalAnalytics.summary.avgR
+  }), [journalAnalytics]);
+  const pdfDerived = useMemo(() => (pdfReportSummary?.derived || {}), [pdfReportSummary]);
+  const usePdfForStats = filteredTradeRows.length === 0 && Boolean(pdfReportSummary);
+
+  const resolvedSummary = useMemo(() => {
+    if (!usePdfForStats) {
+      return {
+        totalTrades: strategyStats.total,
+        winRate: strategyStats.winRate,
+        profitFactor: journalAnalytics.summary.profitFactor,
+        netPnl: strategyStats.totalPnl,
+        avgR: strategyStats.avgR,
+        maxDrawdown: journalAnalytics.summary.maxDrawdown,
+      };
+    }
+
+    return {
+      totalTrades: toNullableNumber(pdfDerived?.long_short?.total_trades),
+      winRate: toNullableNumber(pdfDerived?.long_short?.win_rate_pct),
+      profitFactor: toNullableNumber(pdfDerived?.summary?.profit_factor),
+      netPnl: toNullableNumber(pdfDerived?.profit_loss?.net_pnl ?? pdfDerived?.long_short?.net_pnl),
+      avgR: toNullableNumber(pdfDerived?.summary?.avg_r),
+      maxDrawdown: toNullableNumber(pdfDerived?.summary?.drawdown_pct ?? pdfDerived?.risks?.drawdown_pct),
+    };
+  }, [usePdfForStats, strategyStats, journalAnalytics, pdfDerived]);
+
+  const resolvedProfitLoss = useMemo(() => {
+    if (!usePdfForStats) {
+      return {
+        grossProfit: journalAnalytics.profitLoss.grossProfit,
+        grossLoss: journalAnalytics.profitLoss.grossLoss,
+        netPnl: journalAnalytics.profitLoss.netPnl,
+        avgTrade: journalAnalytics.profitLoss.avgTrade,
+        avgWin: journalAnalytics.profitLoss.avgWin,
+        avgLoss: journalAnalytics.profitLoss.avgLoss
+      };
+    }
+
+    const grossProfit = toNullableNumber(pdfDerived?.profit_loss?.gross_profit);
+    const grossLoss = toNullableNumber(pdfDerived?.profit_loss?.gross_loss);
+    const netPnl = toNullableNumber(pdfDerived?.profit_loss?.net_pnl);
+    const totalTrades = toNullableNumber(pdfDerived?.long_short?.total_trades);
+    const avgTrade = (netPnl !== null && totalTrades && totalTrades > 0) ? netPnl / totalTrades : null;
+    const winRatePct = toNullableNumber(pdfDerived?.long_short?.win_rate_pct);
+    const estimatedWins = (totalTrades && winRatePct !== null) ? Math.round((totalTrades * winRatePct) / 100) : null;
+    const estimatedLosses = (totalTrades && estimatedWins !== null) ? Math.max(totalTrades - estimatedWins, 0) : null;
+    const avgWin = (grossProfit !== null && estimatedWins && estimatedWins > 0) ? grossProfit / estimatedWins : null;
+    const avgLoss = (grossLoss !== null && estimatedLosses && estimatedLosses > 0) ? grossLoss / estimatedLosses : null;
+
+    return {
+      grossProfit,
+      grossLoss,
+      netPnl,
+      avgTrade,
+      avgWin,
+      avgLoss
+    };
+  }, [usePdfForStats, journalAnalytics, pdfDerived]);
+
+  const resolvedLongShort = useMemo(() => {
+    if (!usePdfForStats) {
+      return journalAnalytics.longShort;
+    }
+
+    const longCount = toNullableNumber(pdfDerived?.long_short?.long_count);
+    const shortCount = toNullableNumber(pdfDerived?.long_short?.short_count);
+    const totalTrades = toNullableNumber(pdfDerived?.long_short?.total_trades);
+    const winRate = toNullableNumber(pdfDerived?.long_short?.win_rate_pct);
+    const netPnl = toNullableNumber(pdfDerived?.long_short?.net_pnl ?? pdfDerived?.profit_loss?.net_pnl);
+    const longPct = toNullableNumber(pdfDerived?.long_short?.long_pct);
+    const shortPct = toNullableNumber(pdfDerived?.long_short?.short_pct);
+    const longNet = (netPnl !== null && longPct !== null) ? (netPnl * longPct) / 100 : null;
+    const shortNet = (netPnl !== null && shortPct !== null) ? (netPnl * shortPct) / 100 : null;
+
+    const makeSide = (count, pct, sideNetPnl) => ({
+      count: count ?? 0,
+      wins: (count && winRate !== null) ? Math.round((count * winRate) / 100) : 0,
+      netPnl: sideNetPnl ?? 0,
+      winRate: winRate ?? 0,
+      pct
+    });
+
+    const unknownCount = totalTrades !== null
+      ? Math.max(totalTrades - (longCount || 0) - (shortCount || 0), 0)
+      : 0;
+
+    return {
+      long: makeSide(longCount, longPct, longNet),
+      short: makeSide(shortCount, shortPct, shortNet),
+      unknown: { count: unknownCount, wins: 0, netPnl: 0, winRate: 0, pct: null }
+    };
+  }, [usePdfForStats, journalAnalytics, pdfDerived]);
+
+  const resolvedSymbols = useMemo(() => {
+    if (!usePdfForStats) {
+      return journalAnalytics.symbols;
+    }
+
+    const items = Array.isArray(pdfDerived?.symbols?.items) ? pdfDerived.symbols.items : [];
+    const normalized = items
+      .map((item) => ({
+        symbol: item?.symbol || pdfDerived?.symbols?.primary_symbol || 'N/D',
+        count: toNullableNumber(pdfDerived?.symbols?.manual_trades) ?? 0,
+        wins: 0,
+        losses: 0,
+        netPnl: toNullableNumber(item?.net_pnl ?? pdfDerived?.symbols?.net_profit) ?? 0,
+        winRate: toNullableNumber(pdfDerived?.long_short?.win_rate_pct) ?? 0,
+        profitFactor: toNullableNumber(item?.profit_factor ?? pdfDerived?.symbols?.profit_factor)
+      }))
+      .filter((item) => item.symbol !== 'N/D');
+
+    if (normalized.length > 0) return normalized;
+
+    if (pdfDerived?.symbols?.primary_symbol) {
+      return [{
+        symbol: pdfDerived.symbols.primary_symbol,
+        count: toNullableNumber(pdfDerived?.symbols?.manual_trades) ?? 0,
+        wins: 0,
+        losses: 0,
+        netPnl: toNullableNumber(pdfDerived?.symbols?.net_profit) ?? 0,
+        winRate: toNullableNumber(pdfDerived?.long_short?.win_rate_pct) ?? 0,
+        profitFactor: toNullableNumber(pdfDerived?.symbols?.profit_factor)
+      }];
+    }
+
+    return [];
+  }, [usePdfForStats, journalAnalytics, pdfDerived]);
+
+  const resolvedRisks = useMemo(() => {
+    if (!usePdfForStats) {
+      return journalAnalytics.risks;
+    }
+    return {
+      bestTrade: toNullableNumber(pdfDerived?.risks?.best_trade),
+      worstTrade: toNullableNumber(pdfDerived?.risks?.worst_trade),
+      maxWinStreak: toNullableNumber(pdfDerived?.risks?.max_consecutive_wins),
+      maxLossStreak: toNullableNumber(pdfDerived?.risks?.max_consecutive_losses),
+      maxConsecutiveProfit: toNullableNumber(pdfDerived?.risks?.max_consecutive_profit),
+      maxConsecutiveLoss: toNullableNumber(pdfDerived?.risks?.max_consecutive_loss),
+    };
+  }, [usePdfForStats, journalAnalytics, pdfDerived]);
+
+  const loadTrades = useCallback(async (showError = true) => {
+    setIsTradesLoading(true);
+    try {
+      const res = await api.get('/trades');
+      setTradeRows(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      if (showError) {
+        toast.error('Impossibile caricare il diario operazioni');
+      }
+    } finally {
+      setIsTradesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'trade-journal') {
+      loadTrades(false);
+    }
+  }, [activeTab, loadTrades]);
+
+  useEffect(() => {
+    const visibleIds = new Set(filteredTradeRows.map((trade) => trade.id));
+    setSelectedTradeIds((prev) => prev.filter((id) => visibleIds.has(id)));
+  }, [filteredTradeRows]);
+
+  const toggleTradeSelection = (tradeId) => {
+    setSelectedTradeIds((prev) => (
+      prev.includes(tradeId)
+        ? prev.filter((id) => id !== tradeId)
+        : [...prev, tradeId]
+    ));
+  };
+
+  const toggleBulkMode = () => {
+    setIsBulkMode((prev) => {
+      if (prev) {
+        setSelectedTradeIds([]);
+      }
+      return !prev;
+    });
+  };
+
+  const handleDeleteSingleTrade = async (tradeId) => {
+    setIsDeletingTrades(true);
+    try {
+      await api.delete(`/trades/${tradeId}`);
+      setSelectedTradeIds((prev) => prev.filter((id) => id !== tradeId));
+      toast.success('Operazione eliminata');
+      await loadTrades(false);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Errore eliminazione operazione');
+    } finally {
+      setIsDeletingTrades(false);
+    }
+  };
+
+  const handleDeleteSelectedTrades = async () => {
+    if (selectedTradeIds.length === 0) return;
+
+    setIsDeletingTrades(true);
+    try {
+      const res = await api.post('/trades/delete-bulk', { trade_ids: selectedTradeIds });
+      toast.success(`Eliminate ${res.data?.deleted_count ?? selectedTradeIds.length} operazioni`);
+      setSelectedTradeIds([]);
+      await loadTrades(false);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Errore eliminazione bulk');
+    } finally {
+      setIsDeletingTrades(false);
+    }
+  };
+
+  const handleManualTradeSave = async () => {
+    if (!manualTrade.symbol || manualTrade.entry_price === '' || manualTrade.exit_price === '' || manualTrade.profit_loss === '') {
+      toast.error('Compila simbolo, entry, exit e P&L');
+      return;
+    }
+
+    const entryPrice = Number(manualTrade.entry_price);
+    const exitPrice = Number(manualTrade.exit_price);
+    const profitLoss = Number(manualTrade.profit_loss);
+    const profitLossR = manualTrade.profit_loss_r === '' ? 0 : Number(manualTrade.profit_loss_r);
+
+    if ([entryPrice, exitPrice, profitLoss, profitLossR].some((n) => Number.isNaN(n))) {
+      toast.error('Valori numerici non validi');
+      return;
+    }
+
+    setIsManualSaving(true);
+    try {
+      const strategyForSave = selectedJournalStrategy || null;
+      const parsedDate = manualTrade.date ? new Date(manualTrade.date) : new Date();
+      const normalizedDate = Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString();
+      await api.post('/trades', {
+        symbol: manualTrade.symbol.toUpperCase().trim(),
+        side: manualTrade.side || 'long',
+        entry_price: entryPrice,
+        exit_price: exitPrice,
+        profit_loss: profitLoss,
+        profit_loss_r: profitLossR,
+        date: normalizedDate,
+        notes: manualTrade.notes?.trim() || '',
+        strategy_name: strategyForSave,
+        source: 'manual'
+      });
+
+      toast.success('Operazione salvata nel diario');
+      setManualTrade({
+        symbol: '',
+        side: 'long',
+        entry_price: '',
+        exit_price: '',
+        profit_loss: '',
+        profit_loss_r: '',
+        date: getDefaultTradeDateTime(),
+        notes: ''
+      });
+      setShowManualModal(false);
+      await loadTrades(false);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Errore durante il salvataggio');
+    } finally {
+      setIsManualSaving(false);
+    }
+  };
+
+  const handlePdfImport = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Carica un file PDF');
+      return;
+    }
+
+    setIsPdfImporting(true);
+    try {
+      const strategyForSave = selectedJournalStrategy || null;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('mode', 'summary');
+      if (strategyForSave) {
+        formData.append('strategy_name', strategyForSave);
+      }
+
+      const res = await api.post('/trades/import/pdf', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      setPdfReportSummary(res.data || null);
+      setJournalStatsTab('summary');
+      toast.success('PDF analizzato. Statistiche template aggiornate.');
+      setShowPdfModal(false);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Errore import PDF');
+    } finally {
+      setIsPdfImporting(false);
+    }
+  };
 
   const getActionColor = (action) => {
     switch (action) {
@@ -438,6 +983,10 @@ export default function StrategyPage() {
           <TabsTrigger value="performance" className="rounded-lg">
             <BarChart3 className="w-4 h-4 mr-2" />
             Performance
+          </TabsTrigger>
+          <TabsTrigger value="trade-journal" className="rounded-lg">
+            <BookOpen className="w-4 h-4 mr-2" />
+            Diario operazioni
           </TabsTrigger>
           <TabsTrigger value="new" className="rounded-lg">
             <Plus className="w-4 h-4 mr-2" />
@@ -683,6 +1232,532 @@ export default function StrategyPage() {
             </>
           ) : (
             <StrategyDetailTab strategy={detailedStrategies.find(s => s.id === performanceTab)} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="trade-journal" className="space-y-6">
+          <div className="glass-enhanced p-5">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-primary" />
+                  Diario operazioni
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  I popup manuale/PDF sono minimali e si chiudono automaticamente dopo il salvataggio.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 md:justify-end">
+                <button
+                  onClick={() => setShowManualModal(true)}
+                  className={cn("tab-selector", showManualModal && "tab-selector-active")}
+                >
+                  Inserimento manuale
+                </button>
+                <button
+                  onClick={() => setShowPdfModal(true)}
+                  className={cn("tab-selector", showPdfModal && "tab-selector-active")}
+                >
+                  Import PDF MT5
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground mb-2">Strategia attiva (filtro lista)</p>
+              <div className="flex flex-wrap gap-2">
+                {selectableStrategies.map((name) => (
+                  <button
+                    key={name}
+                    onClick={() => setSelectedJournalStrategy(name)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full border text-xs font-medium transition-all",
+                      selectedJournalStrategy === name
+                        ? "bg-primary/15 border-primary/40 text-primary"
+                        : "bg-white/5 border-white/10 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                    )}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-enhanced p-5">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+              <div>
+                <h3 className="font-semibold">Statistiche strategia</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {selectedJournalStrategy || 'Nessuna'} • Auto-update da dati manuali o PDF • Trades: {usePdfForStats ? (resolvedSummary.totalTrades ?? 'N/D') : strategyStats.total}
+                </p>
+                {pdfReportSummary?.report_title && (
+                  <p className="text-[11px] text-primary mt-1">
+                    Template PDF: {pdfReportSummary.report_title}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 justify-end">
+                {[
+                  { key: 'summary', label: 'Summary' },
+                  { key: 'profit_loss', label: 'Profit & Loss' },
+                  { key: 'long_short', label: 'Long & Short' },
+                  { key: 'symbols', label: 'Symbols' },
+                  { key: 'risks', label: 'Risks' },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setJournalStatsTab(tab.key)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg border text-xs font-semibold tracking-[0.08em] transition-all",
+                      journalStatsTab === tab.key
+                        ? "bg-primary/15 border-primary/40 text-primary"
+                        : "bg-white/5 border-white/10 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+              {journalStatsTab === 'summary' && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Trades</p>
+                    <p className="text-lg font-semibold">
+                      {resolvedSummary.totalTrades ?? 'N/D'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Win Rate</p>
+                    <p className="text-lg font-semibold text-primary">
+                      {resolvedSummary.winRate === null ? 'N/D' : `${formatFixed(resolvedSummary.winRate, 1)}%`}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Profit Factor</p>
+                    <p className="text-lg font-semibold text-emerald-400">
+                      {resolvedSummary.profitFactor === null
+                        ? 'N/D'
+                        : Number.isFinite(resolvedSummary.profitFactor)
+                          ? formatFixed(resolvedSummary.profitFactor, 2)
+                          : '∞'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Net P&L</p>
+                    <p className={cn("text-lg font-semibold", (resolvedSummary.netPnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400")}>
+                      {formatSignedFixed(resolvedSummary.netPnl, 2)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Avg R</p>
+                    <p className="text-lg font-semibold">{formatFixed(resolvedSummary.avgR, 2)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Max Drawdown</p>
+                    <p className="text-lg font-semibold text-red-400">
+                      {resolvedSummary.maxDrawdown === null
+                        ? 'N/D'
+                        : `${formatFixed(resolvedSummary.maxDrawdown, 3)}${usePdfForStats ? '%' : ''}`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {journalStatsTab === 'profit_loss' && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Gross Profit</p>
+                    <p className="text-lg font-semibold text-emerald-400">{formatSignedFixed(resolvedProfitLoss.grossProfit, 2)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Gross Loss</p>
+                    <p className="text-lg font-semibold text-red-400">{formatSignedFixed(resolvedProfitLoss.grossLoss, 2)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Net P&L</p>
+                    <p className={cn("text-lg font-semibold", (resolvedProfitLoss.netPnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400")}>
+                      {formatSignedFixed(resolvedProfitLoss.netPnl, 2)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Avg Trade</p>
+                    <p className={cn("text-lg font-semibold", (resolvedProfitLoss.avgTrade ?? 0) >= 0 ? "text-emerald-400" : "text-red-400")}>
+                      {formatSignedFixed(resolvedProfitLoss.avgTrade, 2)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Avg Win</p>
+                    <p className="text-lg font-semibold text-emerald-400">{formatSignedFixed(resolvedProfitLoss.avgWin, 2)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Avg Loss</p>
+                    <p className="text-lg font-semibold text-red-400">{formatSignedFixed(resolvedProfitLoss.avgLoss, 2)}</p>
+                  </div>
+                </div>
+              )}
+
+              {journalStatsTab === 'long_short' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {[
+                    { label: 'Long', data: resolvedLongShort.long },
+                    { label: 'Short', data: resolvedLongShort.short },
+                    { label: 'Unknown', data: resolvedLongShort.unknown }
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-[0.08em]">{item.label}</p>
+                      <div className="mt-2 space-y-1.5 text-sm">
+                        <p>Trades: <span className="font-semibold">{item.data.count}</span></p>
+                        <p>
+                          Win Rate:{' '}
+                          <span className="font-semibold text-primary">
+                            {item.data.winRate === null || item.data.winRate === undefined
+                              ? 'N/D'
+                              : `${formatFixed(item.data.winRate, 1)}%`}
+                          </span>
+                        </p>
+                        {usePdfForStats && item.data.pct !== null && item.data.pct !== undefined && (
+                          <p>Quota: <span className="font-semibold text-primary">{formatFixed(item.data.pct, 2)}%</span></p>
+                        )}
+                        <p className={cn(item.data.netPnl >= 0 ? "text-emerald-400" : "text-red-400")}>
+                          Net: {formatSignedFixed(item.data.netPnl, 2)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {journalStatsTab === 'symbols' && (
+                resolvedSymbols.length === 0 ? (
+                  <div className="h-24 grid place-items-center text-xs text-muted-foreground">
+                    Nessun simbolo disponibile.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {resolvedSymbols.map((item) => (
+                      <div key={item.symbol} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{item.symbol}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Trades: {item.count}
+                            {item.winRate !== null && item.winRate !== undefined ? ` • Win Rate: ${formatFixed(item.winRate, 1)}%` : ''}
+                            {item.profitFactor !== null && item.profitFactor !== undefined ? ` • PF: ${formatFixed(item.profitFactor, 2)}` : ''}
+                          </p>
+                        </div>
+                        <p className={cn("font-semibold", item.netPnl >= 0 ? "text-emerald-400" : "text-red-400")}>
+                          {formatSignedFixed(item.netPnl, 2)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {journalStatsTab === 'risks' && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Best Trade</p>
+                    <p className="text-lg font-semibold text-emerald-400">{formatSignedFixed(resolvedRisks.bestTrade, 2)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Worst Trade</p>
+                    <p className="text-lg font-semibold text-red-400">{formatSignedFixed(resolvedRisks.worstTrade, 2)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Max Win Streak</p>
+                    <p className="text-lg font-semibold">{resolvedRisks.maxWinStreak ?? 'N/D'}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Max Loss Streak</p>
+                    <p className="text-lg font-semibold">{resolvedRisks.maxLossStreak ?? 'N/D'}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Consecutive Profit</p>
+                    <p className="text-lg font-semibold text-emerald-400">{formatSignedFixed(resolvedRisks.maxConsecutiveProfit, 2)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-[11px] text-muted-foreground">Consecutive Loss</p>
+                    <p className="text-lg font-semibold text-red-400">{formatSignedFixed(resolvedRisks.maxConsecutiveLoss, 2)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="glass-enhanced p-5">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                {isBulkMode && selectedTradeIds.length > 0 && (
+                  <span className="text-xs text-primary font-medium">{selectedTradeIds.length} selezionate</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  className="rounded-lg"
+                  onClick={() => loadTrades(false)}
+                  disabled={isTradesLoading}
+                >
+                  {isTradesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Aggiorna'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className={cn("rounded-lg", isBulkMode && "border-primary/40 text-primary")}
+                  onClick={toggleBulkMode}
+                >
+                  Bulk
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-lg"
+                  onClick={handleDeleteSelectedTrades}
+                  disabled={!isBulkMode || selectedTradeIds.length === 0 || isDeletingTrades}
+                >
+                  {isDeletingTrades ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {isTradesLoading ? (
+              <div className="h-36 grid place-items-center text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+            ) : filteredTradeRows.length === 0 ? (
+              <div className="h-36 grid place-items-center text-sm text-muted-foreground border border-border/50 rounded-xl bg-white/5">
+                Nessuna operazione per la strategia selezionata.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
+                {filteredTradeRows.slice(0, 120).map((trade) => {
+                  const tradePnl = toNumber(trade.profit_loss);
+                  const isSelected = selectedTradeIds.includes(trade.id);
+
+                  return (
+                    <div
+                      key={trade.id}
+                      className={cn(
+                        "rounded-xl border bg-white/5 p-3 transition-all",
+                        isSelected ? "border-primary/50" : "border-border/60"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{trade.symbol}</p>
+                          <p className="text-xs text-muted-foreground">{formatTradeDate(trade.date)}</p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "text-sm font-semibold",
+                            tradePnl >= 0 ? "text-emerald-400" : "text-red-400"
+                          )}>
+                            {tradePnl >= 0 ? '+' : ''}{tradePnl.toFixed(2)}
+                          </div>
+                          {isBulkMode ? (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleTradeSelection(trade.id)}
+                              className="w-4 h-4 rounded border border-white/20 bg-transparent"
+                            />
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              className="h-8 w-8 p-0 rounded-lg"
+                              onClick={() => handleDeleteSingleTrade(trade.id)}
+                              disabled={isDeletingTrades}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-400" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span>Entry: {trade.entry_price}</span>
+                        <span>Exit: {trade.exit_price}</span>
+                        <span>Side: {(trade.side || inferTradeSide(trade)).toString().toUpperCase()}</span>
+                        <span>Strategia: {trade.strategy_name || '-'}</span>
+                        <span>Fonte: {trade.source === 'pdf_import' ? 'PDF' : 'Manuale'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {showManualModal && (
+            <div className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-16 px-4">
+              <div className="w-full max-w-xl rounded-2xl border border-white/15 bg-[#0c1117] p-4 shadow-2xl">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-semibold">Inserimento manuale</p>
+                  <button
+                    onClick={() => setShowManualModal(false)}
+                    className="text-xs text-muted-foreground hover:text-white"
+                  >
+                    Chiudi
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">Seleziona strategia</p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {selectableStrategies.map((name) => (
+                    <button
+                      key={`manual-${name}`}
+                      onClick={() => setSelectedJournalStrategy(name)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all",
+                        selectedJournalStrategy === name
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-white/5 border-white/10 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                      )}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">Direzione operazione</p>
+                <div className="flex items-center gap-2 mb-3">
+                  {[
+                    { key: 'long', label: 'Long' },
+                    { key: 'short', label: 'Short' }
+                  ].map((sideOption) => (
+                    <button
+                      key={sideOption.key}
+                      onClick={() => setManualTrade({ ...manualTrade, side: sideOption.key })}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all",
+                        manualTrade.side === sideOption.key
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-white/5 border-white/10 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                      )}
+                    >
+                      {sideOption.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    value={manualTrade.symbol}
+                    onChange={(e) => setManualTrade({ ...manualTrade, symbol: e.target.value })}
+                    placeholder="Asset"
+                    className="bg-white/5"
+                  />
+                  <Input
+                    type="datetime-local"
+                    value={manualTrade.date}
+                    onChange={(e) => setManualTrade({ ...manualTrade, date: e.target.value })}
+                    className="bg-white/5"
+                  />
+                  <Input
+                    type="number"
+                    step="any"
+                    value={manualTrade.entry_price}
+                    onChange={(e) => setManualTrade({ ...manualTrade, entry_price: e.target.value })}
+                    placeholder="Entry"
+                    className="bg-white/5"
+                  />
+                  <Input
+                    type="number"
+                    step="any"
+                    value={manualTrade.exit_price}
+                    onChange={(e) => setManualTrade({ ...manualTrade, exit_price: e.target.value })}
+                    placeholder="Exit"
+                    className="bg-white/5"
+                  />
+                  <Input
+                    type="number"
+                    step="any"
+                    value={manualTrade.profit_loss}
+                    onChange={(e) => setManualTrade({ ...manualTrade, profit_loss: e.target.value })}
+                    placeholder="P&L"
+                    className="bg-white/5"
+                  />
+                  <Input
+                    type="number"
+                    step="any"
+                    value={manualTrade.profit_loss_r}
+                    onChange={(e) => setManualTrade({ ...manualTrade, profit_loss_r: e.target.value })}
+                    placeholder="P&L (R)"
+                    className="bg-white/5"
+                  />
+                </div>
+                <Textarea
+                  value={manualTrade.notes}
+                  onChange={(e) => setManualTrade({ ...manualTrade, notes: e.target.value })}
+                  placeholder="Note"
+                  className="bg-white/5 min-h-[80px] mt-3"
+                />
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button variant="outline" className="rounded-lg" onClick={() => setShowManualModal(false)}>
+                    Annulla
+                  </Button>
+                  <Button
+                    onClick={handleManualTradeSave}
+                    className="rounded-lg bg-primary hover:bg-primary/90"
+                    disabled={isManualSaving}
+                  >
+                    {isManualSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salva'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showPdfModal && (
+            <div className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-20 px-4">
+              <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#0c1117] p-4 shadow-2xl">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-semibold">Import PDF MT5</p>
+                  <button
+                    onClick={() => setShowPdfModal(false)}
+                    className="text-xs text-muted-foreground hover:text-white"
+                  >
+                    Chiudi
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">Seleziona strategia</p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {selectableStrategies.map((name) => (
+                    <button
+                      key={`pdf-${name}`}
+                      onClick={() => setSelectedJournalStrategy(name)}
+                      className={cn(
+                        "px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all",
+                        selectedJournalStrategy === name
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-white/5 border-white/10 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                      )}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground mb-3">
+                  Modalità analisi: legge titolo e sezioni del report (Summary, Profit &amp; Loss, Long &amp; Short, Symbols, Risks) senza importare operazioni.
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={handlePdfImport}
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full rounded-lg"
+                  disabled={isPdfImporting}
+                >
+                  {isPdfImporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                  {isPdfImporting ? 'Importazione...' : 'Seleziona PDF'}
+                </Button>
+              </div>
+            </div>
           )}
         </TabsContent>
 

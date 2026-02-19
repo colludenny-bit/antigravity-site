@@ -223,18 +223,23 @@ const TRADINGVIEW_MINI_SYMBOL = {
   EURUSD: 'FX:EURUSD',
   BTCUSD: 'BINANCE:BTCUSDT'
 };
-const XAU_LINE_GOLD = '#F6C244';
+const TV_CANDLE_UP = '#22c55e';
+const TV_CANDLE_DOWN = '#ef4444';
 
-const buildTradingViewMiniUrl = (assetSymbol, { interval = '15', lineMode = false, interactive = false } = {}) => {
+const buildTradingViewMiniUrl = (assetSymbol, { interval = '15', interactive = false } = {}) => {
   const tvSymbol = TRADINGVIEW_MINI_SYMBOL[assetSymbol];
   if (!tvSymbol) return null;
-  const overrides = assetSymbol === 'XAUUSD'
-    ? {
-      "mainSeriesProperties.style": 3,
-      "mainSeriesProperties.lineStyle.color": XAU_LINE_GOLD,
-      "mainSeriesProperties.color": XAU_LINE_GOLD
-    }
-    : {};
+  const overrides = {
+    "mainSeriesProperties.style": 1,
+    "mainSeriesProperties.candleStyle.upColor": TV_CANDLE_UP,
+    "mainSeriesProperties.candleStyle.downColor": TV_CANDLE_DOWN,
+    "mainSeriesProperties.candleStyle.drawWick": true,
+    "mainSeriesProperties.candleStyle.drawBorder": true,
+    "mainSeriesProperties.candleStyle.wickUpColor": TV_CANDLE_UP,
+    "mainSeriesProperties.candleStyle.wickDownColor": TV_CANDLE_DOWN,
+    "mainSeriesProperties.candleStyle.borderUpColor": TV_CANDLE_UP,
+    "mainSeriesProperties.candleStyle.borderDownColor": TV_CANDLE_DOWN
+  };
   const params = new URLSearchParams({
     symbol: tvSymbol,
     interval,
@@ -244,7 +249,7 @@ const buildTradingViewMiniUrl = (assetSymbol, { interval = '15', lineMode = fals
     toolbarbg: interactive ? '0f1720' : 'f1f3f6',
     studies: '[]',
     theme: 'dark',
-    style: lineMode ? '3' : '3',
+    style: '1',
     timezone: 'exchange',
     withdateranges: interactive ? '1' : '0',
     showpopupbutton: interactive ? '1' : '0',
@@ -255,15 +260,14 @@ const buildTradingViewMiniUrl = (assetSymbol, { interval = '15', lineMode = fals
   return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
 };
 
-const TradingViewMiniChart = ({ assetSymbol, title, interval = '15', lineMode = false, interactive = false }) => {
-  const forceLineMode = lineMode || assetSymbol === 'XAUUSD';
-  const src = buildTradingViewMiniUrl(assetSymbol, { interval, lineMode: forceLineMode, interactive });
+const TradingViewMiniChart = ({ assetSymbol, title, interval = '15', interactive = false }) => {
+  const src = buildTradingViewMiniUrl(assetSymbol, { interval, interactive });
   if (!src) return null;
   return (
     <iframe
       title={title || `tv-mini-${assetSymbol}`}
       src={src}
-      style={{ width: '100%', height: '100%', border: 'none' }}
+      style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
       loading="lazy"
       allowFullScreen
     />
@@ -299,6 +303,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const [showInfo, setShowInfo] = useState(false);
   const [chartLineColor, setChartLineColor] = useState(() => localStorage.getItem('dashboard_chartLineColor') || '#00D9A5');
   const [syncEnabled, setSyncEnabled] = useState(() => localStorage.getItem('dashboard_syncEnabled') === 'true');
+  const [screeningMode, setScreeningMode] = useState(() => localStorage.getItem('dashboard_screeningMode') || 'clarity');
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
   const isMobile = useIsMobile();
 
@@ -325,6 +330,10 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   useEffect(() => {
     localStorage.setItem('dashboard_chartLineColor', chartLineColor);
   }, [chartLineColor]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_screeningMode', screeningMode);
+  }, [screeningMode]);
 
   // Filter to show only favorite charts in grid
   const visibleAssets = assets.filter(a => favoriteCharts.includes(a.symbol));
@@ -494,7 +503,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   };
 
   return (
-    <TechCard className="font-apple glass-edge fine-gray-border p-5 relative">
+    <TechCard className="font-apple glass-edge fine-gray-border p-4 relative w-full lg:w-[70%] lg:mr-auto">
       {/* Info Tooltip - Genie Effect */}
       <AnimatePresence>
         {showInfo && (
@@ -577,7 +586,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
         )}
       </AnimatePresence>
 
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-5">
         <div className="relative flex items-center gap-2">
           <button
             onClick={handleTitleClick}
@@ -643,8 +652,34 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
           </AnimatePresence>
         </div>
 
-        {!(viewMode === 'focus' && currentAsset?.symbol === 'XAUUSD') && (
-          <div className="flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+          <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white/80 p-1 shadow-sm dark:bg-white/5 dark:border-white/10">
+            <button
+              onClick={() => setScreeningMode('clarity')}
+              className={cn(
+                "px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-[0.16em] transition-all",
+                screeningMode === 'clarity'
+                  ? "bg-[#00D9A5]/15 text-[#00D9A5] border border-[#00D9A5]/30"
+                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10"
+              )}
+            >
+              Clarity
+            </button>
+            <button
+              onClick={() => setScreeningMode('precision')}
+              className={cn(
+                "px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-[0.16em] transition-all",
+                screeningMode === 'precision'
+                  ? "bg-[#00D9A5]/15 text-[#00D9A5] border border-[#00D9A5]/30"
+                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10"
+              )}
+            >
+              Precision
+            </button>
+          </div>
+
+          {!(viewMode === 'focus' && currentAsset?.symbol === 'XAUUSD') && (
+            <div className="flex items-center gap-3">
             {/* Outlook Giornaliero */}
             {viewMode === 'focus' && currentAsset && (
               <div className="text-right">
@@ -753,8 +788,9 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                 )}
               </AnimatePresence>
             </div>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -805,21 +841,21 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                   return (
                     <button
                       onClick={() => handleFocusAsset(asset.symbol)}
-                      className="w-full group relative p-4 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:shadow-none font-apple"
+                      className="w-full group relative p-3 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:shadow-none font-apple"
                     >
                       <div className="mb-2 relative z-10 flex items-start justify-between">
                         <div>
-                          <h3 className="text-lg font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
-                          <span className="text-2xl font-bold text-white tracking-tight">
+                          <h3 className="text-base font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
+                          <span className="text-xl font-bold text-white tracking-tight">
                             {formatAssetPrice(asset.price, asset.symbol)}
                           </span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className="text-[9px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
-                          <span className="text-lg font-black leading-none text-[#00D9A5]">{asset.confidence}%</span>
+                          <span className="text-[8px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
+                          <span className="text-base font-black leading-none text-[#00D9A5]">{asset.confidence}%</span>
                         </div>
                       </div>
-                      <div className="h-36 -ml-2 relative z-10 overflow-hidden rounded-lg mb-2">
+                      <div className="h-28 -ml-2 relative z-10 overflow-hidden rounded-lg mb-2">
                         {animationsReady && (
                           asset.symbol === 'XAUUSD' ? (
                             <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-mobile-${asset.symbol}`} />
@@ -858,7 +894,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
             ) : (
               /* DESKTOP: original grid view */
               <div className={cn(
-                "grid gap-4",
+                "grid gap-3",
                 visibleAssets.length === 2 ? "grid-cols-2" : "grid-cols-3"
               )}>
                 {visibleAssets.map((asset, index) => {
@@ -867,15 +903,15 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                     <button
                       key={asset.symbol}
                       onClick={() => handleFocusAsset(asset.symbol)}
-                      className="group relative p-4 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.15)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:hover:!border-white/20 dark:shadow-none font-apple"
+                      className="group relative p-3 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.15)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:hover:!border-white/20 dark:shadow-none font-apple"
                     >
                       <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
 
                       <div className="mb-2 relative z-10 flex items-start justify-between">
                         <div>
-                          <h3 className="text-lg font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
+                          <h3 className="text-base font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
                           <div className="flex items-center gap-2">
-                            <span className="text-xl font-bold text-white tracking-tight">
+                            <span className="text-lg font-bold text-white tracking-tight">
                               {formatAssetPrice(asset.price, asset.symbol)}
                             </span>
                           </div>
@@ -883,14 +919,14 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 
                         {/* Confidence Percentage - Repositioned to Top Right */}
                         <div className="flex flex-col items-end">
-                          <span className="text-xs font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
-                          <span className="text-lg font-black leading-none text-[#00D9A5]">
+                          <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
+                          <span className="text-base font-black leading-none text-[#00D9A5]">
                             {asset.confidence}%
                           </span>
                         </div>
                       </div>
 
-                      <div className="h-28 -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
+                      <div className="h-20 -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
                         {animationsReady && (
                           asset.symbol === 'XAUUSD' ? (
                             <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-grid-${asset.symbol}`} />
@@ -906,7 +942,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                         )}
                       </div>
 
-                      <div className="relative z-10 space-y-3 mt-4">
+                      <div className="relative z-10 space-y-2 mt-2">
                         {/* Bias & Confidence Row - HIGHLIGHTED */}
                         <div className="flex items-center gap-2 mb-2">
                           <div className={cn(
@@ -928,10 +964,10 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                         </div>
 
                         {/* Analysis Points - LARGER TEXT */}
-                        <ul className="space-y-2">
+                        <ul className="space-y-1.5">
                           {getDailyOutlook(asset).outlookLines.slice(0, 3).map((line, i) => (
-                            <li key={i} className="flex items-start gap-3 text-base font-semibold text-white/95 leading-relaxed tracking-tight">
-                              <div className="mt-2.5 w-1.5 h-1.5 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
+                            <li key={i} className="flex items-start gap-2.5 text-sm font-semibold text-white/95 leading-relaxed tracking-tight">
+                              <div className="mt-2 w-1 h-1 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
                               <TypewriterText text={line} speed={20} delay={500 + i * 800} />
                             </li>
                           ))}
@@ -952,13 +988,12 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
             className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms]"
           >
             {currentAsset.symbol === 'XAUUSD' ? (
-              <div className="w-full h-[72vh] min-h-[420px] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
+              <div className="w-full aspect-[16/8] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
                 {animationsReady ? (
                   <TradingViewMiniChart
                     assetSymbol={currentAsset.symbol}
                     title={`tv-focus-${currentAsset.symbol}`}
                     interval="15"
-                    lineMode
                     interactive
                   />
                 ) : (
@@ -988,7 +1023,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                 </div>
 
                 {/* Big Chart - Compatto */}
-                <div className="h-[100px] mb-6 relative group overflow-hidden">
+                <div className="h-[84px] mb-4 relative group overflow-hidden">
                   {/* Hover Gradient - Neutral */}
                   <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
                   <div className="w-full h-full flex items-center justify-center">
@@ -1007,7 +1042,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                 </div>
 
                 {/* Details Grid - Compact */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 rounded-2xl border border-white/10 bg-[#13171C]/85 p-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 rounded-2xl border border-white/10 bg-[#13171C]/85 p-4">
                   <div className="md:col-span-2">
                     <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Analisi statistica</h5>
                     <div className="space-y-4">
@@ -1226,9 +1261,6 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
 
   return (
     <TechCard className="p-3 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex flex-col">
-      {/* Glow effect in background */}
-      <div className="absolute top-[-100px] right-[-100px] w-64 h-64 bg-[#00D9A5]/5 blur-[80px] rounded-full pointer-events-none" />
-
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -1338,7 +1370,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
             <button
               onMouseEnter={() => setShowSelector(true)}
               onClick={() => setShowSelector(!showSelector)}
-              className="p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
+              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
             >
               <Eye className="w-4 h-4 text-white" />
             </button>
@@ -1995,84 +2027,85 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
 
   return (
     <div className="space-y-4">
-      {/* News Section */}
-      <TechCard className="p-4 font-apple flex flex-col glass-edge fine-gray-border" style={{ maxHeight: '550px' }}>
-        {/* Sticky Header */}
-        <h4 className="text-base font-medium text-white/90 mb-3 flex items-center gap-2 sticky top-0 bg-inherit z-10 pb-2">
-          <Newspaper className="w-5 h-5 text-[#00D9A5]" />
-          News
-        </h4>
-        {/* Scrollable Content */}
-        <div className="space-y-2 overflow-y-auto flex-1 scrollbar-thin">
-          {newsData.map((item, i) => (
-            <div
-              key={i}
-              onClick={() => setExpandedNews(expandedNews === i ? null : i)}
-              onMouseLeave={() => expandedNews === i && setExpandedNews(null)}
-              className={cn(
-                "p-2.5 rounded-lg transition-all cursor-pointer subtle-divider",
-                item.actual ? "bg-slate-50 border border-slate-200 dark:bg-[#1A1A1A] dark:border-white/10" : "bg-slate-50 hover:bg-slate-100 dark:bg-[#1A1A1A] dark:hover:bg-[#252525]",
-                expandedNews === i && "ring-1 ring-slate-300 dark:ring-white/20"
-              )}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-base font-medium text-slate-900 dark:text-white/90">{item.title}</span>
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "text-sm",
-                    item.countdown === 'Uscito' ? "text-[#00D9A5]" : "text-yellow-400/80"
-                  )}>{item.countdown}</span>
-                  <span className="text-base font-medium text-[#00D9A5]">{item.time}</span>
-                  <ChevronDown className={cn(
-                    "w-4 h-4 text-slate-400 dark:text-white/30 transition-transform",
-                    expandedNews === i && "rotate-180"
-                  )} />
+      <div>
+        {/* News Section */}
+        <TechCard className="p-4 font-apple flex flex-col glass-edge fine-gray-border lg:min-h-[620px]" style={{ maxHeight: '680px' }}>
+          {/* Sticky Header */}
+          <h4 className="text-base font-medium text-white/90 mb-3 flex items-center gap-2 sticky top-0 bg-inherit z-10 pb-2">
+            <Newspaper className="w-5 h-5 text-[#00D9A5]" />
+            News
+          </h4>
+          {/* Scrollable Content */}
+          <div className="space-y-2 overflow-y-auto flex-1 scrollbar-thin">
+            {newsData.map((item, i) => (
+              <div
+                key={i}
+                onClick={() => setExpandedNews(expandedNews === i ? null : i)}
+                onMouseLeave={() => expandedNews === i && setExpandedNews(null)}
+                className={cn(
+                  "p-2.5 rounded-lg transition-all cursor-pointer subtle-divider",
+                  item.actual ? "bg-slate-50 border border-slate-200 dark:bg-[#1A1A1A] dark:border-white/10" : "bg-slate-50 hover:bg-slate-100 dark:bg-[#1A1A1A] dark:hover:bg-[#252525]",
+                  expandedNews === i && "ring-1 ring-slate-300 dark:ring-white/20"
+                )}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-base font-medium text-slate-900 dark:text-white/90">{item.title}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-sm",
+                      item.countdown === 'Uscito' ? "text-[#00D9A5]" : "text-yellow-400/80"
+                    )}>{item.countdown}</span>
+                    <span className="text-base font-medium text-[#00D9A5]">{item.time}</span>
+                    <ChevronDown className={cn(
+                      "w-4 h-4 text-slate-400 dark:text-white/30 transition-transform",
+                      expandedNews === i && "rotate-180"
+                    )} />
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "text-base font-medium",
-                    item.currency === 'USD' ? "text-[#D4AF37]" : "text-slate-400 dark:text-white/40"
-                  )}>
-                    {item.currency}
-                  </span>
-                  <div className={cn(
-                    "w-1.5 h-1.5 rounded-full",
-                    item.impact === 'high' ? "bg-red-400" : "bg-yellow-400"
-                  )} />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-base font-medium",
+                      item.currency === 'USD' ? "text-[#D4AF37]" : "text-slate-400 dark:text-white/40"
+                    )}>
+                      {item.currency}
+                    </span>
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      item.impact === 'high' ? "bg-red-400" : "bg-yellow-400"
+                    )} />
+                  </div>
+                  <div className="flex items-center gap-3 text-base">
+                    <span className="text-slate-500 dark:text-white/50">P: <span className="font-bold text-slate-700 dark:text-white/80">{item.previous}</span></span>
+                    <span className="text-slate-500 dark:text-white/50">F: <span className="font-bold text-slate-900 dark:text-white">{item.forecast}</span></span>
+                    {item.actual && (
+                      <span className="text-slate-500 dark:text-white/50">A: <span className="font-bold text-lg text-[#00D9A5]">{item.actual}</span></span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-base">
-                  <span className="text-slate-500 dark:text-white/50">P: <span className="font-bold text-slate-700 dark:text-white/80">{item.previous}</span></span>
-                  <span className="text-slate-500 dark:text-white/50">F: <span className="font-bold text-slate-900 dark:text-white">{item.forecast}</span></span>
-                  {item.actual && (
-                    <span className="text-slate-500 dark:text-white/50">A: <span className="font-bold text-lg text-[#00D9A5]">{item.actual}</span></span>
+                {/* Expanded Summary */}
+                <AnimatePresence>
+                  {expandedNews === i && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.4 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 p-3 bg-white border border-slate-200 rounded-lg dark:bg-black/40 dark:border-[#00D9A5]/20">
+                        <p className="text-base text-slate-700 leading-relaxed dark:text-white/90">
+                          <span className="text-[#00D9A5] font-bold block mb-1">Prospettiva</span>
+                          {item.summary}
+                        </p>
+                      </div>
+                    </motion.div>
                   )}
-                </div>
+                </AnimatePresence>
               </div>
-              {/* Expanded Summary */}
-              <AnimatePresence>
-                {expandedNews === i && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.4 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-3 p-3 bg-white border border-slate-200 rounded-lg dark:bg-black/40 dark:border-[#00D9A5]/20">
-                      <p className="text-base text-slate-700 leading-relaxed dark:text-white/90">
-                        <span className="text-[#00D9A5] font-bold block mb-1">Prospettiva</span>
-                        {item.summary}
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ))}
-        </div>
-      </TechCard>
-
+            ))}
+          </div>
+        </TechCard>
+      </div>
 
       {/* 3h News Cycle Summary */}
       {newsSummaries?.three_hour && (
@@ -2688,7 +2721,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Grid: Center + Right Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:mr-2">
         {/* CENTER: Charts + COT + Options */}
         <div className="lg:col-span-2 space-y-6">
 
@@ -2720,7 +2753,7 @@ export default function DashboardPage() {
         </div>
 
         {/* RIGHT SIDEBAR: News + Activity + Strategies */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 lg:w-[76%] lg:ml-auto">
           <ActivitySidebar
             news={newsBriefing?.events}
             newsSummaries={newsBriefing?.summaries}
