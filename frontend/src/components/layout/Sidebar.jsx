@@ -24,25 +24,26 @@ import {
   Dices,
   Activity,
   Globe,
+  LayoutGrid,
   Bitcoin,
   Calculator,
   Gauge,
   LayoutDashboard
 } from 'lucide-react';
-import kaironBull from '../../assets/kairon-bull.png';
+import nuovoLogo from '../../assets/CUDWBCUDEW.png';
 
 const OWNER_EMAIL = 'colludenny@gmail.com';
 
 const baseNavItems = [
-  { path: '/app', icon: LayoutDashboard, label: 'Dashboard', iconClass: 'icon-home' },
+  { path: '/app', icon: LayoutGrid, label: 'Dashboard', iconClass: 'icon-home' },
   { path: '/app/crypto', icon: Bitcoin, label: 'Crypto', iconClass: 'icon-crypto' },
-  { path: '/app/statistics', icon: BarChart3, label: 'Grafici', iconClass: 'icon-stats' },
+  { path: '/app/statistics', icon: LineChart, label: 'Grafici', iconClass: 'icon-stats' },
   { path: '/app/news', icon: Newspaper, label: 'News', iconClass: 'icon-news' },
   { path: '/app/macro', icon: Globe, label: 'Macro', iconClass: 'icon-macro' },
   { path: '/app/risk', icon: AlertTriangle, label: 'Risk', iconClass: 'icon-risk' },
   { path: '/app/cot', icon: TrendingUp, label: 'COT', iconClass: 'icon-cot' },
   { path: '/app/options', icon: Activity, label: 'Options', iconClass: 'icon-options' },
-  { path: '/app/statistics', icon: LineChart, label: 'Stats', iconClass: 'icon-stats' },
+  { path: '/app/statistics', icon: BarChart3, label: 'Stats', iconClass: 'icon-stats' },
 
   { path: '/app/strategy', icon: Target, label: 'Strategia', iconClass: 'icon-strategy' },
   { path: '/app/montecarlo', icon: Dices, label: 'Monte Carlo', iconClass: 'icon-montecarlo' },
@@ -112,9 +113,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
       <aside
         className={cn(
           "fixed top-3 bottom-3 left-3 z-50",
-          "hidden lg:flex flex-col items-center py-4",
-          "w-20 rounded-[22px]",
-          "bg-gradient-to-b from-[#060606] to-[#000000]",
+          "hidden lg:flex flex-col items-center pt-2 pb-4",
+          "w-56 rounded-[22px]",
+          "bg-[#1a1a1a]",
           "border border-white/14",
           "backdrop-blur-2xl",
           "shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
@@ -122,28 +123,26 @@ export const Sidebar = ({ isOpen, onClose }) => {
         data-testid="sidebar-desktop"
       >
         {/* Logo - Clickable for voice analysis */}
-        <div className="mb-3 relative z-10 overflow-visible">
+        <div className="mb-6 -mt-4 relative w-full px-0 overflow-visible">
           <button
             onClick={speakMarketAnalysis}
-            className="w-20 h-20 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform group"
-            style={{ marginLeft: '4px' }}
+            className="flex items-center justify-center w-full cursor-pointer hover:scale-[1.05] transition-transform group"
             title="Click per analisi vocale mercati"
             data-testid="logo-voice-btn"
           >
             <img
-              src={kaironBull}
-              alt="Logo"
-              className="w-28 h-28 object-contain transition-all"
-              style={{ transform: 'translateX(12px)' }}
+              src={nuovoLogo}
+              alt="Karion Logo"
+              className="w-[260%] ml-0 h-auto object-contain transition-all duration-300"
             />
-            <span className="absolute -bottom-1 text-[8px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity font-bold">
+            <span className="absolute -bottom-2 right-4 text-[10px] text-[#00D9A5] opacity-0 group-hover:opacity-100 transition-opacity font-bold">
               🎤 Analizza
             </span>
           </button>
         </div>
 
         {/* Navigation Icons with Labels */}
-        <nav className="flex-1 flex flex-col items-center gap-1 w-full px-1 overflow-y-auto scrollbar-thin">
+        <nav className="flex-1 flex flex-col items-center gap-1 w-full px-3 overflow-y-auto scrollbar-thin">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -153,19 +152,33 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "w-full py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all duration-200",
+                  "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-all duration-200",
                   "hover:bg-white/10",
                   isActive && "bg-white/14"
                 )}
                 data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
               >
                 <Icon className={cn(
-                  "w-7 h-7 sidebar-icon-animate transition-all",
-                  "text-white/72",
-                  isActive && "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
+                  "w-[33px] h-[33px] sidebar-icon-animate transition-all flex-shrink-0",
+                  item.label === 'Crypto'
+                    ? "text-[#C5A028] drop-shadow-[0_0_8px_rgba(197,160,40,0.3)]"
+                    : item.label === 'Dashboard'
+                      ? "text-[#00CCFF] drop-shadow-[0_0_8px_rgba(0,204,255,0.4)]"
+                      : item.label === 'Grafici'
+                        ? "text-[#FF4D4D] drop-shadow-[0_0_8px_rgba(255,77,77,0.35)]"
+                        : "text-white/72",
+                  isActive && (
+                    item.label === 'Crypto'
+                      ? "text-[#FFD700] drop-shadow-[0_0_15px_rgba(255,215,0,0.45)]"
+                      : item.label === 'Dashboard'
+                        ? "text-[#59E3FF] drop-shadow-[0_0_15px_rgba(89,227,255,0.6)]"
+                        : item.label === 'Grafici'
+                          ? "text-[#FF0000] drop-shadow-[0_0_15px_rgba(255,0,0,0.5)]"
+                          : "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
+                  )
                 )} />
                 <span className={cn(
-                  "text-[9px] font-medium leading-tight text-center",
+                  "text-lg font-semibold leading-tight",
                   isActive ? "text-white/92" : "text-white/64"
                 )}>
                   {item.label}
@@ -176,38 +189,46 @@ export const Sidebar = ({ isOpen, onClose }) => {
         </nav>
 
         {/* Bottom Actions */}
-        <div className="flex flex-col items-center gap-1 mt-2 w-full px-1">
+        <div className="flex flex-col items-center gap-1 mt-2 w-full px-3">
           {/* Home Button */}
           <NavLink
             to="/welcome"
             className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center transition-colors hover:bg-white/10",
+              "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-colors hover:bg-white/10",
               location.pathname === '/welcome' && "bg-white/14"
             )}
             title="Torna alla Home"
             data-testid="nav-home"
           >
             <Home className={cn(
-              "w-7 h-7 transition-all",
+              "w-[33px] h-[33px] transition-all flex-shrink-0",
               "text-white/72",
               location.pathname === '/welcome' && "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
             )} />
+            <span className={cn(
+              "text-lg font-semibold",
+              location.pathname === '/welcome' ? "text-white/92" : "text-white/64"
+            )}>Torna alla Home</span>
           </NavLink>
 
           {/* Settings Only */}
           <NavLink
             to="/app/settings"
             className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center transition-colors hover:bg-white/10",
+              "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-colors hover:bg-white/10",
               location.pathname === '/app/settings' && "bg-white/14"
             )}
             data-testid="nav-settings"
           >
             <Settings className={cn(
-              "w-7 h-7 transition-all",
+              "w-[33px] h-[33px] transition-all flex-shrink-0",
               "text-white/72",
               location.pathname === '/app/settings' && "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
             )} />
+            <span className={cn(
+              "text-lg font-semibold",
+              location.pathname === '/app/settings' ? "text-white/92" : "text-white/64"
+            )}>Impostazioni</span>
           </NavLink>
         </div>
       </aside>

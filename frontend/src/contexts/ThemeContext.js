@@ -4,8 +4,9 @@ const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('karion_theme');
-    return saved || 'dark';
+    // Forza il tema scuro poiché il tema chiaro non è ancora completo nella dashboard
+    localStorage.setItem('karion_theme', 'dark');
+    return 'dark';
   });
 
   // Dark theme variant: 'full-black' or 'carbon-black'

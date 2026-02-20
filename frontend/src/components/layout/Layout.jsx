@@ -39,9 +39,8 @@ export const Layout = () => {
 
   return (
     <div
-      className={`min-h-screen relative transition-colors duration-300 ${
-        isDashboardRoute ? 'dashboard-shell-bg' : 'bg-background'
-      }`}
+      className={`min-h-screen relative transition-colors duration-300 ${isDashboardRoute ? 'dashboard-shell-bg' : 'bg-background'
+        }`}
     >
       {/* Clean Subtle Background - Reference Style */}
       <div className="fixed inset-0 pointer-events-none z-0">
@@ -59,7 +58,7 @@ export const Layout = () => {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Content */}
-      <main className="lg:ml-24 min-h-screen lg:pb-0">
+      <main className="lg:ml-64 min-h-screen lg:pb-0">
 
         {/* Mobile Header - hidden on small mobile, visible on tablet-ish screens */}
         <header className="hidden md:block lg:hidden sticky top-0 z-30 glass border-b border-border">

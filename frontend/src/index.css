@@ -700,7 +700,7 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
 
 /* Dashboard left sidebar: solid background (no gray gradient) */
 .dashboard-shell-bg aside[data-testid="sidebar-desktop"] {
-  background-color: #050505 !important;
+  background-color: #181818 !important;
   background-image: none !important;
   background-repeat: no-repeat !important;
   background-size: 100% 100% !important;

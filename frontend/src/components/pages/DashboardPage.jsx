@@ -503,7 +503,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   };
 
   return (
-    <TechCard className="font-apple glass-edge fine-gray-border p-4 relative w-full lg:w-[70%] lg:mr-auto">
+    <TechCard className={cn("font-apple glass-edge fine-gray-border p-4 relative w-full transition-all duration-300", viewMode === 'focus' ? "lg:w-[55%] mx-auto" : "lg:w-[70%] lg:mr-auto")}>
       {/* Info Tooltip - Genie Effect */}
       <AnimatePresence>
         {showInfo && (
@@ -680,114 +680,114 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 
           {!(viewMode === 'focus' && currentAsset?.symbol === 'XAUUSD') && (
             <div className="flex items-center gap-3">
-            {/* Outlook Giornaliero */}
-            {viewMode === 'focus' && currentAsset && (
-              <div className="text-right">
-                <p className="text-sm text-white uppercase font-black tracking-[0.15em] mb-1">Outlook Giornaliero</p>
-                <div className={cn(
-                  "px-3 py-1.5 rounded-lg border text-xs font-bold shadow-lg uppercase tracking-widest",
-                  getDailyOutlook(currentAsset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 text-[#00D9A5] border-[#00D9A5]/20" :
-                    getDailyOutlook(currentAsset).conclusionType === 'bearish' ? "bg-red-500/10 text-red-400 border-red-400/20" :
-                      "bg-yellow-500/10 text-yellow-400 border-yellow-400/20"
-                )}>
-                  {getDailyOutlook(currentAsset).conclusion}
+              {/* Outlook Giornaliero */}
+              {viewMode === 'focus' && currentAsset && (
+                <div className="text-right">
+                  <p className="text-sm text-white uppercase font-black tracking-[0.15em] mb-1">Outlook Giornaliero</p>
+                  <div className={cn(
+                    "px-3 py-1.5 rounded-lg border text-xs font-bold shadow-lg uppercase tracking-widest",
+                    getDailyOutlook(currentAsset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 text-[#00D9A5] border-[#00D9A5]/20" :
+                      getDailyOutlook(currentAsset).conclusionType === 'bearish' ? "bg-red-500/10 text-red-400 border-red-400/20" :
+                        "bg-yellow-500/10 text-yellow-400 border-yellow-400/20"
+                  )}>
+                    {getDailyOutlook(currentAsset).conclusion}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Favorite Eye Icon & Color Selector */}
-            <div className="relative" onMouseLeave={() => setShowSelector(false)}>
-              <button
-                onClick={() => setShowSelector(!showSelector)}
-                className={cn(
-                  "p-2 rounded-lg border transition-all flex items-center gap-2",
-                  showSelector ? "bg-[#00D9A5]/10 border-[#00D9A5]/30 text-[#00D9A5]" : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:bg-white/5 dark:border-white/10 dark:text-white/40 dark:hover:text-white dark:hover:border-white/20"
-                )}
-              >
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartLineColor }} />
-                <Eye className="w-5 h-5" />
-              </button>
+              {/* Favorite Eye Icon & Color Selector */}
+              <div className="relative" onMouseLeave={() => setShowSelector(false)}>
+                <button
+                  onClick={() => setShowSelector(!showSelector)}
+                  className={cn(
+                    "p-2 rounded-lg border transition-all flex items-center gap-2",
+                    showSelector ? "bg-[#00D9A5]/10 border-[#00D9A5]/30 text-[#00D9A5]" : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:bg-white/5 dark:border-white/10 dark:text-white/40 dark:hover:text-white dark:hover:border-white/20"
+                  )}
+                >
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartLineColor }} />
+                  <Eye className="w-5 h-5" />
+                </button>
 
-              <AnimatePresence>
-                {showSelector && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200/50 rounded-xl shadow-2xl min-w-[220px] backdrop-blur-xl dark:bg-[#0B0F17]/95 dark:border-white/10"
-                  >
-                    {/* Asset Selection Section */}
-                    <div className="mb-2 px-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset {isMobile ? '(1)' : `(${favoriteCharts.length}/3)`}</span>
-                    </div>
-                    <div className="space-y-1 mb-4">
-                      {assets.map((a) => (
-                        <button
-                          key={a.symbol}
-                          onClick={() => toggleFavorite(a.symbol)}
-                          className={cn(
-                            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all font-medium",
-                            favoriteCharts.includes(a.symbol)
-                              ? "bg-[#00D9A5]/10 text-[#00D9A5]"
-                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white"
-                          )}
-                        >
-                          <span>{a.symbol}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Color Selection Section */}
-                    <div className="border-t border-white/5 pt-3 mb-4">
+                <AnimatePresence>
+                  {showSelector && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200/50 rounded-xl shadow-2xl min-w-[220px] backdrop-blur-xl dark:bg-[#0B0F17]/95 dark:border-white/10"
+                    >
+                      {/* Asset Selection Section */}
                       <div className="mb-2 px-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Colore Grafico</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset {isMobile ? '(1)' : `(${favoriteCharts.length}/3)`}</span>
                       </div>
-                      <div className="flex items-center justify-between px-2">
-                        {chartColors.map((color) => (
+                      <div className="space-y-1 mb-4">
+                        {assets.map((a) => (
                           <button
-                            key={color}
-                            onClick={() => setChartLineColor(color)}
+                            key={a.symbol}
+                            onClick={() => toggleFavorite(a.symbol)}
                             className={cn(
-                              "w-5 h-5 rounded-full border-2 transition-all hover:scale-110",
-                              chartLineColor === color ? "border-white shadow-[0_0_8px_rgba(255,255,255,0.5)] scale-110" : "border-transparent opacity-50 hover:opacity-100"
+                              "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all font-medium",
+                              favoriteCharts.includes(a.symbol)
+                                ? "bg-[#00D9A5]/10 text-[#00D9A5]"
+                                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white"
                             )}
-                            style={{ backgroundColor: color }}
-                            title={color}
-                          />
+                          >
+                            <span>{a.symbol}</span>
+                          </button>
                         ))}
                       </div>
-                    </div>
 
-                    {/* Sync Tickers Switch */}
-                    <div className="border-t border-white/5 pt-3">
-                      <button
-                        onClick={() => setSyncEnabled(!syncEnabled)}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all hover:bg-slate-100 dark:hover:bg-white/5"
-                      >
-                        <div className="flex items-center gap-2">
-                          <RefreshCw className={cn("w-4 h-4 transition-transform duration-500", syncEnabled && "rotate-180 text-[#00D9A5]")} />
-                          <span className={cn("font-medium", syncEnabled ? "text-[#00D9A5]" : "text-slate-500 dark:text-white/50")}>Sync Tickers</span>
+                      {/* Color Selection Section */}
+                      <div className="border-t border-white/5 pt-3 mb-4">
+                        <div className="mb-2 px-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Colore Grafico</span>
                         </div>
-                        <div className={cn(
-                          "w-8 h-4 rounded-full relative transition-colors",
-                          syncEnabled ? "bg-[#00D9A5]" : "bg-slate-200 dark:bg-white/10"
-                        )}>
+                        <div className="flex items-center justify-between px-2">
+                          {chartColors.map((color) => (
+                            <button
+                              key={color}
+                              onClick={() => setChartLineColor(color)}
+                              className={cn(
+                                "w-5 h-5 rounded-full border-2 transition-all hover:scale-110",
+                                chartLineColor === color ? "border-white shadow-[0_0_8px_rgba(255,255,255,0.5)] scale-110" : "border-transparent opacity-50 hover:opacity-100"
+                              )}
+                              style={{ backgroundColor: color }}
+                              title={color}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Sync Tickers Switch */}
+                      <div className="border-t border-white/5 pt-3">
+                        <button
+                          onClick={() => setSyncEnabled(!syncEnabled)}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all hover:bg-slate-100 dark:hover:bg-white/5"
+                        >
+                          <div className="flex items-center gap-2">
+                            <RefreshCw className={cn("w-4 h-4 transition-transform duration-500", syncEnabled && "rotate-180 text-[#00D9A5]")} />
+                            <span className={cn("font-medium", syncEnabled ? "text-[#00D9A5]" : "text-slate-500 dark:text-white/50")}>Sync Tickers</span>
+                          </div>
                           <div className={cn(
-                            "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all shadow-sm",
-                            syncEnabled ? "left-4.5" : "left-0.5"
-                          )} />
-                        </div>
-                      </button>
-                      {syncEnabled && (
-                        <p className="text-[9px] text-[#00D9A5]/60 mt-1 px-3 leading-tight italic">
-                          Link charts, COT & Options
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                            "w-8 h-4 rounded-full relative transition-colors",
+                            syncEnabled ? "bg-[#00D9A5]" : "bg-slate-200 dark:bg-white/10"
+                          )}>
+                            <div className={cn(
+                              "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all shadow-sm",
+                              syncEnabled ? "left-4.5" : "left-0.5"
+                            )} />
+                          </div>
+                        </button>
+                        {syncEnabled && (
+                          <p className="text-[9px] text-[#00D9A5]/60 mt-1 px-3 leading-tight italic">
+                            Link charts, COT & Options
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           )}
         </div>
@@ -2753,7 +2753,7 @@ export default function DashboardPage() {
         </div>
 
         {/* RIGHT SIDEBAR: News + Activity + Strategies */}
-        <div className="lg:col-span-1 lg:w-[76%] lg:ml-auto">
+        <div className="lg:col-span-1 lg:w-[55%] lg:ml-auto">
           <ActivitySidebar
             news={newsBriefing?.events}
             newsSummaries={newsBriefing?.summaries}
