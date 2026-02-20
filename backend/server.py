@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
+import json
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any, Tuple
 import uuid
@@ -39,6 +40,36 @@ demo_data = {
     "trades": [],
     "community_posts": []
 }
+DEMO_USERS_FILE = ROOT_DIR / "demo_users.json"
+
+DEFAULT_DEMO_USER = {
+    "id": "demo-user-123",
+    "email": "test@test.com",
+    "name": "Demo Trader",
+    "password": "$2b$12$QUndHtYfA4s8ni5Y27PTA.8MyHLw3TTiI54gQIRcGFmS5Pu7MxIRu",  # password123
+    "created_at": "2024-01-01T00:00:00Z",
+    "level": "Trader Intermedio",
+    "xp": 1500
+}
+
+def _load_demo_users_from_disk() -> Dict[str, Dict[str, Any]]:
+    if not DEMO_USERS_FILE.exists():
+        return {}
+    try:
+        with DEMO_USERS_FILE.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except Exception as exc:
+        print(f"⚠️ Failed loading demo users from disk: {exc}")
+    return {}
+
+def _save_demo_users_to_disk() -> None:
+    try:
+        with DEMO_USERS_FILE.open("w", encoding="utf-8") as f:
+            json.dump(demo_users, f, ensure_ascii=False, indent=2)
+    except Exception as exc:
+        print(f"⚠️ Failed saving demo users to disk: {exc}")
 
 # MongoDB connection with fallback to demo mode
 try:
@@ -58,16 +89,11 @@ except Exception as e:
     print("🎮 Running in DEMO MODE with in-memory storage")
     DEMO_MODE = True
     db = None
-    # Pre-populate demo user
-    demo_users["test@test.com"] = {
-        "id": "demo-user-123",
-        "email": "test@test.com",
-        "name": "Demo Trader",
-        "password": "$2b$12$QUndHtYfA4s8ni5Y27PTA.8MyHLw3TTiI54gQIRcGFmS5Pu7MxIRu",  # password123
-        "created_at": "2024-01-01T00:00:00Z",
-        "level": "Trader Intermedio",
-        "xp": 1500
-    }
+    # Load previously created local demo users and ensure a default fallback user exists.
+    demo_users.update(_load_demo_users_from_disk())
+    if "test@test.com" not in demo_users:
+        demo_users["test@test.com"] = DEFAULT_DEMO_USER
+    _save_demo_users_to_disk()
 
 # JWT Configuration
 JWT_SECRET = os.environ.get('JWT_SECRET', 'tradingos-secret-key-2024')
@@ -377,6 +403,7 @@ async def register(user_data: UserCreate):
             "level": "Novice",
             "xp": 0
         }
+        _save_demo_users_to_disk()
     else:
         existing = await db.users.find_one({"email": email})
         if existing:
@@ -408,12 +435,17 @@ async def register(user_data: UserCreate):
 async def login(credentials: UserLogin):
     email = credentials.email.strip().lower()
     if DEMO_MODE:
+        raw_password = credentials.password or ""
+        if not raw_password.strip():
+            raise HTTPException(status_code=400, detail="Password required")
+
         user = demo_users.get(email)
+        if not user or not verify_password(raw_password, user["password"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
     else:
         user = await db.users.find_one({"email": email})
-    
-    if not user or not verify_password(credentials.password, user["password"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not user or not verify_password(credentials.password, user["password"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
     
     token = create_token(user["id"], user["email"])
     user_response = UserResponse(

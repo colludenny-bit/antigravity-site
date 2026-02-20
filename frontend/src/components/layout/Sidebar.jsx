@@ -112,18 +112,20 @@ export const Sidebar = ({ isOpen, onClose }) => {
       {/* Desktop Sidebar - Premium Dark Theme */}
       <aside
         className={cn(
-          "fixed top-3 bottom-3 left-3 z-50",
+          "fixed top-[22px] bottom-3 left-3 z-50 overflow-hidden",
           "hidden lg:flex flex-col items-center pt-2 pb-4",
-          "w-56 rounded-[22px]",
-          "bg-[#1a1a1a]",
-          "border border-white/14",
-          "backdrop-blur-2xl",
-          "shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
+          "w-56 rounded-[24px]",
+          "bg-[linear-gradient(165deg,rgba(8,8,8,0.92)_0%,rgba(12,12,12,0.9)_34%,rgba(18,18,18,0.86)_68%,rgba(24,24,24,0.82)_100%)]",
+          "border-[1.5px] border-white/24",
+          "backdrop-blur-[26px]",
+          "shadow-[0_22px_56px_rgba(0,0,0,0.48),0_0_0_1px_rgba(255,255,255,0.12),0_0_22px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.15)]"
         )}
         data-testid="sidebar-desktop"
       >
+        <div className="pointer-events-none absolute inset-0 z-0 rounded-[24px] bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.1)_0%,rgba(255,255,255,0)_56%),linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_48%)]" />
+
         {/* Logo - Clickable for voice analysis */}
-        <div className="mb-6 -mt-4 relative w-full px-0 overflow-visible">
+        <div className="mb-6 -mt-4 relative z-10 w-full px-0 overflow-visible">
           <button
             onClick={speakMarketAnalysis}
             className="flex items-center justify-center w-full cursor-pointer hover:scale-[1.05] transition-transform group"
@@ -142,7 +144,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Navigation Icons with Labels */}
-        <nav className="flex-1 flex flex-col items-center gap-1 w-full px-3 overflow-y-auto scrollbar-thin">
+        <nav className="relative z-10 flex-1 flex flex-col items-center gap-1 w-full px-3 overflow-y-auto scrollbar-thin">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -152,9 +154,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-all duration-200",
-                  "hover:bg-white/10",
-                  isActive && "bg-white/14"
+                  "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-all duration-200 border border-transparent",
+                  "hover:bg-white/10 hover:border-white/15",
+                  isActive && "bg-white/16 border-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_24px_rgba(0,0,0,0.25)]"
                 )}
                 data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
               >
@@ -163,7 +165,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                   item.label === 'Crypto'
                     ? "text-[#C5A028] drop-shadow-[0_0_8px_rgba(197,160,40,0.3)]"
                     : item.label === 'Dashboard'
-                      ? "text-[#00CCFF] drop-shadow-[0_0_8px_rgba(0,204,255,0.4)]"
+                      ? "text-white/78 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
                       : item.label === 'Grafici'
                         ? "text-[#FF4D4D] drop-shadow-[0_0_8px_rgba(255,77,77,0.35)]"
                         : "text-white/72",
@@ -171,7 +173,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                     item.label === 'Crypto'
                       ? "text-[#FFD700] drop-shadow-[0_0_15px_rgba(255,215,0,0.45)]"
                       : item.label === 'Dashboard'
-                        ? "text-[#59E3FF] drop-shadow-[0_0_15px_rgba(89,227,255,0.6)]"
+                        ? "text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.35)]"
                         : item.label === 'Grafici'
                           ? "text-[#FF0000] drop-shadow-[0_0_15px_rgba(255,0,0,0.5)]"
                           : "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
@@ -189,13 +191,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
         </nav>
 
         {/* Bottom Actions */}
-        <div className="flex flex-col items-center gap-1 mt-2 w-full px-3">
+        <div className="relative z-10 flex flex-col items-center gap-1 mt-2 w-full px-3">
           {/* Home Button */}
           <NavLink
             to="/welcome"
             className={cn(
-              "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-colors hover:bg-white/10",
-              location.pathname === '/welcome' && "bg-white/14"
+              "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-all duration-200 border border-transparent hover:bg-white/10 hover:border-white/15",
+              location.pathname === '/welcome' && "bg-white/16 border-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_24px_rgba(0,0,0,0.25)]"
             )}
             title="Torna alla Home"
             data-testid="nav-home"
@@ -215,8 +217,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
           <NavLink
             to="/app/settings"
             className={cn(
-              "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-colors hover:bg-white/10",
-              location.pathname === '/app/settings' && "bg-white/14"
+              "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-all duration-200 border border-transparent hover:bg-white/10 hover:border-white/15",
+              location.pathname === '/app/settings' && "bg-white/16 border-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_24px_rgba(0,0,0,0.25)]"
             )}
             data-testid="nav-settings"
           >
@@ -236,14 +238,18 @@ export const Sidebar = ({ isOpen, onClose }) => {
       {/* Mobile Sidebar - Full Width with Labels */}
       <aside
         className={cn(
-          "fixed top-0 left-0 h-full w-64 bg-card/95 backdrop-blur-xl border-r border-border z-50",
+          "fixed top-0 left-0 h-full w-64 z-50 overflow-hidden",
+          "bg-[linear-gradient(180deg,rgba(8,8,8,0.96)_0%,rgba(13,13,13,0.92)_50%,rgba(22,22,22,0.86)_100%)] backdrop-blur-[24px] border-r-[1.5px] border-white/20",
+          "shadow-[0_26px_66px_rgba(0,0,0,0.42)]",
           "flex flex-col lg:hidden transition-transform duration-300 ease-out",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
         data-testid="sidebar-mobile"
       >
+        <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_10%_0%,rgba(255,255,255,0.1)_0%,rgba(255,255,255,0)_52%)]" />
+
         {/* Header */}
-        <div className="p-4 border-b border-border flex items-center justify-between">
+        <div className="relative z-10 p-4 border-b border-white/12 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl overflow-hidden">
               <img
@@ -265,7 +271,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
         {/* User Info */}
         {user && (
-          <div className="p-4 border-b border-border">
+          <div className="relative z-10 p-4 border-b border-white/12">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold">
                 {(user.name?.charAt(0) || '').toUpperCase()}
@@ -279,7 +285,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         )}
 
         {/* Theme Toggle */}
-        <div className="px-4 py-3 border-b border-border">
+        <div className="relative z-10 px-4 py-3 border-b border-white/12">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Moon className="w-4 h-4" />
@@ -301,7 +307,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 scrollbar-thin">
+        <nav className="relative z-10 flex-1 overflow-y-auto py-4 scrollbar-thin">
           <ul className="space-y-1 px-2">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -313,9 +319,9 @@ export const Sidebar = ({ isOpen, onClose }) => {
                     to={item.path}
                     onClick={onClose}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
-                      "hover:bg-secondary/80",
-                      isActive && "bg-primary/10 text-primary border border-primary/20"
+                      "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 border border-transparent",
+                      "hover:bg-white/10 hover:border-white/15",
+                      isActive && "bg-white/16 border-white/20 text-primary"
                     )}
                   >
                     <Icon className={cn("w-5 h-5 sidebar-icon-animate", isActive ? item.iconClass : "")} />
@@ -336,14 +342,14 @@ export const Sidebar = ({ isOpen, onClose }) => {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border space-y-2">
+        <div className="relative z-10 p-4 border-t border-white/12 space-y-2">
           <NavLink
             to="/app/settings"
             onClick={onClose}
             className={cn(
-              "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
-              "hover:bg-secondary/80",
-              location.pathname === '/app/settings' && "bg-primary/10 text-primary"
+              "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 border border-transparent",
+              "hover:bg-white/10 hover:border-white/15",
+              location.pathname === '/app/settings' && "bg-white/16 border-white/20 text-primary"
             )}
           >
             <Settings className="w-5 h-5" />

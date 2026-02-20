@@ -303,7 +303,6 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const [showInfo, setShowInfo] = useState(false);
   const [chartLineColor, setChartLineColor] = useState(() => localStorage.getItem('dashboard_chartLineColor') || '#00D9A5');
   const [syncEnabled, setSyncEnabled] = useState(() => localStorage.getItem('dashboard_syncEnabled') === 'true');
-  const [screeningMode, setScreeningMode] = useState(() => localStorage.getItem('dashboard_screeningMode') || 'clarity');
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
   const isMobile = useIsMobile();
 
@@ -330,10 +329,6 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   useEffect(() => {
     localStorage.setItem('dashboard_chartLineColor', chartLineColor);
   }, [chartLineColor]);
-
-  useEffect(() => {
-    localStorage.setItem('dashboard_screeningMode', screeningMode);
-  }, [screeningMode]);
 
   // Filter to show only favorite charts in grid
   const visibleAssets = assets.filter(a => favoriteCharts.includes(a.symbol));
@@ -503,7 +498,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   };
 
   return (
-    <TechCard className={cn("font-apple glass-edge fine-gray-border p-4 relative w-full transition-all duration-300", viewMode === 'focus' ? "lg:w-[55%] lg:mr-auto" : "lg:w-[70%] lg:mr-auto")}>
+    <TechCard className="font-apple glass-edge fine-gray-border p-4 relative w-full transition-all duration-300 lg:w-[46%] lg:mr-auto min-h-[474px] pb-[74px]">
       {/* Info Tooltip - Genie Effect */}
       <AnimatePresence>
         {showInfo && (
@@ -653,31 +648,6 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
         </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-          <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white/80 p-1 shadow-sm dark:bg-white/5 dark:border-white/10">
-            <button
-              onClick={() => setScreeningMode('clarity')}
-              className={cn(
-                "px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-[0.16em] transition-all",
-                screeningMode === 'clarity'
-                  ? "bg-[#00D9A5]/15 text-[#00D9A5] border border-[#00D9A5]/30"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10"
-              )}
-            >
-              Clarity
-            </button>
-            <button
-              onClick={() => setScreeningMode('precision')}
-              className={cn(
-                "px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-[0.16em] transition-all",
-                screeningMode === 'precision'
-                  ? "bg-[#00D9A5]/15 text-[#00D9A5] border border-[#00D9A5]/30"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10"
-              )}
-            >
-              Precision
-            </button>
-          </div>
-
           {!(viewMode === 'focus' && currentAsset?.symbol === 'XAUUSD') && (
             <div className="flex items-center gap-3">
               {/* Outlook Giornaliero */}
@@ -800,6 +770,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
+            className="min-h-[364px] lg:min-h-[403px]"
           >
             {/* MOBILE: single zoomed chart with navigation */}
             {isMobile ? (
@@ -926,7 +897,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                         </div>
                       </div>
 
-                      <div className="h-20 -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
+                      <div className="h-[55px] -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
                         {animationsReady && (
                           asset.symbol === 'XAUUSD' ? (
                             <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-grid-${asset.symbol}`} />
@@ -985,7 +956,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, x: -10 }}
-            className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms]"
+            className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms] min-h-[364px] lg:min-h-[403px]"
           >
             {currentAsset.symbol === 'XAUUSD' ? (
               <div className="w-full aspect-[16/8] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
@@ -1023,7 +994,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                 </div>
 
                 {/* Big Chart - Compatto */}
-                <div className="h-[84px] mb-4 relative group overflow-hidden">
+                <div className="h-[55px] mb-4 relative group overflow-hidden">
                   {/* Hover Gradient - Neutral */}
                   <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
                   <div className="w-full h-full flex items-center justify-center">

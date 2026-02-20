@@ -75,8 +75,14 @@ export const Layout = () => {
           </div>
         </header>
 
-        {/* Page Content — keep top compact on mobile, aligned under safe area */}
-        <div className="p-4 pb-24 pt-[calc(env(safe-area-inset-top)+8px)] md:p-6 md:pt-6 md:pb-6 lg:p-8">
+        {/* Page Content */}
+        <div
+          className={
+            isDashboardRoute
+              ? "p-4 pb-24 pt-6 md:px-6 md:pb-6 md:pt-7 lg:px-8 lg:pb-8 lg:pt-7"
+              : "p-4 pb-24 pt-2 md:px-6 md:pb-6 md:pt-3 lg:px-8 lg:pb-8 lg:pt-3"
+          }
+        >
           <Outlet />
         </div>
 
