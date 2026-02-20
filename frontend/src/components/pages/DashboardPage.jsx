@@ -503,7 +503,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   };
 
   return (
-    <TechCard className={cn("font-apple glass-edge fine-gray-border p-4 relative w-full transition-all duration-300", viewMode === 'focus' ? "lg:w-[55%] mx-auto" : "lg:w-[70%] lg:mr-auto")}>
+    <TechCard className={cn("font-apple glass-edge fine-gray-border p-4 relative w-full transition-all duration-300", viewMode === 'focus' ? "lg:w-[55%] lg:mr-auto" : "lg:w-[70%] lg:mr-auto")}>
       {/* Info Tooltip - Genie Effect */}
       <AnimatePresence>
         {showInfo && (
