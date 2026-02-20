@@ -409,19 +409,6 @@ async def login(credentials: UserLogin):
     email = credentials.email.strip().lower()
     if DEMO_MODE:
         user = demo_users.get(email)
-        if not user:
-            # Local-only convenience: first login in demo mode creates an in-memory user.
-            user_id = str(uuid.uuid4())
-            user = {
-                "id": user_id,
-                "email": email,
-                "name": email.split("@")[0],
-                "password": hash_password(credentials.password),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "level": "Novice",
-                "xp": 0
-            }
-            demo_users[email] = user
     else:
         user = await db.users.find_one({"email": email})
     
