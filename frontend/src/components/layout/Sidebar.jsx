@@ -133,7 +133,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
             <img
               src={nuovoLogo}
               alt="Karion Logo"
-              className="w-[260%] ml-0 h-auto object-contain transition-all duration-300"
+              className="w-[235%] ml-0 h-auto object-contain transition-all duration-300"
             />
             <span className="absolute -bottom-2 right-4 text-[10px] text-[#00D9A5] opacity-0 group-hover:opacity-100 transition-opacity font-bold">
               🎤 Analizza
@@ -159,7 +159,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
               >
                 <Icon className={cn(
-                  "w-[33px] h-[33px] sidebar-icon-animate transition-all flex-shrink-0",
+                  "w-[29px] h-[29px] sidebar-icon-animate transition-all flex-shrink-0",
                   item.label === 'Crypto'
                     ? "text-[#C5A028] drop-shadow-[0_0_8px_rgba(197,160,40,0.3)]"
                     : item.label === 'Dashboard'
@@ -178,7 +178,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                   )
                 )} />
                 <span className={cn(
-                  "text-lg font-semibold leading-tight",
+                  "text-[15px] font-semibold leading-tight",
                   isActive ? "text-white/92" : "text-white/64"
                 )}>
                   {item.label}
@@ -201,12 +201,12 @@ export const Sidebar = ({ isOpen, onClose }) => {
             data-testid="nav-home"
           >
             <Home className={cn(
-              "w-[33px] h-[33px] transition-all flex-shrink-0",
+              "w-[29px] h-[29px] transition-all flex-shrink-0",
               "text-white/72",
               location.pathname === '/welcome' && "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
             )} />
             <span className={cn(
-              "text-lg font-semibold",
+              "text-[15px] font-semibold",
               location.pathname === '/welcome' ? "text-white/92" : "text-white/64"
             )}>Torna alla Home</span>
           </NavLink>
@@ -221,12 +221,12 @@ export const Sidebar = ({ isOpen, onClose }) => {
             data-testid="nav-settings"
           >
             <Settings className={cn(
-              "w-[33px] h-[33px] transition-all flex-shrink-0",
+              "w-[29px] h-[29px] transition-all flex-shrink-0",
               "text-white/72",
               location.pathname === '/app/settings' && "text-white/95 drop-shadow-[0_0_4px_rgba(255,255,255,0.18)]"
             )} />
             <span className={cn(
-              "text-lg font-semibold",
+              "text-[15px] font-semibold",
               location.pathname === '/app/settings' ? "text-white/92" : "text-white/64"
             )}>Impostazioni</span>
           </NavLink>
