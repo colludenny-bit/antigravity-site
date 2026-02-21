@@ -122,7 +122,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         )}
         data-testid="sidebar-desktop"
       >
-        <div className="pointer-events-none absolute inset-0 z-0 rounded-[24px] bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.1)_0%,rgba(255,255,255,0)_56%),linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_48%)]" />
+        <div className="pointer-events-none absolute inset-0 z-0 rounded-[24px] bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.065)_0%,rgba(255,255,255,0)_56%),linear-gradient(180deg,rgba(255,255,255,0.02)_0%,rgba(255,255,255,0)_48%)]" />
 
         {/* Logo - Clickable for voice analysis */}
         <div className="mb-6 -mt-4 relative z-10 w-full px-0 overflow-visible">

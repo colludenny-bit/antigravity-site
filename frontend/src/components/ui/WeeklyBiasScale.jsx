@@ -45,14 +45,16 @@ export const WeeklyBiasScale = ({ data, mini = false, showWrapper = true, trigge
             {/* Bars Row - aligned at bottom */}
             <div className={cn(
                 "flex items-end justify-between relative gap-2",
-                mini ? "h-[180px] px-1" : "h-[180px] px-4"
+                mini ? "h-[180px] px-1 max-w-[540px] mx-auto" : "h-[180px] px-4"
             )}>
                 {data.map((item, i) => (
-                    <div key={i} className="flex flex-col items-center flex-1 h-full justify-end">
+                    <div key={i} className={cn(
+                        "flex flex-col items-center flex-1 h-full justify-end"
+                    )}>
                         {/* Bar Container */}
                         <div className={cn(
                             "relative w-full flex justify-center",
-                            mini ? "max-w-[60px]" : "max-w-[80px]"
+                            mini ? "max-w-[70px]" : "max-w-[80px]"
                         )}>
                             {/* Glowing Top Cap - for past weeks */}
                             {!item.isCurrent && (

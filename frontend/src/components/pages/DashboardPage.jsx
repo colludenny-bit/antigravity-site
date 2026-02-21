@@ -8,7 +8,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Activity,
   Target, Shield, AlertTriangle, RefreshCw, Lightbulb, Clock,
   BarChart3, Eye, Minus, Users, ArrowUpRight, ArrowDownRight,
-  Scale, Layers, Newspaper, ChevronDown, ChevronUp, ChevronRight,
+  Scale, Layers, Newspaper, ChevronDown, ChevronUp, ChevronRight, Gauge,
   Zap, Calendar, ChevronLeft, Info, X, Crown
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -133,6 +133,19 @@ const STATIC_OPTIONS_DATA = {
     call_million: 128, put_million: 105, net_million: 23,
     call_change: -5.2, put_change: 8.4, net_change: -12.5,
     gamma_exposure: 55, gamma_billion: 0.9,
+    gamma_flip: 2375,
+    gex_profile: [
+      { strike: 2625, put: -12, call: 6, net: -6 },
+      { strike: 2575, put: -26, call: 18, net: -8 },
+      { strike: 2525, put: -44, call: 30, net: -14 },
+      { strike: 2475, put: -62, call: 92, net: 30 },
+      { strike: 2425, put: -58, call: 118, net: 60 },
+      { strike: 2375, put: -174, call: 276, net: 102 },
+      { strike: 2325, put: -152, call: 288, net: 136 },
+      { strike: 2275, put: -104, call: 168, net: 64 },
+      { strike: 2225, put: -70, call: 76, net: 6 },
+      { strike: 2175, put: -54, call: 58, net: 4 }
+    ],
     interpretation: [
       'Flusso Gold moderatamente bullish ma in rallentamento.',
       'Long liquidation significativa: -14.9% gross longs speculativi.',
@@ -144,6 +157,19 @@ const STATIC_OPTIONS_DATA = {
     call_million: 88, put_million: 90, net_million: -2,
     call_change: -2.8, put_change: 4.5, net_change: -6.2,
     gamma_exposure: 48, gamma_billion: 0.6,
+    gamma_flip: 19700,
+    gex_profile: [
+      { strike: 20100, put: -26, call: 8, net: -18 },
+      { strike: 20000, put: -52, call: 20, net: -32 },
+      { strike: 19900, put: -66, call: 34, net: -32 },
+      { strike: 19800, put: -92, call: 64, net: -28 },
+      { strike: 19700, put: -106, call: 118, net: 12 },
+      { strike: 19600, put: -84, call: 138, net: 54 },
+      { strike: 19500, put: -62, call: 124, net: 62 },
+      { strike: 19400, put: -58, call: 82, net: 24 },
+      { strike: 19300, put: -42, call: 60, net: 18 },
+      { strike: 19200, put: -30, call: 44, net: 14 }
+    ],
     interpretation: [
       'Flusso NAS100 neutrale, equilibrio call/put.',
       'Tech in pressione post-NFP forte (ritardo tagli).',
@@ -155,6 +181,19 @@ const STATIC_OPTIONS_DATA = {
     call_million: 165, put_million: 178, net_million: -13,
     call_change: -3.5, put_change: 5.2, net_change: -8.1,
     gamma_exposure: 48, gamma_billion: 4.8,
+    gamma_flip: 5900,
+    gex_profile: [
+      { strike: 6100, put: -42, call: 20, net: -22 },
+      { strike: 6050, put: -76, call: 36, net: -40 },
+      { strike: 6000, put: -108, call: 64, net: -44 },
+      { strike: 5950, put: -128, call: 118, net: -10 },
+      { strike: 5900, put: -122, call: 172, net: 50 },
+      { strike: 5850, put: -88, call: 194, net: 106 },
+      { strike: 5800, put: -64, call: 156, net: 92 },
+      { strike: 5750, put: -52, call: 112, net: 60 },
+      { strike: 5700, put: -40, call: 82, net: 42 },
+      { strike: 5650, put: -28, call: 60, net: 32 }
+    ],
     interpretation: [
       'SP500 in equilibrio post-NFP beat (+130K vs 65K attesi).',
       'Speculatori COT net short -132.9K contratti.',
@@ -166,6 +205,19 @@ const STATIC_OPTIONS_DATA = {
     call_million: 78, put_million: 48, net_million: 30,
     call_change: 8.5, put_change: -4.2, net_change: 14.2,
     gamma_exposure: 65, gamma_billion: 0.5,
+    gamma_flip: 1.185,
+    gex_profile: [
+      { strike: 1.205, put: -16, call: 24, net: 8 },
+      { strike: 1.2, put: -28, call: 42, net: 14 },
+      { strike: 1.195, put: -36, call: 58, net: 22 },
+      { strike: 1.19, put: -44, call: 72, net: 28 },
+      { strike: 1.185, put: -48, call: 86, net: 38 },
+      { strike: 1.18, put: -42, call: 78, net: 36 },
+      { strike: 1.175, put: -34, call: 64, net: 30 },
+      { strike: 1.17, put: -26, call: 52, net: 26 },
+      { strike: 1.165, put: -20, call: 40, net: 20 },
+      { strike: 1.16, put: -14, call: 30, net: 16 }
+    ],
     interpretation: [
       'Flusso EURUSD decisamente bullish.',
       'EUR net long speculativo a 163K (max 6 mesi).',
@@ -177,6 +229,19 @@ const STATIC_OPTIONS_DATA = {
     call_million: 142, put_million: 232, net_million: -90,
     call_change: -18.5, put_change: 22.8, net_change: -35.4,
     gamma_exposure: 30, gamma_billion: -2.1,
+    gamma_flip: 78000,
+    gex_profile: [
+      { strike: 94000, put: -36, call: 16, net: -20 },
+      { strike: 90000, put: -58, call: 26, net: -32 },
+      { strike: 86000, put: -82, call: 38, net: -44 },
+      { strike: 82000, put: -114, call: 60, net: -54 },
+      { strike: 78000, put: -136, call: 88, net: -48 },
+      { strike: 74000, put: -144, call: 76, net: -68 },
+      { strike: 70000, put: -126, call: 64, net: -62 },
+      { strike: 66000, put: -98, call: 50, net: -48 },
+      { strike: 62000, put: -72, call: 36, net: -36 },
+      { strike: 58000, put: -48, call: 24, net: -24 }
+    ],
     interpretation: [
       'BTCUSD flusso fortemente bearish.',
       'Sell-off da $100K a $67K, put premium dominante.',
@@ -213,6 +278,20 @@ const formatAssetPrice = (value, symbol) => {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals
   });
+};
+
+const formatGammaScale = (value) => {
+  const abs = Math.abs(value);
+  if (abs >= 1000) return `${(value / 1000).toFixed(1)}M`;
+  return `${Math.round(value)}K`;
+};
+
+const formatStrikeLevel = (value) => {
+  if (!Number.isFinite(value)) return '-';
+  if (Math.abs(value) < 10) {
+    return value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  }
+  return value.toLocaleString('en-US', { maximumFractionDigits: 1 });
 };
 
 const TRADINGVIEW_MINI_SYMBOL = {
@@ -295,10 +374,9 @@ const useIsMobile = () => {
 // Asset Charts Grid (2-3 charts visible at once)
 const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false, onSyncAsset }) => {
   // State with LocalStorage Persistence
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem('dashboard_viewMode') || 'grid');
+  const [viewMode, setViewMode] = useState('focus');
   const [selectedAsset, setSelectedAsset] = useState(() => localStorage.getItem('dashboard_selectedAsset') || null);
   const [showSelector, setShowSelector] = useState(false);
-  const [showAssetMenu, setShowAssetMenu] = useState(false);
   const [showColorPalette, setShowColorPalette] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [chartLineColor, setChartLineColor] = useState(() => localStorage.getItem('dashboard_chartLineColor') || '#00D9A5');
@@ -312,7 +390,11 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   }, [syncEnabled]);
 
   useEffect(() => {
-    localStorage.setItem('dashboard_viewMode', viewMode);
+    if (viewMode !== 'focus') {
+      setViewMode('focus');
+      return;
+    }
+    localStorage.setItem('dashboard_viewMode', 'focus');
   }, [viewMode]);
 
   useEffect(() => {
@@ -485,20 +567,10 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const handleFocusAsset = (symbol) => {
     setSelectedAsset(symbol);
     setViewMode('focus');
-    setShowAssetMenu(false);
-  };
-
-  const handleTitleClick = () => {
-    if (viewMode === 'focus') {
-      setViewMode('grid');
-      setSelectedAsset(null);
-    } else {
-      setShowAssetMenu(!showAssetMenu);
-    }
   };
 
   return (
-    <TechCard className="font-apple glass-edge fine-gray-border p-4 relative w-full transition-all duration-300 lg:w-[46%] lg:mr-auto min-h-[474px] pb-[74px]">
+    <TechCard className="dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 lg:w-[46%] lg:mr-auto min-h-[474px] pb-[74px]">
       {/* Info Tooltip - Genie Effect */}
       <AnimatePresence>
         {showInfo && (
@@ -581,32 +653,35 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
         )}
       </AnimatePresence>
 
-      <div className="flex items-center justify-between mb-5">
+      <div
+        className={cn(
+          "transition-all duration-200",
+          showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
+        )}
+      >
+        <div className="flex items-center justify-between mb-5">
         <div className="relative flex items-center gap-2">
-          <button
-            onClick={handleTitleClick}
-            className="flex items-center gap-3 group transition-all"
-          >
+          <div className="flex items-center gap-3 select-none">
             <div className={cn(
               "p-2 rounded-lg border transition-all",
               viewMode === 'focus'
                 ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 font-bold"
-                : "bg-white/5 border-white/10 group-hover:border-white/20 dark:bg-white/5 dark:border-white/10"
+                : "bg-white/5 border-white/10 dark:bg-white/5 dark:border-white/10"
             )}>
               <BarChart3 className="w-5 h-5 text-[#00D9A5]" />
             </div>
             <div className="text-left">
               <h4 className={cn(
                 "text-lg font-bold transition-colors select-none",
-                viewMode === 'focus' ? "text-slate-900 dark:text-white" : "text-slate-500 group-hover:text-slate-900 dark:text-white/80 dark:group-hover:text-white"
+                viewMode === 'focus' ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-white/80"
               )}>
                 {viewMode === 'focus' ? 'Screening' : 'Screening'}
               </h4>
               <p className="text-xs text-slate-400 dark:text-white/40 leading-none mt-1">
-                {viewMode === 'focus' ? 'Dettagli asset' : 'Clicca per selezionare asset'}
+                Dettagli asset
               </p>
             </div>
-          </button>
+          </div>
           {/* Info Button */}
           <button
             onClick={() => setShowInfo(!showInfo)}
@@ -614,42 +689,10 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
           >
             <Info className="w-3.5 h-3.5 text-white" />
           </button>
-
-          {/* Asset Selection Dropdown */}
-          <AnimatePresence>
-            {showAssetMenu && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 5 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="absolute left-0 top-full mt-2 z-50 p-2 bg-white/95 border border-slate-200 rounded-xl shadow-2xl min-w-[180px] backdrop-blur-xl dark:bg-[#0B0F17]/95 dark:border-white/10"
-              >
-                <div className="space-y-1">
-                  {assets.map((a) => (
-                    <button
-                      key={a.symbol}
-                      onClick={() => handleFocusAsset(a.symbol)}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all text-slate-500 hover:bg-slate-100 hover:text-slate-900 font-semibold dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
-                    >
-                      {a.symbol}
-                    </button>
-                  ))}
-                  <div className="h-px bg-white/5 my-1" />
-                  <button
-                    onClick={() => { setViewMode('grid'); setShowAssetMenu(false); setSelectedAsset(null); }}
-                    className="w-full flex items-center justify-center px-3 py-2 rounded-lg text-[10px] uppercase font-bold tracking-widest text-[#00D9A5] hover:bg-slate-100 dark:hover:bg-white/10"
-                  >
-                    Torna alla Griglia
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-          {!(viewMode === 'focus' && currentAsset?.symbol === 'XAUUSD') && (
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
               {/* Outlook Giornaliero */}
               {viewMode === 'focus' && currentAsset && (
                 <div className="text-right">
@@ -758,8 +801,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                   )}
                 </AnimatePresence>
               </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -1075,6 +1117,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
     </TechCard >
   );
 };
@@ -1113,6 +1156,156 @@ const RiskPanel = ({ vix, regime }) => (
     </div>
   </div>
 );
+
+const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) => {
+  const vixCurrentValue = Number.isFinite(Number(vix?.current)) ? Number(vix?.current) : 18;
+
+  const model = useMemo(() => {
+    const entries = Object.values(analyses || {});
+    const total = Math.max(entries.length, 1);
+    let bullish = 0;
+    let bearish = 0;
+    let directionalConviction = 0;
+
+    entries.forEach((item) => {
+      const dir = String(item?.direction || '').toLowerCase();
+      const confRaw = Number(item?.confidence);
+      const conf = Number.isFinite(confRaw) ? Math.max(0, Math.min(100, confRaw)) : 50;
+      if (dir === 'up') {
+        bullish += 1;
+        directionalConviction += conf / 100;
+      } else if (dir === 'down') {
+        bearish += 1;
+        directionalConviction -= conf / 100;
+      }
+    });
+
+    const biasDelta = (bullish - bearish) / total;
+    const biasScore = Math.round(Math.max(0, Math.min(100, 50 + (biasDelta * 34))));
+
+    const normalizedVix = Math.min(Math.max(vixCurrentValue, 12), 32);
+    const vixScore = Math.round(Math.max(0, Math.min(100, 100 - (((normalizedVix - 12) / 20) * 100))));
+
+    const regimeScore = regime === 'risk-on' ? 74 : regime === 'risk-off' ? 28 : 50;
+    const convictionScore = Math.round(Math.max(0, Math.min(100, 50 + ((directionalConviction / total) * 28))));
+
+    const score = Math.round(
+      (biasScore * 0.34) +
+      (vixScore * 0.33) +
+      (regimeScore * 0.23) +
+      (convictionScore * 0.10)
+    );
+
+    let label = 'Neutral';
+    let tone = 'neutral';
+    if (score >= 76) {
+      label = 'Extreme Greed';
+      tone = 'greed';
+    } else if (score >= 58) {
+      label = 'Greed';
+      tone = 'greed';
+    } else if (score <= 24) {
+      label = 'Extreme Fear';
+      tone = 'fear';
+    } else if (score <= 42) {
+      label = 'Fear';
+      tone = 'fear';
+    }
+
+    return {
+      score,
+      label,
+      tone,
+      riskPressure: Math.max(0, Math.min(100, 100 - score)),
+      drivers: {
+        bias: biasScore,
+        vix: vixScore,
+        regime: regimeScore,
+        conviction: convictionScore
+      }
+    };
+  }, [analyses, regime, vixCurrentValue]);
+
+  const toneClass = model.tone === 'greed'
+    ? 'text-[#00D9A5]'
+    : model.tone === 'fear'
+      ? 'text-red-300'
+      : 'text-yellow-300';
+  const barClass = model.tone === 'greed'
+    ? 'bg-gradient-to-r from-[#00D9A5]/65 to-[#00D9A5]'
+    : model.tone === 'fear'
+      ? 'bg-gradient-to-r from-red-400/65 to-red-300'
+      : 'bg-gradient-to-r from-yellow-400/65 to-yellow-300';
+
+  const needleAngle = -140 + ((model.score / 100) * 280);
+
+  return (
+    <TechCard className={cn(
+      "dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border font-apple relative",
+      compact ? "p-3 h-auto" : "p-4 min-h-[470px]"
+    )}>
+      <div className={cn("flex items-start justify-between", compact ? "mb-2.5" : "mb-4")}>
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg border border-white/20 bg-white/[0.08]">
+            <Gauge className={cn("text-[#64E9FF]", compact ? "w-4 h-4" : "w-5 h-5")} />
+          </div>
+          <div>
+            <p className={cn("font-medium text-white/95 leading-none", compact ? "text-sm" : "text-base")}>Fear & Greed Index</p>
+            <p className={cn("uppercase tracking-[0.13em] text-white/45 mt-1", compact ? "text-[10px]" : "text-[11px]")}>Retail Sentiment Risk</p>
+          </div>
+        </div>
+        <span className={cn("font-black leading-none", toneClass, compact ? "text-2xl" : "text-4xl")}>{model.score}</span>
+      </div>
+
+      <div className={cn("relative mx-auto", compact ? "h-48 w-48" : "h-56 w-56")}>
+        <div className="absolute inset-0 rounded-full p-[12px] bg-[conic-gradient(from_220deg,rgba(248,113,113,0.96)_0deg,rgba(250,204,21,0.95)_155deg,rgba(0,217,165,0.98)_300deg,rgba(0,217,165,0.25)_360deg)] shadow-[0_0_38px_rgba(0,0,0,0.45)]">
+          <div className="h-full w-full rounded-full border border-white/10 bg-[#080B10]/95 flex flex-col items-center justify-center text-center">
+            <p className={cn("uppercase tracking-widest text-white/40", compact ? "text-[10px]" : "text-xs")}>Sentiment</p>
+            <p className={cn("font-black leading-none mt-1", toneClass, compact ? "text-3xl" : "text-5xl")}>{model.score}</p>
+            <p className={cn("mt-2 uppercase tracking-[0.12em] font-semibold", toneClass, compact ? "text-[10px]" : "text-xs")}>{model.label}</p>
+          </div>
+        </div>
+
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div
+            className="absolute h-[2px] origin-center rounded-full bg-gradient-to-r from-[#64E9FF]/10 via-[#64E9FF] to-[#64E9FF] shadow-[0_0_12px_rgba(100,233,255,0.8)] transition-transform duration-700"
+            style={{
+              width: compact ? '78px' : '92px',
+              transform: `rotate(${needleAngle}deg)`,
+              transformOrigin: 'center center'
+            }}
+          />
+          <div className={cn(
+            "absolute rounded-full border border-white/50 bg-[#64E9FF] shadow-[0_0_16px_rgba(100,233,255,0.85)]",
+            compact ? "h-3.5 w-3.5" : "h-[18px] w-[18px]"
+          )} />
+        </div>
+      </div>
+
+      <div className={cn("h-2.5 rounded-full bg-white/10 border border-white/10 overflow-hidden", compact ? "mt-3" : "mt-4")}>
+        <div className={cn("h-full transition-all duration-500", barClass)} style={{ width: `${model.score}%` }} />
+      </div>
+
+      <div className={cn("mt-2 grid grid-cols-2 gap-2", compact ? "text-[10px]" : "text-[11px]")}>
+        <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
+          <p className="uppercase tracking-widest text-white/45">Rischio</p>
+          <p className="mt-1 text-white text-lg font-semibold">{model.riskPressure}%</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
+          <p className="uppercase tracking-widest text-white/45">Regime</p>
+          <p className="mt-1 text-white text-lg font-semibold">{regime?.toUpperCase() || '-'}</p>
+        </div>
+      </div>
+
+      <div className={cn("mt-2.5 grid grid-cols-4 gap-1.5", compact ? "text-[10px]" : "text-[11px]")}>
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-white/70">Bias <span className="text-white font-semibold">{model.drivers.bias}</span></div>
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-white/70">VIX <span className="text-white font-semibold">{model.drivers.vix}</span></div>
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-white/70">Regime <span className="text-white font-semibold">{model.drivers.regime}</span></div>
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-white/70">Conv. <span className="text-white font-semibold">{model.drivers.conviction}</span></div>
+      </div>
+    </TechCard>
+  );
+});
 
 // COT Summary Panel - Premium Carousel Style
 const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animationsReady = false }) => {
@@ -1224,24 +1417,27 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
 
   if (selectedInstruments.length === 0) {
     return (
-      <TechCard className="p-4 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex items-center justify-center">
+      <TechCard className="dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border p-4 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex items-center justify-center">
         <p className="text-sm text-white/60 text-center">COT non disponibile al momento.</p>
       </TechCard>
     );
   }
 
   return (
-    <TechCard className="p-3 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex flex-col">
+    <TechCard className="dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border p-3 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
+        <div className={cn(
+          "flex items-center gap-2 transition-all duration-200",
+          showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
+        )}>
           <Users className="w-5 h-5 text-[#00D9A5]" />
           <span className="font-medium text-base text-white/90">COT Institutional</span>
           {/* Info Button */}
           <div className="relative">
             <button
               onClick={() => setShowInfo(!showInfo)}
-              className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
+              className="p-1.5 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
             >
               <Info className="w-3.5 h-3.5 text-white" />
             </button>
@@ -1262,10 +1458,10 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
                 mass: 0.6
               }}
               style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
-              className="absolute inset-3 z-50 bg-[#0F1115]/20 backdrop-blur-[6px] rounded-[24px]"
+              className="absolute inset-3 z-50 bg-[#0B0E14]/74 backdrop-blur-[10px] rounded-[24px]"
             >
               {/* Glass effect content layer */}
-              <div className="relative px-8 py-6 border border-[#00D9A5]/30 rounded-[24px] shadow-2xl w-full h-full overflow-y-auto scrollbar-thin font-apple">
+              <div className="relative px-8 py-6 bg-[#0A0D12]/86 border border-[#00D9A5]/30 rounded-[24px] shadow-2xl w-full h-full overflow-y-auto scrollbar-thin font-apple">
                 <div className="flex items-center justify-between mb-5">
                   <h4 className="text-xl font-bold text-white uppercase tracking-[0.15em]">Guida COT</h4>
                   <button onClick={() => setShowInfo(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
@@ -1336,7 +1532,10 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="flex items-center gap-4">
+        <div className={cn(
+          "flex items-center gap-4 transition-all duration-200",
+          showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
+        )}>
           <div className="relative" onMouseLeave={() => setShowSelector(false)}>
             <button
               onMouseEnter={() => setShowSelector(true)}
@@ -1377,7 +1576,10 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col -mt-[18px]">
+      <div className={cn(
+        "flex-1 flex flex-col -mt-[18px] transition-all duration-200",
+        showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
+      )}>
         {/* Main Title & Value */}
         {/* Compact Title Row & Chart */}
         {/* Left Aligned Compact Row */}
@@ -1385,17 +1587,17 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
         {/* Left Stack Title & NetPos - Big & Spaced */}
         <div className="flex flex-col items-start px-1 mb-0 relative top-[18px] shrink-0">
           <h2 className="text-xl font-bold text-white leading-none mb-0.5">{currentSymbol || '-'}</h2>
-          <div className="flex items-baseline gap-2 mt-0">
+          <div className="flex flex-col items-start mt-0.5 relative top-[14px]">
+            <span className="text-xs text-white/70 font-bold uppercase tracking-wider leading-none mb-1">Net Position</span>
             <span className={cn(
               "text-3xl font-bold tracking-tighter leading-none",
               netPos >= 0 ? "text-[#00D9A5]" : "text-red-400"
             )}>{formattedNetPos}</span>
-            <span className="text-xs text-white/70 font-bold uppercase tracking-wider relative -top-[1px]">Net Position</span>
           </div>
         </div>
 
         {/* Rolling Bias Section */}
-        <div className="mb-0 -mt-[8px] px-0">
+        <div className="mb-0 -mt-[30px] px-0">
           <WeeklyBiasScale
             data={data?.rolling_bias || [
               { label: 'W-3', value: 45, isCurrent: false },
@@ -1410,7 +1612,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
         </div>
 
         {/* Metrics Row */}
-        <div className="flex items-start justify-evenly px-0 mb-1">
+        <div className="flex items-start justify-evenly px-0 -mt-2 mb-1">
           <div className="flex flex-col items-center">
             <span className="text-xs font-bold text-white/70 uppercase tracking-widest mb-0.5">Confidence</span>
             <span className="text-xl font-bold text-[#00D9A5]"><CountUp value={metrics.confidence} suffix="%" duration={1800} delay={200} /></span>
@@ -1472,7 +1674,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
   const currentData = STATIC_OPTIONS_DATA[selectedAsset] || STATIC_OPTIONS_DATA.XAUUSD;
 
   return (
-    <TechCard className="p-3 h-full font-apple relative">
+    <TechCard className="dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border p-3 h-auto self-start font-apple relative">
       {/* Info Tooltip - Genie Effect */}
       <AnimatePresence>
         {showInfo && (
@@ -1487,9 +1689,9 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
               mass: 0.6
             }}
             style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
-            className="absolute inset-3 z-50 bg-[#0F1115]/20 backdrop-blur-[6px] rounded-[24px]"
+            className="absolute inset-3 z-50 bg-[#0B0E14]/74 backdrop-blur-[10px] rounded-[24px]"
           >
-            <div className="relative px-8 py-6 border border-[#00D9A5]/30 rounded-[24px] shadow-2xl w-full h-full overflow-y-auto scrollbar-thin font-apple">
+            <div className="relative px-8 py-6 bg-[#0A0D12]/86 border border-[#00D9A5]/30 rounded-[24px] shadow-2xl w-full h-full overflow-y-auto scrollbar-thin font-apple">
               <div className="flex items-center justify-between mb-5">
                 <h4 className="text-xl font-bold text-white uppercase tracking-[0.15em]">Guida Options</h4>
                 <button onClick={() => setShowInfo(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
@@ -1523,14 +1725,6 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
                       </p>
                     </li>
                     <li className="flex items-start gap-3">
-                      <div className="mt-2.5 w-2 h-2 rounded-full bg-[#00D9A5] shadow-[0_0_10px_#00D9A5] flex-shrink-0" />
-                      <p className="text-lg text-white leading-relaxed font-normal">
-                        <span className="font-semibold text-[#00D9A5]">Gamma Exposure:</span> Esposizione dei market maker.
-                        <span className="text-[#00D9A5] font-semibold"> Positivo = supporto ai livelli</span>,
-                        <span className="text-red-400 font-semibold"> Negativo = volatilità amplificata</span>.
-                      </p>
-                    </li>
-                    <li className="flex items-start gap-3">
                       <div className="mt-2.5 w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_10px_#FACC15] flex-shrink-0" />
                       <p className="text-lg text-white leading-relaxed font-normal">
                         <span className="font-semibold text-yellow-400">Milioni (M/B):</span> Volume in milioni o miliardi di dollari.
@@ -1555,6 +1749,10 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
         )}
       </AnimatePresence>
 
+      <div className={cn(
+        "transition-all duration-200",
+        showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
+      )}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Layers className="w-5 h-5 text-[#00D9A5]" />
@@ -1562,7 +1760,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
           {/* Info Button */}
           <button
             onClick={() => setShowInfo(!showInfo)}
-            className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
+            className="p-1.5 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
           >
             <Info className="w-3.5 h-3.5 text-white" />
           </button>
@@ -1720,28 +1918,6 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
             : 'Equilibrio tra opzioni call e put'}
       </p>
 
-      {/* Gamma Exposure Bar */}
-      <div className="mb-3 px-2">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-lg text-white/90 font-semibold">Gamma Exposure</span>
-          <span className={cn(
-            "text-xl font-bold",
-            currentData.gamma_billion >= 0 ? "text-[#00D9A5]" : "text-red-400"
-          )}>
-            {currentData.gamma_billion >= 0 ? '+' : ''}{currentData.gamma_billion}B
-          </span>
-        </div>
-        <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
-          <div
-            className={cn(
-              "h-full rounded-full transition-all",
-              currentData.gamma_exposure >= 50 ? "bg-[#00D9A5]" : "bg-red-400"
-            )}
-            style={{ width: `${currentData.gamma_exposure}%` }}
-          />
-        </div>
-      </div>
-
       {/* Options Interpretation - Bullet Points styled like Screening */}
       <div className="p-4 rounded-xl bg-white/5 border border-white/10">
         <ul className="space-y-1.5 text-base text-white/90">
@@ -1759,7 +1935,275 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
       </div>
 
       {/* Compact Disclaimer Summary - Matching Chart Style */}
+      </div>
 
+    </TechCard>
+  );
+});
+
+const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange, compact = false }) => {
+  const [showSelector, setShowSelector] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  const [internalSelectedAsset, setInternalSelectedAsset] = useState('XAUUSD');
+
+  const selectedAsset = propAsset || internalSelectedAsset;
+  const handleAssetChange = (asset) => {
+    if (onAssetChange) {
+      onAssetChange(asset);
+    } else {
+      setInternalSelectedAsset(asset);
+    }
+    setShowSelector(false);
+  };
+
+  const availableAssets = ['XAUUSD', 'NAS100', 'SP500', 'EURUSD', 'BTCUSD'];
+  const currentData = STATIC_OPTIONS_DATA[selectedAsset] || STATIC_OPTIONS_DATA.XAUUSD;
+  const gexProfile = useMemo(() => currentData.gex_profile || [], [currentData]);
+
+  const maxGamma = useMemo(() => {
+    const max = gexProfile.reduce((acc, row) => {
+      const rowMax = Math.max(Math.abs(row.put || 0), Math.abs(row.call || 0), Math.abs(row.net || 0));
+      return Math.max(acc, rowMax);
+    }, 0);
+    return Math.max(max, 1);
+  }, [gexProfile]);
+
+  return (
+    <TechCard className={cn(
+      "dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border font-apple relative",
+      compact ? "p-3.5 h-auto" : "p-3 h-full"
+    )}>
+      <AnimatePresence>
+        {showInfo && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0, y: -20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0, y: -20 }}
+            transition={{
+              type: "spring",
+              stiffness: 350,
+              damping: 25,
+              mass: 0.6
+            }}
+            style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
+            className="absolute inset-3 z-50 bg-[#0B0E14]/74 backdrop-blur-[10px] rounded-[24px]"
+          >
+            <div className="relative px-8 py-6 bg-[#0A0D12]/86 border border-[#00D9A5]/30 rounded-[24px] shadow-2xl w-full h-full overflow-y-auto scrollbar-thin font-apple">
+              <div className="flex items-center justify-between mb-5">
+                <h4 className="text-xl font-bold text-white uppercase tracking-[0.15em]">Guida GEX</h4>
+                <button onClick={() => setShowInfo(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
+                  <X className="w-5 h-5 text-white/50" />
+                </button>
+              </div>
+              <div className="space-y-5 text-left">
+                <p className="text-lg text-white leading-relaxed font-normal">
+                  Il <span className="text-[#00D9A5] font-semibold">GEX (Gamma Exposure)</span> mostra dove i market maker sono più esposti per strike.
+                  Quando il gamma è concentrato, il prezzo tende a reagire su quelle aree.
+                </p>
+                <ul className="space-y-4 text-left">
+                  <li className="flex items-start gap-3">
+                    <div className="mt-2.5 w-2 h-2 rounded-full bg-[#B574FF] shadow-[0_0_8px_#B574FF] flex-shrink-0" />
+                    <p className="text-lg text-white leading-relaxed font-normal">
+                      <span className="font-semibold text-[#B574FF]">Put Gamma</span>: pressione dealer sul lato ribassista.
+                    </p>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="mt-2.5 w-2 h-2 rounded-full bg-[#E3C98A] shadow-[0_0_8px_#E3C98A] flex-shrink-0" />
+                    <p className="text-lg text-white leading-relaxed font-normal">
+                      <span className="font-semibold text-[#E3C98A]">Call Gamma</span>: supporto lato rialzista.
+                    </p>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="mt-2.5 w-2 h-2 rounded-full bg-[#FF4D7A] shadow-[0_0_8px_#FF4D7A] flex-shrink-0" />
+                    <p className="text-lg text-white leading-relaxed font-normal">
+                      <span className="font-semibold text-[#FF4D7A]">Net Gamma</span>: sintesi netta per strike, utile per identificare zone di assorbimento o accelerazione.
+                    </p>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className={cn(
+        "transition-all duration-200",
+        showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
+      )}>
+      <div className={cn("flex items-center justify-between px-1", compact ? "mb-2.5" : "mb-3")}>
+        <div className="flex items-baseline gap-2">
+          <span className={cn("font-bold text-white", compact ? "text-[22px] leading-none" : "text-xl")}>{selectedAsset}</span>
+          <span className={cn("uppercase tracking-widest text-white/40", compact ? "text-sm" : "text-xs")}>Strike Ladder</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowInfo(!showInfo)}
+            className={cn(
+              "rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100",
+              compact ? "p-1.5" : "p-1.5"
+            )}
+          >
+            <Info className={cn("text-white", compact ? "w-4 h-4" : "w-3.5 h-3.5")} />
+          </button>
+
+          <div className="relative" onMouseLeave={() => setShowSelector(false)}>
+            <button
+              onClick={() => setShowSelector(!showSelector)}
+              className={cn(
+                "rounded-lg transition-colors border bg-slate-100 border-slate-200 hover:bg-slate-200 dark:bg-white/5 dark:border-white/20 dark:hover:bg-white/10",
+                compact ? "p-1.5" : "p-1.5"
+              )}
+            >
+              <Eye className={cn("text-slate-500 dark:text-white/60", compact ? "w-4 h-4" : "w-4 h-4")} />
+            </button>
+            <AnimatePresence>
+              {showSelector && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200 rounded-lg shadow-xl min-w-[160px] dark:bg-black/90 dark:border-white/10"
+                >
+                  <div className="mb-2 px-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset</p>
+                  </div>
+                  <div className="space-y-1">
+                    {availableAssets.map(asset => (
+                      <button
+                        key={asset}
+                        onClick={() => handleAssetChange(asset)}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors font-medium",
+                          selectedAsset === asset
+                            ? "bg-[#00D9A5]/10 text-[#00D9A5]"
+                            : "bg-transparent text-slate-500 hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/5"
+                        )}
+                      >
+                        <span>{asset}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+
+      <div className={cn("flex flex-wrap items-center text-white/65", compact ? "mb-2 gap-3 text-sm" : "mb-2 gap-3 text-[11px]")}>
+        <span className="inline-flex items-center gap-1.5">
+          <span className={cn("rounded-full bg-[#B574FF]", compact ? "w-2.5 h-2.5" : "w-2 h-2")} />
+          Put Gamma
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className={cn("rounded-full bg-[#E3C98A]", compact ? "w-2.5 h-2.5" : "w-2 h-2")} />
+          Call Gamma
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className={cn("rounded-full bg-[#FF4D7A]", compact ? "w-2.5 h-2.5" : "w-2 h-2")} />
+          Net Gamma
+        </span>
+      </div>
+
+      <div className={cn("rounded-xl bg-white/[0.03] border border-white/10", compact ? "p-2" : "p-2.5")}>
+        <div className={cn("space-y-1.5 overflow-y-auto scrollbar-thin pr-1", compact ? "max-h-[280px]" : "max-h-[240px]")}>
+          {gexProfile.map((row, idx) => {
+            const putWidth = Math.min((Math.abs(row.put || 0) / maxGamma) * 50, 50);
+            const callWidth = Math.min((Math.abs(row.call || 0) / maxGamma) * 50, 50);
+            const netValue = typeof row.net === 'number' ? row.net : (row.call || 0) + (row.put || 0);
+            const netWidth = Math.min((Math.abs(netValue) / maxGamma) * 50, 50);
+            const isNetPositive = netValue >= 0;
+
+            return (
+              <div key={`${row.strike}-${idx}`} className={cn("grid items-center gap-2", compact ? "grid-cols-[64px_1fr]" : "grid-cols-[64px_1fr]")}>
+                <span className={cn("text-right font-medium text-white/55", compact ? "text-sm" : "text-[11px]")}>{formatStrikeLevel(row.strike)}</span>
+                <div className={cn("relative rounded-md bg-black/20 overflow-hidden", compact ? "h-[18px]" : "h-3.5")}>
+                  <div className="absolute inset-y-0 left-1/2 w-px bg-white/20" />
+
+                  {putWidth > 0 && (
+                    <div
+                      className={cn(
+                        "absolute right-1/2 top-1/2 -translate-y-1/2 rounded-l-sm bg-[#B574FF]/95",
+                        compact ? "h-[8px]" : "h-[7px]"
+                      )}
+                      style={{ width: `${putWidth}%` }}
+                    />
+                  )}
+
+                  {callWidth > 0 && (
+                    <div
+                      className={cn(
+                        "absolute left-1/2 top-1/2 -translate-y-1/2 rounded-r-sm bg-[#E3C98A]/95",
+                        compact ? "h-[8px]" : "h-[7px]"
+                      )}
+                      style={{ width: `${callWidth}%` }}
+                    />
+                  )}
+
+                  {netWidth > 0 && (
+                    <div
+                      className={cn(
+                        "absolute top-1/2 -translate-y-1/2 bg-[#FF4D7A]/95",
+                        compact ? "h-[6px]" : "h-[5px]",
+                        isNetPositive ? "left-1/2 rounded-r-sm" : "right-1/2 rounded-l-sm"
+                      )}
+                      style={{ width: `${netWidth}%` }}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className={cn("mt-2 grid items-center gap-2", compact ? "grid-cols-[64px_1fr]" : "grid-cols-[64px_1fr]")}>
+          <span />
+          <div className={cn("flex items-center justify-between text-white/45", compact ? "text-sm" : "text-[10px]")}>
+            <span>-{formatGammaScale(maxGamma)}</span>
+            <span>0</span>
+            <span>{formatGammaScale(maxGamma)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2" : "mt-2.5 p-2.5")}>
+        <div className="flex items-center justify-between mb-1">
+          <span className={cn("text-white/80 font-medium", compact ? "text-base" : "text-sm")}>Gamma Exposure</span>
+          <span className={cn(
+            "font-bold",
+            compact ? "text-xl" : "text-base",
+            currentData.gamma_billion >= 0 ? "text-[#00D9A5]" : "text-red-400"
+          )}>
+            {currentData.gamma_billion >= 0 ? '+' : ''}{currentData.gamma_billion}B
+          </span>
+        </div>
+        <div className={cn("bg-white/10 rounded-full overflow-hidden", compact ? "h-2.5" : "h-2")}>
+          <div
+            className={cn(
+              "h-full rounded-full transition-all",
+              currentData.gamma_exposure >= 50 ? "bg-[#00D9A5]" : "bg-red-400"
+            )}
+            style={{ width: `${currentData.gamma_exposure}%` }}
+          />
+        </div>
+      </div>
+
+      <div className={cn("rounded-xl bg-white/5 border border-white/10 flex items-center justify-between", compact ? "mt-2.5 p-2.5" : "mt-3 p-3")}>
+        <div>
+          <p className={cn("uppercase tracking-widest text-white/45", compact ? "text-sm" : "text-xs")}>Gamma Flip</p>
+          <p className={cn("font-semibold text-white", compact ? "text-lg" : "text-base")}>{formatStrikeLevel(currentData.gamma_flip)}</p>
+        </div>
+        <div className="text-right">
+          <p className={cn("uppercase tracking-widest text-white/45", compact ? "text-sm" : "text-xs")}>Gamma Score</p>
+          <p className={cn(
+            compact ? "text-lg font-semibold" : "text-base font-semibold",
+            currentData.gamma_exposure >= 50 ? "text-[#00D9A5]" : "text-red-400"
+          )}>
+            {currentData.gamma_exposure}%
+          </p>
+        </div>
+      </div>
+      </div>
     </TechCard>
   );
 });
@@ -1981,26 +2425,197 @@ const StrategySelectorPanel = ({ projections = [], strategiesCatalog = [], expan
   );
 };
 
+const CALENDAR_WEEKDAY_LABELS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+const CALENDAR_WEEKDAY_MAP = {
+  lun: 1,
+  mar: 2,
+  mer: 3,
+  gio: 4,
+  ven: 5,
+  sab: 6,
+  dom: 0
+};
+
+const toDateKey = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const inferEventDate = (event, baseDate, fallbackOffset = 0) => {
+  const rawDate = event?.timestamp || event?.datetime || event?.date || event?.published_at;
+  if (rawDate) {
+    const parsed = new Date(rawDate);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const countdown = String(event?.countdown || '').toLowerCase();
+  const dayMatch = countdown.match(/(\d+)\s*giorn/);
+  if (dayMatch) {
+    const d = new Date(baseDate);
+    d.setDate(d.getDate() + Number(dayMatch[1]));
+    return d;
+  }
+
+  const timeLabel = String(event?.time || '');
+  const weekdayMatch = timeLabel.match(/^(lun|mar|mer|gio|ven|sab|dom)/i);
+  if (weekdayMatch) {
+    const targetWeekday = CALENDAR_WEEKDAY_MAP[weekdayMatch[1].toLowerCase()];
+    if (typeof targetWeekday === 'number') {
+      const d = new Date(baseDate);
+      const delta = (targetWeekday - d.getDay() + 7) % 7;
+      d.setDate(d.getDate() + delta);
+      return d;
+    }
+  }
+
+  const d = new Date(baseDate);
+  d.setDate(d.getDate() + (fallbackOffset % 3));
+  return d;
+};
+
+const FALLBACK_NEWS_EVENTS = [
+  { title: 'NFP (Jan)', time: '14:30', impact: 'high', currency: 'USD', forecast: '65K', previous: '256K', actual: '130K', countdown: 'Uscito', summary: 'Payrolls a 130K, il doppio delle attese. Disoccupazione scesa a 4.3%. Mercato prezza taglio Fed a luglio, non più giugno.' },
+  { title: 'Unemployment Rate', time: '14:30', impact: 'high', currency: 'USD', forecast: '4.4%', previous: '4.4%', actual: '4.3%', countdown: 'Uscito', summary: 'Tasso disoccupazione migliorato. Mercato lavoro solido nonostante revisioni al ribasso del 2025 (-862K).' },
+  { title: 'Average Hourly Earnings', time: '14:30', impact: 'high', currency: 'USD', forecast: '3.5%', previous: '3.6%', actual: '3.7%', countdown: 'Uscito', summary: 'Salari in crescita 3.7% YoY, sopra inflazione. Pressione hawkish sulla Fed.' },
+  { title: 'Fed Speeches', time: '16:00', impact: 'medium', currency: 'USD', forecast: '-', previous: '-', actual: null, countdown: '15m', summary: 'Diversi policymaker Fed in programma. Tono atteso post-NFP forte: cautela sui tagli.' },
+  { title: 'US 10Y Auction', time: '19:00', impact: 'medium', currency: 'USD', forecast: '4.18%', previous: '4.14%', actual: null, countdown: '3h', summary: 'Asta Treasury 10Y. Yield salito a 4.18% dopo NFP. Monitorare domanda istituzionale.' },
+  { title: 'CPI (Jan)', time: 'Ven 14:30', impact: 'high', currency: 'USD', forecast: '2.5%', previous: '2.9%', actual: null, countdown: '2 giorni', summary: 'Dato inflazione cruciale dopo NFP forte. Se sopra attese, taglio Fed rinviato ulteriormente.' },
+  { title: 'CBO Budget Outlook', time: '18:00', impact: 'medium', currency: 'USD', forecast: '-', previous: '-', actual: null, countdown: '2h', summary: 'Pubblicazione outlook fiscale CBO. Focus su deficit e traiettoria debito pubblico USA.' },
+];
+
 // News & Activity Sidebar
 const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsSummaries }) => {
-  const [activeTab, setActiveTab] = useState('news');
   const [expandedNews, setExpandedNews] = useState(null);
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState(todayKey);
+  const newsData = useMemo(() => {
+    return Array.isArray(news) && news.length > 0 ? news : FALLBACK_NEWS_EVENTS;
+  }, [news]);
 
-  const newsData = news || [
-    { title: 'NFP (Jan)', time: '14:30', impact: 'high', currency: 'USD', forecast: '65K', previous: '256K', actual: '130K', countdown: 'Uscito', summary: 'Payrolls a 130K, il doppio delle attese. Disoccupazione scesa a 4.3%. Mercato prezza taglio Fed a luglio, non più giugno.' },
-    { title: 'Unemployment Rate', time: '14:30', impact: 'high', currency: 'USD', forecast: '4.4%', previous: '4.4%', actual: '4.3%', countdown: 'Uscito', summary: 'Tasso disoccupazione migliorato. Mercato lavoro solido nonostante revisioni al ribasso del 2025 (-862K).' },
-    { title: 'Average Hourly Earnings', time: '14:30', impact: 'high', currency: 'USD', forecast: '3.5%', previous: '3.6%', actual: '3.7%', countdown: 'Uscito', summary: 'Salari in crescita 3.7% YoY, sopra inflazione. Pressione hawkish sulla Fed.' },
-    { title: 'Fed Speeches', time: '16:00', impact: 'medium', currency: 'USD', forecast: '-', previous: '-', actual: null, countdown: '15m', summary: 'Diversi policymaker Fed in programma. Tono atteso post-NFP forte: cautela sui tagli.' },
-    { title: 'US 10Y Auction', time: '19:00', impact: 'medium', currency: 'USD', forecast: '4.18%', previous: '4.14%', actual: null, countdown: '3h', summary: 'Asta Treasury 10Y. Yield salito a 4.18% dopo NFP. Monitorare domanda istituzionale.' },
-    { title: 'CPI (Jan)', time: 'Ven 14:30', impact: 'high', currency: 'USD', forecast: '2.5%', previous: '2.9%', actual: null, countdown: '2 giorni', summary: 'Dato inflazione cruciale dopo NFP forte. Se sopra attese, taglio Fed rinviato ulteriormente.' },
-    { title: 'CBO Budget Outlook', time: '18:00', impact: 'medium', currency: 'USD', forecast: '-', previous: '-', actual: null, countdown: '2h', summary: 'Pubblicazione outlook fiscale CBO. Focus su deficit e traiettoria debito pubblico USA.' },
-  ];
+  const normalizedNewsData = useMemo(() => {
+    const baseDate = new Date();
+    baseDate.setHours(0, 0, 0, 0);
+    return newsData
+      .map((item, index) => {
+        const eventDate = inferEventDate(item, baseDate, index);
+        return {
+          ...item,
+          _newsIndex: index,
+          _date: eventDate,
+          _dateKey: toDateKey(eventDate),
+          _sortTs: item?.timestamp ? new Date(item.timestamp).getTime() : eventDate.getTime()
+        };
+      })
+      .sort((a, b) => a._sortTs - b._sortTs);
+  }, [newsData]);
+
+  const eventsByDay = useMemo(() => {
+    return normalizedNewsData.reduce((acc, item) => {
+      if (!item._dateKey) return acc;
+      if (!acc[item._dateKey]) acc[item._dateKey] = [];
+      acc[item._dateKey].push(item);
+      return acc;
+    }, {});
+  }, [normalizedNewsData]);
+
+  useEffect(() => {
+    if (selectedCalendarDay !== todayKey) return;
+    if (eventsByDay[selectedCalendarDay]) return;
+    const firstDay = Object.keys(eventsByDay).sort()[0];
+    if (firstDay) setSelectedCalendarDay(firstDay);
+  }, [eventsByDay, selectedCalendarDay, todayKey]);
+
+  const calendarModel = useMemo(() => {
+    const anchor = normalizedNewsData[0]?._date || new Date();
+    const year = anchor.getFullYear();
+    const month = anchor.getMonth();
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+    const prevMonthEnd = new Date(year, month, 0);
+    const leadingDays = (monthStart.getDay() + 6) % 7; // Monday-first
+    const cells = [];
+
+    for (let i = 0; i < leadingDays; i++) {
+      const day = prevMonthEnd.getDate() - leadingDays + i + 1;
+      const date = new Date(year, month - 1, day);
+      cells.push({ date, day, inCurrentMonth: false });
+    }
+
+    for (let day = 1; day <= monthEnd.getDate(); day++) {
+      const date = new Date(year, month, day);
+      cells.push({ date, day, inCurrentMonth: true });
+    }
+
+    let nextDay = 1;
+    while (cells.length % 7 !== 0) {
+      const date = new Date(year, month + 1, nextDay);
+      cells.push({ date, day: nextDay, inCurrentMonth: false });
+      nextDay++;
+    }
+
+    const monthLabelRaw = new Intl.DateTimeFormat('it-IT', { month: 'long' }).format(monthStart);
+    const monthLabel = monthLabelRaw.charAt(0).toUpperCase() + monthLabelRaw.slice(1);
+
+    return { cells, monthLabel, year };
+  }, [normalizedNewsData]);
 
   return (
     <div className="space-y-4">
+      <TechCard className="dashboard-panel-glass-boost p-4 font-apple glass-edge panel-left-edge fine-gray-border lg:w-[110%] lg:-ml-[4%] lg:relative lg:z-10">
+        <div className="mb-4">
+          <p className="text-3xl font-bold text-white/90 tracking-tight leading-none">{calendarModel.monthLabel}</p>
+        </div>
+
+        <div className="grid grid-cols-7 gap-2 mb-3">
+          {CALENDAR_WEEKDAY_LABELS.map((label, idx) => (
+            <div key={`${label}-${idx}`} className="text-center text-base text-white/50 font-semibold">
+              {label}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-y-2 gap-x-2">
+          {calendarModel.cells.map((cell) => {
+            const dateKey = toDateKey(cell.date);
+            const dayEvents = eventsByDay[dateKey] || [];
+            const hasEvents = dayEvents.length > 0;
+            const hasHighImpact = dayEvents.some((ev) => String(ev.impact).toLowerCase() === 'high');
+            const isSelected = selectedCalendarDay === dateKey;
+            const isToday = todayKey === dateKey;
+
+            return (
+              <button
+                key={dateKey}
+                onClick={() => setSelectedCalendarDay(dateKey)}
+                className={cn(
+                  "relative mx-auto h-9 w-9 rounded-full text-lg font-semibold transition-all flex items-center justify-center border border-transparent",
+                  cell.inCurrentMonth ? "text-white/90" : "text-white/25",
+                  !hasEvents && !isSelected && cell.inCurrentMonth && "hover:bg-white/10",
+                  hasHighImpact && "bg-[linear-gradient(180deg,rgba(239,68,68,0.28)_0%,rgba(239,68,68,0.12)_100%)] backdrop-blur-[6px] border-red-300/52 ring-1 ring-red-300/38 shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_0_18px_rgba(239,68,68,0.24)] text-white",
+                  isSelected && !hasEvents && "bg-white/[0.14] ring-1 ring-white/35",
+                  isToday && "ring-1 ring-[#64E9FF]/90 shadow-[0_0_10px_rgba(100,233,255,0.7)]"
+                )}
+              >
+                {cell.day}
+                {hasEvents && !hasHighImpact && (
+                  <span className={cn(
+                    "absolute -bottom-1 h-1.5 w-1.5 rounded-full",
+                    "bg-[#00D9A5]"
+                  )} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+      </TechCard>
+
       <div>
         {/* News Section */}
-        <TechCard className="p-4 font-apple flex flex-col glass-edge fine-gray-border lg:min-h-[620px]" style={{ maxHeight: '680px' }}>
+        <TechCard className="dashboard-panel-glass-boost p-4 font-apple flex flex-col glass-edge panel-left-edge fine-gray-border lg:h-[730px] lg:w-[110%] lg:-ml-[4%] lg:relative lg:z-10" style={{ maxHeight: '730px' }}>
           {/* Sticky Header */}
           <h4 className="text-base font-medium text-white/90 mb-3 flex items-center gap-2 sticky top-0 bg-inherit z-10 pb-2">
             <Newspaper className="w-5 h-5 text-[#00D9A5]" />
@@ -2014,9 +2629,8 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
                 onClick={() => setExpandedNews(expandedNews === i ? null : i)}
                 onMouseLeave={() => expandedNews === i && setExpandedNews(null)}
                 className={cn(
-                  "p-2.5 rounded-lg transition-all cursor-pointer subtle-divider",
-                  item.actual ? "bg-slate-50 border border-slate-200 dark:bg-[#1A1A1A] dark:border-white/10" : "bg-slate-50 hover:bg-slate-100 dark:bg-[#1A1A1A] dark:hover:bg-[#252525]",
-                  expandedNews === i && "ring-1 ring-slate-300 dark:ring-white/20"
+                  "p-2.5 rounded-lg transition-all cursor-pointer border-[0.85px] border-slate-300 bg-slate-50 dark:bg-white/[0.06] dark:border-[rgba(255,255,255,0.16)] dark:border-t-[rgba(255,255,255,0.28)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] hover:bg-slate-100 dark:hover:bg-white/[0.09]",
+                  expandedNews === i && "ring-1 ring-slate-300 dark:ring-white/24"
                 )}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-base font-medium text-slate-900 dark:text-white/90">{item.title}</span>
@@ -2063,7 +2677,7 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
                       transition={{ duration: 0.4 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-3 p-3 bg-white border border-slate-200 rounded-lg dark:bg-black/40 dark:border-[#00D9A5]/20">
+                      <div className="mt-3 p-3 bg-white border-[0.85px] border-slate-300 rounded-lg dark:bg-white/[0.06] dark:border-[rgba(255,255,255,0.16)] dark:border-t-[rgba(255,255,255,0.28)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
                         <p className="text-base text-slate-700 leading-relaxed dark:text-white/90">
                           <span className="text-[#00D9A5] font-bold block mb-1">Prospettiva</span>
                           {item.summary}
@@ -2187,7 +2801,7 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
       onMouseLeave={() => expandedItem && setExpandedItem(null)}
     >
       {/* Main Header Row */}
-      <div className="flex items-center justify-between p-2 sm:p-3 rounded-lg font-apple bg-white !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] dark:bg-white/5 dark:!border-white/5 dark:glass-edge dark:shadow-none">
+      <div className="dashboard-panel-glass-boost bias-panel-border glass-edge panel-left-edge fine-gray-border flex items-center justify-between p-2 sm:p-3 rounded-lg font-apple bg-white shadow-[0_20px_50px_rgb(0,0,0,0.1)] dark:bg-[#0F1115] dark:shadow-none">
         {/* Left side: Bias + VIX + Regime */}
         <div className="flex flex-nowrap items-center gap-1 sm:gap-3">
           {/* Daily Bias */}
@@ -2691,10 +3305,10 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Main Grid: Center + Right Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:mr-2">
+      {/* Main Grid: Center + GEX + Right Sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:mr-2 lg:items-start">
         {/* CENTER: Charts + COT + Options */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-8 space-y-6">
 
           {/* Asset Charts Grid */}
           <AssetChartPanel
@@ -2712,19 +3326,48 @@ export default function DashboardPage() {
             }, [cotDataToUse])}
           />
 
-          {/* Options + COT Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-            <OptionsPanel
-              animationsReady={headerHidden}
-              selectedAsset={optionsSelectedAsset}
-              onAssetChange={setOptionsSelectedAsset}
-            />
+          {/* COT Row */}
+          <div className="lg:w-[51%] lg:mr-auto">
             <COTPanel cotData={cotDataToUse} favoriteCOT={favoriteCOT} onFavoriteCOTChange={setFavoriteCOT} animationsReady={headerHidden} />
           </div>
         </div>
 
+        {/* GEX Column (left of News) */}
+        <div className="lg:col-span-2 self-start space-y-4 lg:w-[106%] lg:-ml-[8%] lg:relative lg:z-20">
+          <div className="relative">
+            <div className="hidden lg:block lg:absolute lg:top-0 lg:right-full lg:mr-5 lg:w-[112%]">
+              <FearGreedPanel
+                analyses={analysesData}
+                vix={vix || { current: 17.62, change: -0.96 }}
+                regime={regime || 'risk-on'}
+                compact={false}
+              />
+            </div>
+
+            <div className="lg:hidden mb-4">
+              <FearGreedPanel
+                analyses={analysesData}
+                vix={vix || { current: 17.62, change: -0.96 }}
+                regime={regime || 'risk-on'}
+                compact
+              />
+            </div>
+
+            <GammaExposurePanel
+              selectedAsset={optionsSelectedAsset}
+              onAssetChange={setOptionsSelectedAsset}
+              compact
+            />
+          </div>
+          <OptionsPanel
+            animationsReady={headerHidden}
+            selectedAsset={optionsSelectedAsset}
+            onAssetChange={setOptionsSelectedAsset}
+          />
+        </div>
+
         {/* RIGHT SIDEBAR: News + Activity + Strategies */}
-        <div className="lg:col-span-1 lg:w-[55%] lg:ml-auto">
+        <div className="lg:col-span-2">
           <ActivitySidebar
             news={newsBriefing?.events}
             newsSummaries={newsBriefing?.summaries}
