@@ -18,6 +18,7 @@ import json
 import hashlib
 import random
 import re
+from urllib import request as urllib_request
 from datetime import datetime, timezone, timedelta
 try:
     from .market_intelligence import (
@@ -205,6 +206,12 @@ _intelligence_cache = {
     "projections": {"data": None, "timestamp": None},
 }
 INTELLIGENCE_CACHE_TTL = 45  # seconds
+_breadth_cache = {"data": None, "timestamp": None}
+BREADTH_CACHE_TTL = 30 * 60  # 30 minutes
+BREADTH_SYMBOL_MAP = {
+    "SP500": {"ma50": "$S5FI", "ma200": "$S5TH", "total_components": 503},
+    "NAS100": {"ma50": "$NDFI", "ma200": "$NDTH", "total_components": 101},
+}
 
 _verification_cache = {}
 VERIFICATION_TTL_MINUTES = 15
@@ -365,6 +372,105 @@ def _cache_set(key: str, value):
     _intelligence_cache[key] = {"data": value, "timestamp": datetime.now(timezone.utc)}
 
 
+def _parse_barchart_inline_payload(html: str):
+    match = re.search(
+        r'<script type="application/json" id="barchart-www-inline-data">(.*?)</script>',
+        html,
+        re.DOTALL
+    )
+    if not match:
+        return None
+    try:
+        return json.loads(match.group(1))
+    except Exception:
+        return None
+
+
+def _fetch_barchart_indicator_value(symbol: str):
+    encoded_symbol = f"%24{symbol[1:]}" if symbol.startswith("$") else symbol
+    url = f"https://www.barchart.com/stocks/quotes/{encoded_symbol}"
+    req = urllib_request.Request(
+        url,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"}
+    )
+    with urllib_request.urlopen(req, timeout=15) as response:
+        html = response.read().decode("utf-8", errors="ignore")
+
+    payload = _parse_barchart_inline_payload(html)
+    if not payload:
+        return None
+
+    quote = payload.get(symbol, {}).get("quote", {})
+    value = quote.get("previousClose")
+    trade_time = quote.get("tradeTime")
+    try:
+        pct = float(value)
+    except (TypeError, ValueError):
+        return None
+    return {"pct": pct, "trade_time": trade_time}
+
+
+def _derive_breadth_regime(ma50_pct: float, ma200_pct: float) -> str:
+    if ma50_pct >= 70 and ma200_pct >= 60:
+        return "broad-bullish"
+    if ma50_pct <= 35 and ma200_pct <= 40:
+        return "broad-weakness"
+    return "mixed"
+
+
+def _build_breadth_index_payload(index_key: str):
+    config = BREADTH_SYMBOL_MAP[index_key]
+    ma50_raw = _fetch_barchart_indicator_value(config["ma50"])
+    ma200_raw = _fetch_barchart_indicator_value(config["ma200"])
+    if not ma50_raw or not ma200_raw:
+        return None
+
+    ma50_pct = round(max(0.0, min(100.0, float(ma50_raw["pct"]))), 2)
+    ma200_pct = round(max(0.0, min(100.0, float(ma200_raw["pct"]))), 2)
+    total = int(config["total_components"])
+    ma50_count = int(round((ma50_pct / 100.0) * total))
+    ma200_count = int(round((ma200_pct / 100.0) * total))
+    as_of_time = ma50_raw.get("trade_time") or ma200_raw.get("trade_time") or ""
+    as_of_date = as_of_time[:10] if as_of_time else None
+
+    return {
+        "total_components": total,
+        "processed": total,
+        "coverage_pct": 100.0,
+        "as_of_date": as_of_date,
+        "breadth_regime": _derive_breadth_regime(ma50_pct, ma200_pct),
+        "above_ma50": {"count": ma50_count, "pct": ma50_pct},
+        "above_ma200": {"count": ma200_count, "pct": ma200_pct},
+        "missing_components": 0,
+        "missing_examples": [],
+    }
+
+
+def _fetch_market_breadth_payload():
+    sp_payload = _build_breadth_index_payload("SP500")
+    nas_payload = _build_breadth_index_payload("NAS100")
+    if not sp_payload or not nas_payload:
+        raise RuntimeError("Unable to fetch market breadth indicators")
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source": {
+            "provider": "barchart",
+            "symbols": {
+                "SP500_ma50": "$S5FI",
+                "SP500_ma200": "$S5TH",
+                "NAS100_ma50": "$NDFI",
+                "NAS100_ma200": "$NDTH",
+            },
+            "method": "index_breadth_indicators_above_ma50_ma200",
+        },
+        "indices": {
+            "SP500": sp_payload,
+            "NAS100": nas_payload,
+        },
+    }
+
+
 def _build_intelligence_bundle():
     now = datetime.now(timezone.utc)
     multi = build_multi_source_snapshot(now)
@@ -408,6 +514,32 @@ def _get_intelligence_bundle():
 @app.get("/api/analysis/multi-source")
 async def get_multi_source_analysis():
     return _get_intelligence_bundle()["multi"]
+
+
+@app.get("/api/market/breadth")
+async def get_market_breadth():
+    global _breadth_cache
+    now = datetime.now(timezone.utc)
+
+    if _breadth_cache["data"] and _breadth_cache["timestamp"]:
+        age = (now - _breadth_cache["timestamp"]).total_seconds()
+        if age < BREADTH_CACHE_TTL:
+            return _breadth_cache["data"]
+
+    try:
+        payload = _fetch_market_breadth_payload()
+        _breadth_cache = {"data": payload, "timestamp": now}
+        return payload
+    except Exception as exc:
+        if _breadth_cache["data"] and _breadth_cache["timestamp"]:
+            stale_age = int((now - _breadth_cache["timestamp"]).total_seconds())
+            return {
+                **_breadth_cache["data"],
+                "cache_stale": True,
+                "cache_age_seconds": stale_age,
+                "warning": f"breadth refresh failed: {str(exc)}",
+            }
+        raise HTTPException(status_code=503, detail="Market breadth temporarily unavailable")
 
 
 @app.get("/api/cot/data")
