@@ -22,6 +22,7 @@ from collections import Counter
 from html.parser import HTMLParser
 from urllib import request as urllib_request
 import yfinance as yf
+import pandas as pd
 from functools import lru_cache
 import asyncio
 import stripe
@@ -117,7 +118,12 @@ app = FastAPI(title="TradingOS API")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Explicit local
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3003",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3003",
+    ],
     allow_origin_regex="https://.*\.vercel\.app",  # All Vercel deployments
     allow_credentials=True,
     allow_methods=["*"],
@@ -2372,6 +2378,121 @@ def download_close_history_map(symbols: List[str]) -> Dict[str, Any]:
 
     return close_map
 
+def normalize_series_date_index(series):
+    normalized = series.copy()
+    dt_index = pd.to_datetime(normalized.index, errors="coerce")
+    if isinstance(dt_index, pd.DatetimeIndex):
+        if dt_index.tz is not None:
+            dt_index = dt_index.tz_localize(None)
+        dt_index = dt_index.normalize()
+    normalized.index = dt_index
+    normalized = normalized[~normalized.index.isna()]
+    normalized = normalized[~normalized.index.duplicated(keep="last")]
+    return normalized
+
+def download_index_close_history_map(index_to_yahoo: Dict[str, str]) -> Dict[str, Any]:
+    history_map: Dict[str, Any] = {}
+    if not index_to_yahoo:
+        return history_map
+
+    yahoo_symbols = [symbol for symbol in index_to_yahoo.values() if symbol]
+    if not yahoo_symbols:
+        return history_map
+
+    try:
+        frame = yf.download(
+            " ".join(yahoo_symbols),
+            period="1y",
+            interval="1d",
+            auto_adjust=False,
+            progress=False,
+            group_by="ticker",
+            threads=False
+        )
+    except Exception as exc:
+        logger.warning(f"Index price history download failed: {exc}")
+        return history_map
+
+    for index_key, yahoo_symbol in index_to_yahoo.items():
+        series = extract_close_series(frame, yahoo_symbol)
+        if series is not None:
+            history_map[index_key] = series
+
+    return history_map
+
+def build_index_breadth_history(
+    index_symbols: List[str],
+    close_map: Dict[str, Any],
+    index_price_series: Optional[Any] = None,
+    max_points: int = 90
+) -> List[Dict[str, Any]]:
+    component_series: Dict[str, Any] = {}
+
+    for symbol in index_symbols:
+        yahoo_symbol = to_yahoo_symbol(symbol)
+        series = close_map.get(yahoo_symbol)
+        if series is None:
+            continue
+
+        series = series.dropna()
+        if len(series) < 200:
+            continue
+
+        normalized = normalize_series_date_index(series.astype(float))
+        if len(normalized) < 200:
+            continue
+
+        component_series[yahoo_symbol] = normalized
+
+    if not component_series:
+        return []
+
+    prices_df = pd.DataFrame(component_series).sort_index()
+    if prices_df.empty:
+        return []
+
+    ma50_df = prices_df.rolling(window=50, min_periods=50).mean()
+    ma200_df = prices_df.rolling(window=200, min_periods=200).mean()
+    valid_df = prices_df.notna() & ma50_df.notna() & ma200_df.notna()
+
+    processed_series = valid_df.sum(axis=1)
+    processed_non_zero = processed_series.replace(0, math.nan)
+    above_ma50_pct = (((prices_df > ma50_df) & valid_df).sum(axis=1) / processed_non_zero) * 100
+    above_ma200_pct = (((prices_df > ma200_df) & valid_df).sum(axis=1) / processed_non_zero) * 100
+    coverage_pct = (processed_series / max(len(index_symbols), 1)) * 100
+
+    history_df = pd.DataFrame({
+        "processed": processed_series,
+        "coverage_pct": coverage_pct,
+        "above_ma50_pct": above_ma50_pct,
+        "above_ma200_pct": above_ma200_pct
+    }).dropna(subset=["above_ma50_pct", "above_ma200_pct"])
+
+    if history_df.empty:
+        return []
+
+    if index_price_series is not None:
+        price_series = normalize_series_date_index(index_price_series.dropna().astype(float))
+        history_df = history_df.join(price_series.rename("price"), how="left")
+        history_df["price"] = history_df["price"].ffill().bfill()
+
+    history_df = history_df.tail(max_points)
+
+    history: List[Dict[str, Any]] = []
+    for idx, row in history_df.iterrows():
+        date_label = idx.date().isoformat() if hasattr(idx, "date") else str(idx)[:10]
+        price_val = row.get("price")
+        history.append({
+            "date": date_label,
+            "price": round(float(price_val), 2) if pd.notna(price_val) else None,
+            "above_ma50_pct": round(float(row["above_ma50_pct"]), 2),
+            "above_ma200_pct": round(float(row["above_ma200_pct"]), 2),
+            "coverage_pct": round(float(row["coverage_pct"]), 2),
+            "processed": int(row["processed"])
+        })
+
+    return history
+
 def calculate_index_breadth(index_symbols: List[str], close_map: Dict[str, Any]) -> Dict[str, Any]:
     total = len(index_symbols)
     processed = 0
@@ -2448,18 +2569,45 @@ def fetch_market_breadth_sync() -> Dict[str, Any]:
         all_symbols.append(yahoo_symbol)
 
     close_map = download_close_history_map(all_symbols)
+    index_price_history = download_index_close_history_map({
+        "SP500": "^GSPC",
+        "NAS100": "^NDX"
+    })
     now = datetime.now(timezone.utc)
+
+    sp_payload = calculate_index_breadth(sp500_symbols, close_map)
+    nas_payload = calculate_index_breadth(nas100_symbols, close_map)
+
+    sp_history = build_index_breadth_history(
+        sp500_symbols,
+        close_map,
+        index_price_history.get("SP500"),
+        max_points=90
+    )
+    nas_history = build_index_breadth_history(
+        nas100_symbols,
+        close_map,
+        index_price_history.get("NAS100"),
+        max_points=90
+    )
+
+    if sp_history:
+        sp_payload["history"] = sp_history
+        sp_payload["latest_price"] = sp_history[-1].get("price")
+    if nas_history:
+        nas_payload["history"] = nas_history
+        nas_payload["latest_price"] = nas_history[-1].get("price")
 
     return {
         "timestamp": now.isoformat(),
         "source": {
             "constituents": "wikipedia",
             "prices": "yahoo_finance",
-            "method": "close_above_sma_50_200"
+            "method": "close_above_sma_50_200_with_history"
         },
         "indices": {
-            "SP500": calculate_index_breadth(sp500_symbols, close_map),
-            "NAS100": calculate_index_breadth(nas100_symbols, close_map)
+            "SP500": sp_payload,
+            "NAS100": nas_payload
         }
     }
 

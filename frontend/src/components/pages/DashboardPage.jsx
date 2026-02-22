@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, Activity,
   Target, Shield, AlertTriangle, RefreshCw, Lightbulb, Clock,
@@ -1157,16 +1158,28 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 };
 
 const MarketBreadthPanel = ({ breadthData, className = '' }) => {
+  const [selectedIndex, setSelectedIndex] = useState('NAS100');
   const breadthSP500 = breadthData?.indices?.SP500 || null;
   const breadthNAS100 = breadthData?.indices?.NAS100 || null;
-  const breadthTimestamp = breadthData?.timestamp ? new Date(breadthData.timestamp) : null;
+  const breadthTimestampIso = breadthData?.timestamp || null;
+  const breadthTimestamp = breadthTimestampIso ? new Date(breadthTimestampIso) : null;
   const breadthUpdatedLabel = breadthTimestamp
     ? breadthTimestamp.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+    : null;
+  const breadthUpdatedDate = breadthTimestamp
+    ? breadthTimestamp.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })
     : null;
 
   const formatBreadthPct = (value) => {
     const num = Number(value);
     return Number.isFinite(num) ? `${num.toFixed(1)}%` : '—';
+  };
+
+  const formatPrice = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '—';
+    if (num >= 1000) return num.toLocaleString('it-IT', { maximumFractionDigits: 0 });
+    return num.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const getBreadthTone = (indexData) => {
@@ -1194,9 +1207,105 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
     };
   };
 
+  const indexConfigs = {
+    NAS100: { label: 'NASDAQ 100', short: 'NAS', priceColor: '#67D8FF' },
+    SP500: { label: 'S&P 500', short: 'SPX', priceColor: '#FFB86A' }
+  };
+
+  const selectedData = selectedIndex === 'SP500' ? breadthSP500 : breadthNAS100;
+  const selectedTone = getBreadthTone(selectedData);
+  const selectedCfg = indexConfigs[selectedIndex];
+
+  const chartData = useMemo(() => {
+    const history = Array.isArray(selectedData?.history) ? selectedData.history : [];
+    if (history.length > 0) {
+      const normalized = history
+        .map((point) => {
+          const dateRaw = String(point?.date || '');
+          return {
+            date: dateRaw,
+            dateLabel: dateRaw.length >= 10 ? `${dateRaw.slice(8, 10)}/${dateRaw.slice(5, 7)}` : dateRaw,
+            price: Number(point?.price),
+            ma50: Number(point?.above_ma50_pct),
+            ma200: Number(point?.above_ma200_pct),
+            coverage: Number(point?.coverage_pct),
+            processed: Number(point?.processed)
+          };
+        })
+        .filter((row) => Number.isFinite(row.ma50) && Number.isFinite(row.ma200));
+      if (normalized.length > 0) return normalized;
+    }
+
+    const fallbackDate = breadthTimestampIso ? breadthTimestampIso.slice(0, 10) : '';
+    const fallbackMa50 = Number(selectedData?.above_ma50?.pct);
+    const fallbackMa200 = Number(selectedData?.above_ma200?.pct);
+    const fallbackCoverage = Number(selectedData?.coverage_pct);
+    const fallbackPrice = Number(selectedData?.latest_price);
+
+    return [{
+      date: fallbackDate,
+      dateLabel: fallbackDate ? `${fallbackDate.slice(8, 10)}/${fallbackDate.slice(5, 7)}` : 'NOW',
+      price: Number.isFinite(fallbackPrice) ? fallbackPrice : null,
+      ma50: Number.isFinite(fallbackMa50) ? fallbackMa50 : 0,
+      ma200: Number.isFinite(fallbackMa200) ? fallbackMa200 : 0,
+      coverage: Number.isFinite(fallbackCoverage) ? fallbackCoverage : 0,
+      processed: Number(selectedData?.processed || 0)
+    }];
+  }, [breadthTimestampIso, selectedData]);
+
+  const hasPriceSeries = chartData.some((row) => Number.isFinite(row.price));
+  const firstPoint = chartData[0] || null;
+  const latestPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+  const priceDeltaPct = (Number.isFinite(firstPoint?.price) && Number.isFinite(latestPoint?.price) && firstPoint.price > 0)
+    ? ((latestPoint.price - firstPoint.price) / firstPoint.price) * 100
+    : null;
+  const breadthSpread = (Number.isFinite(latestPoint?.ma50) && Number.isFinite(latestPoint?.ma200))
+    ? latestPoint.ma50 - latestPoint.ma200
+    : null;
+  const coverageNow = Number.isFinite(latestPoint?.coverage)
+    ? latestPoint.coverage
+    : Number(selectedData?.coverage_pct);
+  const processedNow = Number.isFinite(latestPoint?.processed)
+    ? latestPoint.processed
+    : Number(selectedData?.processed);
+  const totalNow = Number(selectedData?.total_components);
+
+  const summaryLine = (() => {
+    if (!latestPoint) return 'Storico in aggiornamento.';
+    if (!Number.isFinite(priceDeltaPct) || !Number.isFinite(breadthSpread)) {
+      return 'Lettura breadth disponibile, linea prezzo in attesa dati.';
+    }
+    if (priceDeltaPct > 0 && breadthSpread < 6) {
+      return 'Prezzo in salita ma breadth corto: partecipazione non ampia.';
+    }
+    if (priceDeltaPct < 0 && breadthSpread > 10) {
+      return 'Prezzo debole con breadth in tenuta: possibile accumulo sotto traccia.';
+    }
+    return 'Prezzo e breadth allineati: struttura interna coerente.';
+  })();
+
+  const renderTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || payload.length === 0) return null;
+    const row = payload[0]?.payload;
+    return (
+      <div className="rounded-lg border border-white/15 bg-[#0F1319]/95 px-3 py-2 shadow-xl">
+        <p className="text-[10px] uppercase tracking-[0.15em] text-white/50 font-bold">{label || row?.date || '-'}</p>
+        <p className="text-xs text-white/90 mt-1">
+          Prezzo: <span className="font-bold" style={{ color: selectedCfg.priceColor }}>{formatPrice(row?.price)}</span>
+        </p>
+        <p className="text-xs text-white/90">
+          % &gt; MA50: <span className="font-bold text-[#00D9A5]">{formatBreadthPct(row?.ma50)}</span>
+        </p>
+        <p className="text-xs text-white/90">
+          % &gt; MA200: <span className="font-bold text-[#E3C98A]">{formatBreadthPct(row?.ma200)}</span>
+        </p>
+      </div>
+    );
+  };
+
   return (
     <TechCard className={cn(
-      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 min-h-[474px]",
+      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 min-h-[564px]",
       className
     )}>
       <div className="flex items-center justify-between mb-5">
@@ -1214,62 +1323,172 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
         <div className="text-right">
           <p className="text-[10px] text-white/40 uppercase tracking-[0.15em] font-bold">Aggiornamento</p>
           <p className="text-xs text-white/70 font-semibold">
-            {breadthUpdatedLabel ? breadthUpdatedLabel : 'Caricamento dati...'}
+            {breadthUpdatedLabel ? `${breadthUpdatedDate} ${breadthUpdatedLabel}` : 'Caricamento dati...'}
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        {[{ key: 'NAS100', label: 'Nasdaq-100', data: breadthNAS100 }, { key: 'SP500', label: 'S&P 500', data: breadthSP500 }].map((item) => {
-          const tone = getBreadthTone(item.data);
-          const ma50 = Number(item.data?.above_ma50?.pct);
-          const ma200 = Number(item.data?.above_ma200?.pct);
-          const coverage = Number(item.data?.coverage_pct);
-          return (
-            <div key={item.key} className="rounded-2xl border border-white/10 bg-[#13171C]/85 p-4">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <h4 className="text-sm font-black text-white uppercase tracking-[0.2em]">{item.label}</h4>
-                  <p className="text-xs text-white/50 mt-1">
-                    Copertura {Number.isFinite(coverage) ? `${coverage.toFixed(1)}%` : '—'} ({item.data?.processed || 0}/{item.data?.total_components || 0})
-                  </p>
-                </div>
-                <span className={cn("px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.15em]", tone.className)}>
-                  {tone.label}
-                </span>
-              </div>
+      <div className="rounded-2xl border border-white/10 bg-[#13171C]/90 p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="inline-flex rounded-lg border border-white/10 bg-white/5 p-1">
+            {Object.entries(indexConfigs).map(([indexKey, cfg]) => (
+              <button
+                key={indexKey}
+                onClick={() => setSelectedIndex(indexKey)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-[0.12em] transition-colors",
+                  selectedIndex === indexKey
+                    ? "bg-[#00D9A5]/20 text-[#00D9A5]"
+                    : "text-white/55 hover:text-white/80 hover:bg-white/5"
+                )}
+              >
+                {cfg.short}
+              </button>
+            ))}
+          </div>
+          <span className={cn("px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.15em]", selectedTone.className)}>
+            {selectedTone.label}
+          </span>
+        </div>
 
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-white/60">% titoli sopra MA50</p>
-                    <p className="text-sm font-bold text-[#00D9A5]">{formatBreadthPct(ma50)}</p>
-                  </div>
-                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#00D9A5] transition-all duration-700"
-                      style={{ width: `${Math.max(0, Math.min(100, Number.isFinite(ma50) ? ma50 : 0))}%` }}
-                    />
-                  </div>
-                </div>
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+            <p className="text-[9px] uppercase tracking-[0.12em] text-white/45 font-black">Copertura</p>
+            <p className="text-xs font-bold text-white mt-0.5">
+              {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+            <p className="text-[9px] uppercase tracking-[0.12em] text-white/45 font-black">Spread MA</p>
+            <p className={cn(
+              "text-xs font-bold mt-0.5",
+              Number.isFinite(breadthSpread)
+                ? breadthSpread >= 0 ? "text-[#00D9A5]" : "text-red-300"
+                : "text-white"
+            )}>
+              {Number.isFinite(breadthSpread) ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)} pp` : '—'}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
+            <p className="text-[9px] uppercase tracking-[0.12em] text-white/45 font-black">Delta Prezzo</p>
+            <p className={cn(
+              "text-xs font-bold mt-0.5",
+              Number.isFinite(priceDeltaPct)
+                ? priceDeltaPct >= 0 ? "text-[#67D8FF]" : "text-red-300"
+                : "text-white"
+            )}>
+              {Number.isFinite(priceDeltaPct) ? `${priceDeltaPct > 0 ? '+' : ''}${priceDeltaPct.toFixed(2)}%` : '—'}
+            </p>
+          </div>
+        </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-white/60">% titoli sopra MA200</p>
-                    <p className="text-sm font-bold text-[#00D9A5]">{formatBreadthPct(ma200)}</p>
-                  </div>
-                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#00D9A5] transition-all duration-700"
-                      style={{ width: `${Math.max(0, Math.min(100, Number.isFinite(ma200) ? ma200 : 0))}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        <div className="flex flex-wrap items-center gap-4 mb-3">
+          <div className="text-[11px] text-white/70">
+            <span className="inline-block w-2.5 h-2.5 rounded-full mr-1.5" style={{ background: selectedCfg.priceColor }} />
+            Prezzo {selectedCfg.label}
+          </div>
+          <div className="text-[11px] text-white/70">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#00D9A5] mr-1.5" />
+            % sopra MA50
+          </div>
+          <div className="text-[11px] text-white/70">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#E3C98A] mr-1.5" />
+            % sopra MA200
+          </div>
+        </div>
 
+        <div className="h-[296px] w-full rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.015)_100%)] p-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 2, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
+              <XAxis
+                dataKey="dateLabel"
+                tick={{ fill: 'rgba(255,255,255,0.52)', fontSize: 10, fontWeight: 700 }}
+                axisLine={false}
+                tickLine={false}
+                minTickGap={22}
+              />
+              <YAxis
+                yAxisId="price"
+                orientation="left"
+                hide={!hasPriceSeries}
+                width={56}
+                tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700 }}
+                axisLine={false}
+                tickLine={false}
+                domain={['auto', 'auto']}
+                tickFormatter={(value) => formatPrice(value)}
+              />
+              <YAxis
+                yAxisId="breadth"
+                orientation="right"
+                width={46}
+                domain={[0, 100]}
+                tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(value) => `${Math.round(value)}%`}
+              />
+              <ReferenceLine yAxisId="breadth" y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="5 5" />
+              <Tooltip content={renderTooltip} />
+              <Line
+                yAxisId="price"
+                dataKey="price"
+                type="monotone"
+                stroke={selectedCfg.priceColor}
+                strokeWidth={2.2}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+                activeDot={{ r: 4, strokeWidth: 2, stroke: selectedCfg.priceColor, fill: '#0F1319' }}
+              />
+              <Line
+                yAxisId="breadth"
+                dataKey="ma50"
+                type="monotone"
+                stroke="#00D9A5"
+                strokeWidth={2.1}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+                activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: '#00D9A5', fill: '#0F1319' }}
+              />
+              <Line
+                yAxisId="breadth"
+                dataKey="ma200"
+                type="monotone"
+                stroke="#E3C98A"
+                strokeWidth={2.1}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+                activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: '#E3C98A', fill: '#0F1319' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.12em] text-white/55 font-black">MA50 / MA200</p>
+            <p className="text-sm font-bold text-white mt-1">
+              {formatBreadthPct(latestPoint?.ma50)} / {formatBreadthPct(latestPoint?.ma200)}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.12em] text-white/55 font-black">Prezzo</p>
+            <p className="text-sm font-bold mt-1" style={{ color: selectedCfg.priceColor }}>
+              {formatPrice(latestPoint?.price)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-xl bg-white/5 border border-white/10 p-2.5">
+          <p className="text-sm text-white/85 leading-relaxed">{summaryLine}</p>
+          <p className="text-[11px] text-white/45 mt-1">
+            Universo: {Number.isFinite(processedNow) ? processedNow : 0}/{Number.isFinite(totalNow) ? totalNow : 0} componenti validi.
+          </p>
+        </div>
       </div>
     </TechCard>
   );
@@ -1312,6 +1531,7 @@ const RiskPanel = ({ vix, regime }) => (
 
 const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) => {
   const vixCurrentValue = Number.isFinite(Number(vix?.current)) ? Number(vix?.current) : 18;
+  const [showInfo, setShowInfo] = useState(false);
 
   const model = useMemo(() => {
     const entries = Object.values(analyses || {});
@@ -1379,82 +1599,381 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
     };
   }, [analyses, regime, vixCurrentValue]);
 
-  const toneClass = model.tone === 'greed'
-    ? 'text-[#00D9A5]'
-    : model.tone === 'fear'
-      ? 'text-red-300'
-      : 'text-yellow-300';
-  const barClass = model.tone === 'greed'
-    ? 'bg-gradient-to-r from-[#00D9A5]/65 to-[#00D9A5]'
-    : model.tone === 'fear'
-      ? 'bg-gradient-to-r from-red-400/65 to-red-300'
-      : 'bg-gradient-to-r from-yellow-400/65 to-yellow-300';
+  const regimeBadgeLabel = regime === 'risk-on'
+    ? 'RISK ON'
+    : regime === 'risk-off'
+      ? 'RISK OFF'
+      : 'NEUTRAL';
+  const regimeBadgeClass = regime === 'risk-on'
+    ? 'text-[#00D9A5] border-[#00D9A5]/35 bg-[#001812]'
+    : regime === 'risk-off'
+      ? 'text-red-300 border-red-400/35 bg-[#22090F]'
+      : 'text-yellow-300 border-yellow-400/35 bg-[#261F08]';
+  const radarBarClass = 'bg-gradient-to-r from-[#6E2F18] via-[#D07B49] to-[#FFD5B6] shadow-[0_0_7px_rgba(255,183,133,0.52)]';
+  const riskBarClass = 'bg-gradient-to-r from-[#3A0C15] via-[#C73A5A] to-[#FF8CA0] shadow-[0_0_7px_rgba(255,120,151,0.46)]';
 
-  const needleAngle = -140 + ((model.score / 100) * 280);
+  const radarGradientIdRef = useRef(`fear-greed-radar-fill-${Math.random().toString(36).slice(2, 10)}`);
+  const radarGlowIdRef = useRef(`fear-greed-radar-glow-${Math.random().toString(36).slice(2, 10)}`);
+
+  const radarAxes = useMemo(() => {
+    const clamp = (value) => Math.max(0, Math.min(100, Math.round(value)));
+
+    return [
+      { label: 'Appetite', value: clamp(model.score) },
+      { label: 'Momentum', value: clamp((model.drivers.bias * 0.52) + (model.drivers.conviction * 0.48)) },
+      { label: 'Volatility', value: clamp(model.drivers.vix) },
+      { label: 'Positioning', value: clamp((model.drivers.bias * 0.65) + (model.drivers.regime * 0.35)) },
+      { label: 'Flow', value: clamp((model.drivers.conviction * 0.55) + (model.score * 0.45)) },
+      { label: 'Breadth', value: clamp((model.drivers.regime * 0.55) + (model.drivers.vix * 0.45)) },
+      { label: 'Regime', value: clamp(model.drivers.regime) },
+      { label: 'Conviction', value: clamp(model.drivers.conviction) }
+    ];
+  }, [model]);
+
+  const radarChart = useMemo(() => {
+    const size = compact ? 420 : 500;
+    const center = size / 2;
+    const radius = compact ? 178 : 214;
+    const labelRadius = radius + (compact ? 12 : 14);
+    const ringLevels = [0.2, 0.4, 0.6, 0.8, 1];
+    const axisCount = radarAxes.length;
+
+    const pointAt = (axisIndex, distance) => {
+      const angle = (-Math.PI / 2) + ((axisIndex / axisCount) * Math.PI * 2);
+      return {
+        x: center + (Math.cos(angle) * distance),
+        y: center + (Math.sin(angle) * distance)
+      };
+    };
+
+    const toPointString = (point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
+    const ringPolygons = ringLevels.map((level) => (
+      radarAxes.map((_, axisIndex) => toPointString(pointAt(axisIndex, radius * level))).join(' ')
+    ));
+
+    const axisLines = radarAxes.map((_, axisIndex) => {
+      const target = pointAt(axisIndex, radius);
+      return {
+        x1: center,
+        y1: center,
+        x2: target.x,
+        y2: target.y
+      };
+    });
+
+    const valuePoints = radarAxes.map((axis, axisIndex) => ({
+      ...pointAt(axisIndex, radius * (axis.value / 100)),
+      value: axis.value
+    }));
+
+    const valuePolygon = valuePoints.map(toPointString).join(' ');
+    const labelPoints = radarAxes.map((axis, axisIndex) => {
+      const point = pointAt(axisIndex, labelRadius);
+      let anchor = 'middle';
+      if (point.x < center - 6) anchor = 'end';
+      if (point.x > center + 6) anchor = 'start';
+      return {
+        ...point,
+        label: axis.label,
+        anchor
+      };
+    });
+
+    return {
+      size,
+      center,
+      ringPolygons,
+      axisLines,
+      valuePoints,
+      valuePolygon,
+      labelPoints
+    };
+  }, [compact, radarAxes]);
+
+  const fearSummaryLines = useMemo(() => {
+    const sentimentLine = model.score >= 76
+      ? 'Sentiment in area greed estremo: evita inseguimenti sui breakout estesi.'
+      : model.score >= 58
+        ? 'Sentiment positivo: preferire ingressi su pullback con conferma di volume.'
+        : model.score <= 24
+          ? 'Sentiment in area fear estremo: aumenta il rischio di move impulsive.'
+          : model.score <= 42
+            ? 'Sentiment difensivo: meglio setup selettivi e gestione stretta del rischio.'
+            : 'Sentiment neutrale: privilegia setup bilanciati e conferme multiple.';
+
+    const regimeLine = regime === 'risk-on'
+      ? `Regime RISK ON con VIX ${vixCurrentValue.toFixed(1)}: contesto pro-ciclico finche la volatilita resta compressa.`
+      : regime === 'risk-off'
+        ? `Regime RISK OFF con VIX ${vixCurrentValue.toFixed(1)}: ridurre size e aumentare la selettivita degli ingressi.`
+        : `Regime neutrale con VIX ${vixCurrentValue.toFixed(1)}: operativita tattica, meglio evitare esposizioni sbilanciate.`;
+
+    const riskLine = model.riskPressure >= 66
+      ? `Pressione rischio alta (${model.riskPressure}%): stop piu stretti e leva contenuta.`
+      : model.riskPressure >= 45
+        ? `Pressione rischio moderata (${model.riskPressure}%): mantenere disciplina su livelli e invalidazioni.`
+        : `Pressione rischio contenuta (${model.riskPressure}%): possibile aumentare gradualmente la size.`;
+
+    return [sentimentLine, regimeLine, riskLine];
+  }, [model.riskPressure, model.score, regime, vixCurrentValue]);
 
   return (
     <TechCard className={cn(
       "dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border font-apple relative",
-      compact ? "p-3 h-auto lg:min-h-[520px]" : "p-4 min-h-[680px]"
+      compact ? "px-3 pt-3 pb-[6px] h-auto lg:min-h-[486px]" : "p-4 min-h-[680px]"
     )}>
-      <div className={cn("flex items-start justify-between", compact ? "mb-2.5" : "mb-4")}>
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg border border-white/20 bg-white/[0.08]">
-            <Gauge className={cn("text-[#64E9FF]", compact ? "w-4 h-4" : "w-5 h-5")} />
-          </div>
-          <div>
-            <p className={cn("font-medium text-white/95 leading-none", compact ? "text-sm" : "text-base")}>Fear & Greed Index</p>
-            <p className={cn("uppercase tracking-[0.13em] text-white/45 mt-1", compact ? "text-[10px]" : "text-[11px]")}>Retail Sentiment Risk</p>
-          </div>
-        </div>
-        <span className={cn("font-black leading-none", toneClass, compact ? "text-2xl" : "text-4xl")}>{model.score}</span>
-      </div>
-
-      <div className={cn("relative mx-auto", compact ? "h-48 w-48" : "h-56 w-56")}>
-        <div className="absolute inset-0 rounded-full p-[12px] bg-[conic-gradient(from_220deg,rgba(248,113,113,0.96)_0deg,rgba(250,204,21,0.95)_155deg,rgba(0,217,165,0.98)_300deg,rgba(0,217,165,0.25)_360deg)] shadow-[0_0_38px_rgba(0,0,0,0.45)]">
-          <div className="h-full w-full rounded-full border border-white/10 bg-[#080B10]/95 flex flex-col items-center justify-center text-center">
-            <p className={cn("uppercase tracking-widest text-white/40", compact ? "text-[10px]" : "text-xs")}>Sentiment</p>
-            <p className={cn("font-black leading-none mt-1", toneClass, compact ? "text-3xl" : "text-5xl")}>{model.score}</p>
-            <p className={cn("mt-2 uppercase tracking-[0.12em] font-semibold", toneClass, compact ? "text-[10px]" : "text-xs")}>{model.label}</p>
-          </div>
-        </div>
-
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div
-            className="absolute h-[2px] origin-center rounded-full bg-gradient-to-r from-[#64E9FF]/10 via-[#64E9FF] to-[#64E9FF] shadow-[0_0_12px_rgba(100,233,255,0.8)] transition-transform duration-700"
-            style={{
-              width: compact ? '78px' : '92px',
-              transform: `rotate(${needleAngle}deg)`,
-              transformOrigin: 'center center'
+      <AnimatePresence>
+        {showInfo && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0, y: -20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0, y: -20 }}
+            transition={{
+              type: "spring",
+              stiffness: 350,
+              damping: 25,
+              mass: 0.6
             }}
+            style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
+            className="absolute inset-3 z-50 bg-[#0B0E14]/74 backdrop-blur-[10px] rounded-[24px]"
+          >
+            <div className="relative px-8 py-6 bg-[#0A0D12]/86 border border-[#00D9A5]/30 rounded-[24px] shadow-2xl w-full h-full overflow-y-auto scrollbar-thin font-apple">
+              <div className="flex items-center justify-between mb-5">
+                <h4 className="text-xl font-bold text-white uppercase tracking-[0.15em]">Guida Fear & Greed</h4>
+                <button onClick={() => setShowInfo(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
+                  <X className="w-5 h-5 text-white/50" />
+                </button>
+              </div>
+              <div className="space-y-5 text-left">
+                <p className="text-lg text-white leading-relaxed font-normal">
+                  Il <span className="text-[#00D9A5] font-semibold">Fear &amp; Greed Index</span> sintetizza il sentiment combinando bias direzionale, volatilita implicita (VIX), regime macro e conviction del flusso.
+                </p>
+
+                <div className="pt-5 border-t border-white/10">
+                  <div className="flex items-center justify-center gap-2 mb-5">
+                    <Gauge className="w-5 h-5 text-[#00D9A5]" style={{ filter: 'drop-shadow(0 0 6px #00D9A5)' }} />
+                    <p className="text-base font-bold text-white uppercase tracking-[0.15em]">Come leggere i dati</p>
+                  </div>
+                  <ul className="space-y-4 text-left">
+                    <li className="flex items-start gap-3">
+                      <div className="mt-2.5 w-2 h-2 rounded-full bg-[#00D9A5] shadow-[0_0_8px_#00D9A5] flex-shrink-0" />
+                      <p className="text-lg text-white leading-relaxed font-normal">
+                        <span className="font-semibold">Score centrale:</span> valore 0-100 del sentiment complessivo.
+                      </p>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="mt-2.5 w-2 h-2 rounded-full bg-[#00D9A5] shadow-[0_0_8px_#00D9A5] flex-shrink-0" />
+                      <p className="text-lg text-white leading-relaxed font-normal">
+                        <span className="font-semibold">Radar:</span> distribuzione dei driver (Bias, VIX, Regime, Conviction e componenti derivate).
+                      </p>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="mt-2.5 w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_10px_#FACC15] flex-shrink-0" />
+                      <p className="text-lg text-white leading-relaxed font-normal">
+                        <span className="font-semibold text-yellow-400">Rischio:</span> pressione inversa del sentiment utile per stimare fragilita del mercato.
+                      </p>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className={cn(
+        "transition-all duration-200",
+        showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
+      )}>
+      <div className={cn("flex items-start justify-between", compact ? "mt-1 mb-2.5" : "mb-4")}>
+        <div className="flex items-center gap-2.5">
+          <div className="flex flex-col items-start mt-[2px]">
+            <div className="inline-flex items-center gap-2">
+              <Activity className="w-5 h-5 text-[#00D9A5]" />
+              <span className="font-medium text-base text-white/90">
+                Fear &amp; Greed Index
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowInfo((prev) => !prev)}
+              className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
+              aria-label="Informazioni Fear and Greed"
+              title="Informazioni Fear and Greed"
+              aria-expanded={showInfo}
+            >
+              <Info className="w-3.5 h-3.5 text-white" />
+            </button>
+          </div>
+        </div>
+        <span className={cn(
+          "inline-flex items-center justify-center rounded-full border px-3 py-1.5 font-black uppercase tracking-[0.1em] leading-none whitespace-nowrap",
+          compact ? "text-[10px]" : "text-[10px]",
+          regimeBadgeClass
+        )}>
+          {regimeBadgeLabel}
+        </span>
+      </div>
+
+      <div className="relative">
+      <div className={cn("relative mx-auto", compact ? "-mt-[3px] h-[390px] w-full max-w-[420px]" : "h-[470px] w-full max-w-[500px]")}>
+        <svg
+          className="h-full w-full overflow-visible"
+          viewBox={`0 0 ${radarChart.size} ${radarChart.size}`}
+          role="img"
+          aria-label="Fear and Greed spider chart"
+        >
+          <defs>
+            <radialGradient
+              id={radarGradientIdRef.current}
+              gradientUnits="userSpaceOnUse"
+              cx={radarChart.center}
+              cy={radarChart.center}
+              r={compact ? 178 : 214}
+            >
+              <stop offset="0%" stopColor="rgba(34,18,10,0.07)" />
+              <stop offset="30%" stopColor="rgba(96,52,33,0.16)" />
+              <stop offset="64%" stopColor="rgba(192,116,78,0.38)" />
+              <stop offset="100%" stopColor="rgba(242,169,128,0.58)" />
+            </radialGradient>
+            <filter id={radarGlowIdRef.current} x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="2.4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {radarChart.ringPolygons.map((points, ringIndex) => (
+            <polygon
+              key={`ring-${ringIndex}`}
+              points={points}
+              fill="none"
+              stroke={ringIndex === radarChart.ringPolygons.length - 1 ? "rgba(245,245,245,0.25)" : "rgba(245,245,245,0.19)"}
+              strokeWidth={ringIndex === radarChart.ringPolygons.length - 1 ? 1.1 : 0.9}
+            />
+          ))}
+
+          {radarChart.axisLines.map((line, lineIndex) => (
+            <line
+              key={`axis-${lineIndex}`}
+              x1={line.x1}
+              y1={line.y1}
+              x2={line.x2}
+              y2={line.y2}
+              stroke="rgba(245,245,245,0.2)"
+              strokeWidth="0.95"
+            />
+          ))}
+
+          <polygon
+            points={radarChart.valuePolygon}
+            fill={`url(#${radarGradientIdRef.current})`}
+            stroke="rgba(247,188,146,0.86)"
+            strokeWidth="1.6"
+            filter={`url(#${radarGlowIdRef.current})`}
           />
-          <div className={cn(
-            "absolute rounded-full border border-white/50 bg-[#64E9FF] shadow-[0_0_16px_rgba(100,233,255,0.85)]",
-            compact ? "h-3.5 w-3.5" : "h-[18px] w-[18px]"
-          )} />
-        </div>
+
+          {radarChart.valuePoints.map((point, pointIndex) => (
+            <circle
+              key={`value-${pointIndex}`}
+              cx={point.x}
+              cy={point.y}
+              r={compact ? 3.8 : 4.4}
+              fill="rgba(255,222,193,0.88)"
+              stroke="rgba(255,190,143,0.8)"
+              strokeWidth="0.8"
+            />
+          ))}
+
+          {radarChart.labelPoints.map((labelPoint, labelIndex) => (
+            <text
+              key={`label-${labelIndex}`}
+              x={labelPoint.x}
+              y={labelPoint.y}
+              textAnchor={labelPoint.anchor}
+              dominantBaseline="middle"
+              fill="rgba(245,245,245,0.92)"
+              fontSize={compact ? 17 : 19}
+              fontWeight="700"
+              letterSpacing="0.3"
+            >
+              {labelPoint.label}
+            </text>
+          ))}
+
+          <circle
+            cx={radarChart.center}
+            cy={radarChart.center}
+            r={compact ? 30 : 36}
+            fill="rgba(8,11,16,0.9)"
+            stroke="rgba(255,255,255,0.2)"
+          />
+          <text
+            x={radarChart.center}
+            y={radarChart.center + 1}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            className={cn("font-black", compact ? "text-[24px]" : "text-[30px]")}
+            fill="rgba(255,236,219,0.99)"
+          >
+            {model.score}
+          </text>
+        </svg>
       </div>
 
-      <div className={cn("h-2.5 rounded-full bg-white/10 border border-white/10 overflow-hidden", compact ? "mt-3" : "mt-4")}>
-        <div className={cn("h-full transition-all duration-500", barClass)} style={{ width: `${model.score}%` }} />
+      <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
+        <span className={cn("uppercase tracking-[0.1em] text-white/88 font-bold", compact ? "text-[14px]" : "text-[14px]")}>
+          Fear &amp; Greed
+        </span>
+        <span className={cn(
+          "font-black tabular-nums drop-shadow-[0_0_10px_rgba(255,174,126,0.55)] text-[#FFC69A]",
+          compact ? "text-[18px]" : "text-[18px]"
+        )}>
+          {model.score}
+        </span>
       </div>
 
-      <div className={cn("mt-2 grid grid-cols-2 gap-2", compact ? "text-[10px]" : "text-[11px]")}>
-        <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
-          <p className="uppercase tracking-widest text-white/45">Rischio</p>
-          <p className="mt-1 text-white text-lg font-semibold">{model.riskPressure}%</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
-          <p className="uppercase tracking-widest text-white/45">Regime</p>
-          <p className="mt-1 text-white text-lg font-semibold">{regime?.toUpperCase() || '-'}</p>
-        </div>
+      <div className={cn("bg-white/10 rounded-full overflow-hidden", compact ? "mb-2 h-[7.2px]" : "mb-2 h-[7.2px]")}>
+        <div
+          className={cn("h-[7.2px] rounded-full transition-all", radarBarClass)}
+          style={{ width: `${Math.max(model.score, 8)}%` }}
+        />
       </div>
 
-      <div className={cn("mt-2.5 grid grid-cols-4 gap-1.5", compact ? "text-[10px]" : "text-[11px]")}>
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-white/70">Bias <span className="text-white font-semibold">{model.drivers.bias}</span></div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-white/70">VIX <span className="text-white font-semibold">{model.drivers.vix}</span></div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-white/70">Regime <span className="text-white font-semibold">{model.drivers.regime}</span></div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-white/70">Conv. <span className="text-white font-semibold">{model.drivers.conviction}</span></div>
+      <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
+        <span className={cn("uppercase tracking-[0.1em] text-white/88 font-bold", compact ? "text-[14px]" : "text-[14px]")}>
+          Rischio
+        </span>
+        <span className={cn(
+          "font-black tabular-nums drop-shadow-[0_0_10px_rgba(255,120,148,0.5)] text-[#FF99AF]",
+          compact ? "text-[18px]" : "text-[18px]"
+        )}>
+          {model.riskPressure}%
+        </span>
+      </div>
+
+      <div className={cn("bg-white/10 rounded-full overflow-hidden", compact ? "mb-2 h-[7.2px]" : "mb-2 h-[7.2px]")}>
+        <div
+          className={cn("h-[7.2px] rounded-full transition-all", riskBarClass)}
+          style={{ width: `${Math.max(model.riskPressure, 8)}%` }}
+        />
+      </div>
+
+      <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2.5" : "mt-2.5 p-3")}>
+        <ul className={cn("text-white/85 space-y-1.5", compact ? "text-sm" : "text-[12px]")}>
+          {fearSummaryLines.map((line, idx) => (
+            <li key={idx} className="flex items-start gap-2">
+              <span className={idx === 2 ? "text-[#FF99AF] mt-0.5" : "text-[#00D9A5] mt-0.5"}>•</span>
+              <TypewriterText text={line} speed={18} delay={220 + idx * 340} />
+            </li>
+          ))}
+        </ul>
+      </div>
+      </div>
+
       </div>
     </TechCard>
   );
@@ -3719,7 +4238,7 @@ export default function DashboardPage() {
               onSyncAsset={handleSyncAsset}
               className="lg:w-[50%]"
             />
-            <div className="lg:w-[40%]">
+            <div className="lg:w-[34%]">
               <GammaExposurePanel
                 selectedAsset={optionsSelectedAsset}
                 onAssetChange={setOptionsSelectedAsset}
@@ -3732,7 +4251,7 @@ export default function DashboardPage() {
             <div className="lg:w-[50%]">
               <COTPanel cotData={cotDataToUse} favoriteCOT={favoriteCOT} onFavoriteCOTChange={setFavoriteCOT} animationsReady={headerHidden} />
             </div>
-            <div className="lg:w-[40%]">
+            <div className="lg:w-[34%]">
               <OptionsPanel
                 animationsReady={headerHidden}
                 selectedAsset={optionsSelectedAsset}
@@ -3744,7 +4263,7 @@ export default function DashboardPage() {
         </div>
 
         {/* GEX Column (left of News) */}
-        <div className="lg:col-span-2 self-start space-y-4 lg:w-full lg:ml-0 lg:pr-0 lg:mr-0 xl:w-[122%] xl:-ml-[37%] xl:pr-2 xl:mr-2">
+        <div className="lg:col-span-2 self-start space-y-4 lg:w-[134%] lg:-ml-[32%] lg:pr-0 lg:mr-[2px] xl:w-[148%] xl:-ml-[62%] xl:pr-2 xl:mr-[10px]">
           <div className="relative">
             <div className="space-y-4">
               <FearGreedPanel
@@ -3754,7 +4273,7 @@ export default function DashboardPage() {
                 compact
               />
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                <MarketBreadthPanel breadthData={marketBreadth} className="lg:w-full lg:mt-4" />
+                <MarketBreadthPanel breadthData={marketBreadth} className="lg:w-full lg:mt-[3px]" />
               </div>
             </div>
           </div>

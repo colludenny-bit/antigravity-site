@@ -27,12 +27,9 @@ import {
   LayoutGrid,
   Bitcoin,
   Calculator,
-  Gauge,
   LayoutDashboard
 } from 'lucide-react';
 import nuovoLogo from '../../assets/CUDWBCUDEW.png';
-
-const OWNER_EMAIL = 'colludenny@gmail.com';
 
 const baseNavItems = [
   { path: '/app', icon: LayoutGrid, label: 'Dashboard', iconClass: 'icon-home' },
@@ -58,10 +55,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
-  const isOwner = (user?.email || '').toLowerCase() === OWNER_EMAIL;
-  const navItems = isOwner
-    ? [...baseNavItems, { path: '/app/tv-feed', icon: Gauge, label: 'TV Feed', iconClass: 'icon-options' }]
-    : baseNavItems;
+  const navItems = baseNavItems;
 
   // Voice analysis function for logo click
   const speakMarketAnalysis = () => {
@@ -112,13 +106,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
       {/* Desktop Sidebar - Premium Dark Theme */}
       <aside
         className={cn(
-          "fixed top-[22px] bottom-3 left-3 z-50 overflow-hidden",
+          "fixed top-[22px] bottom-3 left-4 z-50 overflow-hidden",
           "hidden lg:flex flex-col items-center pt-2 pb-4",
           "w-56 rounded-[24px]",
-          "bg-[linear-gradient(165deg,rgba(8,8,8,0.92)_0%,rgba(12,12,12,0.9)_34%,rgba(18,18,18,0.86)_68%,rgba(24,24,24,0.82)_100%)]",
-          "border-[1.5px] border-white/24",
-          "backdrop-blur-[26px]",
-          "shadow-[0_22px_56px_rgba(0,0,0,0.48),0_0_0_1px_rgba(255,255,255,0.12),0_0_22px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.15)]"
+          "bg-black/25",
+          "border-[1.8px] border-white/20",
+          "backdrop-blur-[14px]",
+          "shadow-[0_18px_40px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.08)]"
         )}
         data-testid="sidebar-desktop"
       >

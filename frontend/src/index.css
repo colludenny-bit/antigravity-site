@@ -712,72 +712,110 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
   background-image: none !important;
 }
 
-/* Dashboard left sidebar: solid background (no gray gradient) */
-.dashboard-shell-bg aside[data-testid="sidebar-desktop"] {
-  background-color: #0b0b0b !important;
-  background-image: none !important;
+.dashboard-shell-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0;
+  filter: saturate(1.1) contrast(1.04) brightness(0.9);
+  will-change: opacity;
+}
+
+.dashboard-shell-video-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 78% 6%, rgba(0, 0, 0, 0.13) 0%, rgba(0, 0, 0, 0.36) 64%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.46) 100%);
+}
+
+.dashboard-shell-video-loop-fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 100%, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.16) 52%, rgba(0, 0, 0, 0.04) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0.44) 100%);
+  will-change: opacity;
+}
+
+/* Desktop left sidebar: glass background aligned with dashboard tabs */
+html.dark.carbon-black aside[data-testid="sidebar-desktop"],
+html.dark aside[data-testid="sidebar-desktop"],
+aside[data-testid="sidebar-desktop"] {
+  background: linear-gradient(180deg, rgba(14, 14, 14, 0.42) 0%, rgba(8, 8, 8, 0.3) 100%) !important;
+  background-image: linear-gradient(180deg, rgba(14, 14, 14, 0.42) 0%, rgba(8, 8, 8, 0.3) 100%) !important;
   background-repeat: no-repeat !important;
   background-size: 100% 100% !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.24) !important;
+  left: 28px !important;
+  backdrop-filter: blur(14px) saturate(1.08) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.08) !important;
+  border: 1.85px solid rgba(255, 255, 255, 0.2) !important;
   border-radius: 22px !important;
   box-shadow:
-    0 12px 34px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    0 0 22px rgba(255, 255, 255, 0.08),
-    inset -1px 0 0 rgba(255, 255, 255, 0.065) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 14px 34px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.04) !important;
 }
 
 /* Dashboard glass borders: remove teal outlines and use neutral glass edge */
 .dashboard-shell-bg .tech-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.006) 100%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.011) 0%, rgba(255, 255, 255, 0.003) 62%, rgba(255, 255, 255, 0) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.095) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 12px 30px rgba(0, 0, 0, 0.5) !important;
-  backdrop-filter: blur(12px);
+    inset 0 1px 0 rgba(255, 255, 255, 0.036),
+    0 9px 22px rgba(0, 0, 0, 0.36),
+    0 0 0 1px rgba(255, 255, 255, 0.012) !important;
+  backdrop-filter: blur(15px) saturate(1.01);
 }
 
 .dashboard-shell-bg .tech-card:hover {
-  border-color: rgba(255, 255, 255, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.13) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 14px 34px rgba(0, 0, 0, 0.46) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 24px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.018) !important;
 }
 
 .dashboard-shell-bg .tech-card-active {
-  border-color: rgba(255, 255, 255, 0.24) !important;
+  border-color: rgba(255, 255, 255, 0.145) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 14px 36px rgba(0, 0, 0, 0.5) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 10px 26px rgba(0, 0, 0, 0.36),
+    0 0 0 1px rgba(255, 255, 255, 0.02) !important;
 }
 
 .dashboard-shell-bg .glass-enhanced,
 .dashboard-shell-bg .glass-tab,
 .dashboard-shell-bg .fine-gray-border,
 .dashboard-shell-bg .glass-edge {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.019) 0%, rgba(255, 255, 255, 0.006) 100%) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.01) 0%, rgba(255, 255, 255, 0.003) 60%, rgba(255, 255, 255, 0) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.095) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 12px 30px rgba(0, 0, 0, 0.5) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.036),
+    0 9px 22px rgba(0, 0, 0, 0.36),
+    0 0 0 1px rgba(255, 255, 255, 0.012) !important;
 }
 
 .dashboard-shell-bg .dashboard-panel-glass-boost {
   border-width: 1.35px !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 12px 30px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 9px 22px rgba(0, 0, 0, 0.36),
+    0 0 0 1px rgba(255, 255, 255, 0.018) !important;
 }
 
 .dashboard-shell-bg .bias-panel-border {
   border-width: 1.35px !important;
-  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 12px 30px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 9px 22px rgba(0, 0, 0, 0.36),
+    0 0 0 1px rgba(255, 255, 255, 0.018) !important;
 }
 
 .dashboard-shell-bg .tab-selector,
@@ -807,12 +845,13 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
 .dashboard-shell-bg .dashboard-page :is(div, section, article)[class*="bg-[#161B22]"],
 .dashboard-shell-bg .dashboard-page :is(div, section, article)[class*="bg-[#1A1A1A]"],
 .dashboard-shell-bg .dashboard-page :is(div, section, article)[class*="dark:bg-[#1A1A1A]"] {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.019) 0%, rgba(255, 255, 255, 0.006) 100%) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.01) 0%, rgba(255, 255, 255, 0.003) 60%, rgba(255, 255, 255, 0) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.095) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 12px 30px rgba(0, 0, 0, 0.5) !important;
-  backdrop-filter: blur(12px);
+    inset 0 1px 0 rgba(255, 255, 255, 0.036),
+    0 9px 22px rgba(0, 0, 0, 0.36),
+    0 0 0 1px rgba(255, 255, 255, 0.012) !important;
+  backdrop-filter: blur(15px) saturate(1.01);
 }
 
 /* Right vertical rail: darker glass variant */
@@ -1147,7 +1186,7 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
   transform: scale(0.85) rotate(-10deg);
 }
 
-/* Left desktop sidebar: thin static white glow border */
+/* Left desktop sidebar: clean border treatment (no glow) */
 aside[data-testid="sidebar-desktop"] {
   overflow: visible;
 }
@@ -1155,14 +1194,11 @@ aside[data-testid="sidebar-desktop"] {
 aside[data-testid="sidebar-desktop"]::before {
   content: "";
   position: absolute;
-  inset: -1px;
-  border-radius: 23px;
+  inset: -0.5px;
+  border-radius: 22px;
   pointer-events: none;
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  box-shadow:
-    0 0 10px rgba(255, 255, 255, 0.16),
-    0 0 24px rgba(255, 255, 255, 0.1),
-    inset 0 0 12px rgba(255, 255, 255, 0.06);
+  border: 1.25px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 aside[data-testid="sidebar-desktop"]::after {
