@@ -18,6 +18,9 @@ import io
 import random
 import math
 import re
+from collections import Counter
+from html.parser import HTMLParser
+from urllib import request as urllib_request
 import yfinance as yf
 from functools import lru_cache
 import asyncio
@@ -2137,8 +2140,12 @@ async def analyze_pdf(file: UploadFile = File(...), current_user: dict = Depends
 # Cache for market data (refresh every 5 minutes)
 _market_cache = {"data": None, "timestamp": None}
 _vix_cache = {"data": None, "timestamp": None}
+_breadth_cache = {"data": None, "timestamp": None}
 _market_fetch_locks: Dict[int, asyncio.Lock] = {}
+_breadth_fetch_locks: Dict[int, asyncio.Lock] = {}
 MARKET_CACHE_HOT_TTL = 8  # seconds
+BREADTH_CACHE_TTL = 6 * 60 * 60  # 6 hours
+BREADTH_FETCH_TIMEOUT = 120  # seconds
 _capital_session_locks: Dict[int, asyncio.Lock] = {}
 _capital_session = {
     "cst": None,
@@ -2191,6 +2198,270 @@ def get_yf_ticker_safe(symbol: str, period: str = "5d", interval: str = "1d"):
     except Exception as e:
         logger.error(f"yfinance error for {symbol}: {e}")
         return None
+
+class WikiConstituentsParser(HTMLParser):
+    """Parse Wikipedia index constituent tables by `id=constituents`."""
+
+    def __init__(self):
+        super().__init__()
+        self.in_target_table = False
+        self.table_depth = 0
+        self.in_cell = False
+        self.current_cell_tag = None
+        self.current_cell_parts: List[str] = []
+        self.current_row: List[Tuple[str, str]] = []
+        self.rows: List[List[Tuple[str, str]]] = []
+
+    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]):
+        attrs_dict = {key: value for key, value in attrs}
+
+        if tag == "table":
+            if self.in_target_table:
+                self.table_depth += 1
+            elif attrs_dict.get("id") == "constituents":
+                self.in_target_table = True
+                self.table_depth = 1
+
+        if not self.in_target_table:
+            return
+
+        if tag == "tr":
+            self.current_row = []
+        elif tag in {"td", "th"}:
+            self.in_cell = True
+            self.current_cell_tag = tag
+            self.current_cell_parts = []
+
+    def handle_data(self, data: str):
+        if self.in_target_table and self.in_cell:
+            self.current_cell_parts.append(data)
+
+    def handle_endtag(self, tag: str):
+        if not self.in_target_table:
+            return
+
+        if tag in {"td", "th"} and self.in_cell:
+            text = "".join(self.current_cell_parts).strip()
+            self.current_row.append((self.current_cell_tag or "td", text))
+            self.in_cell = False
+            self.current_cell_tag = None
+            self.current_cell_parts = []
+            return
+
+        if tag == "tr":
+            if self.current_row:
+                self.rows.append(self.current_row)
+            self.current_row = []
+            return
+
+        if tag == "table":
+            self.table_depth -= 1
+            if self.table_depth <= 0:
+                self.in_target_table = False
+
+def normalize_index_symbol(raw_symbol: str) -> Optional[str]:
+    if not raw_symbol:
+        return None
+    clean = re.sub(r"\[[^\]]+\]", "", raw_symbol.strip().upper())
+    match = re.search(r"[A-Z0-9.\-]+", clean)
+    if not match:
+        return None
+    symbol = match.group(0).strip(".-")
+    return symbol or None
+
+def to_yahoo_symbol(index_symbol: str) -> str:
+    return index_symbol.replace(".", "-").upper()
+
+def chunk_list(items: List[str], size: int) -> List[List[str]]:
+    return [items[idx: idx + size] for idx in range(0, len(items), size)]
+
+def fetch_wikipedia_constituents_sync(url: str) -> List[str]:
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; TradingOS/1.0)"}
+    request = urllib_request.Request(url, headers=headers)
+    with urllib_request.urlopen(request, timeout=20) as response:
+        html = response.read().decode("utf-8", errors="ignore")
+
+    parser = WikiConstituentsParser()
+    parser.feed(html)
+
+    symbols: List[str] = []
+    seen = set()
+    for row in parser.rows:
+        first_data_cell = next((cell for tag, cell in row if tag == "td"), None)
+        if not first_data_cell:
+            continue
+        symbol = normalize_index_symbol(first_data_cell)
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        symbols.append(symbol)
+
+    return symbols
+
+def extract_close_series(batch_data, yahoo_symbol: str):
+    if batch_data is None:
+        return None
+    if getattr(batch_data, "empty", True):
+        return None
+
+    columns = getattr(batch_data, "columns", None)
+    if columns is None:
+        return None
+
+    try:
+        if getattr(columns, "nlevels", 1) > 1:
+            close_key = (yahoo_symbol, "Close")
+            if close_key not in columns:
+                return None
+            close_series = batch_data[close_key]
+        else:
+            if "Close" not in columns:
+                return None
+            close_series = batch_data["Close"]
+    except Exception:
+        return None
+
+    close_series = close_series.dropna()
+    if len(close_series) < 200:
+        return None
+    return close_series
+
+def download_close_history_map(symbols: List[str]) -> Dict[str, Any]:
+    close_map: Dict[str, Any] = {}
+    if not symbols:
+        return close_map
+
+    def run_download_batch(batch: List[str], threaded: bool = True):
+        if not batch:
+            return None
+        try:
+            return yf.download(
+                " ".join(batch),
+                period="1y",
+                interval="1d",
+                auto_adjust=False,
+                progress=False,
+                group_by="ticker",
+                threads=threaded
+            )
+        except Exception as exc:
+            logger.warning(f"Breadth download batch failed ({len(batch)} symbols): {exc}")
+            return None
+
+    for batch in chunk_list(symbols, 100):
+        frame = run_download_batch(batch, threaded=True)
+        if frame is None:
+            continue
+        for symbol in batch:
+            series = extract_close_series(frame, symbol)
+            if series is not None:
+                close_map[symbol] = series
+
+    missing = [symbol for symbol in symbols if symbol not in close_map]
+    if missing:
+        for batch in chunk_list(missing, 25):
+            frame = run_download_batch(batch, threaded=False)
+            if frame is None:
+                continue
+            for symbol in batch:
+                if symbol in close_map:
+                    continue
+                series = extract_close_series(frame, symbol)
+                if series is not None:
+                    close_map[symbol] = series
+
+    return close_map
+
+def calculate_index_breadth(index_symbols: List[str], close_map: Dict[str, Any]) -> Dict[str, Any]:
+    total = len(index_symbols)
+    processed = 0
+    above_ma50 = 0
+    above_ma200 = 0
+    date_counter: Counter = Counter()
+    missing_examples: List[str] = []
+
+    for symbol in index_symbols:
+        yahoo_symbol = to_yahoo_symbol(symbol)
+        series = close_map.get(yahoo_symbol)
+        if series is None:
+            if len(missing_examples) < 15:
+                missing_examples.append(symbol)
+            continue
+
+        processed += 1
+        last_close = float(series.iloc[-1])
+        ma50 = float(series.iloc[-50:].mean())
+        ma200 = float(series.iloc[-200:].mean())
+        if last_close > ma50:
+            above_ma50 += 1
+        if last_close > ma200:
+            above_ma200 += 1
+
+        last_index = series.index[-1]
+        if hasattr(last_index, "date"):
+            last_day = last_index.date().isoformat()
+        else:
+            last_day = str(last_index)[:10]
+        date_counter[last_day] += 1
+
+    coverage_pct = round((processed / total) * 100, 2) if total else 0.0
+    above_ma50_pct = round((above_ma50 / processed) * 100, 2) if processed else 0.0
+    above_ma200_pct = round((above_ma200 / processed) * 100, 2) if processed else 0.0
+
+    if above_ma50_pct >= 70 and above_ma200_pct >= 60:
+        breadth_regime = "broad-bullish"
+    elif above_ma50_pct <= 35 and above_ma200_pct <= 40:
+        breadth_regime = "broad-weakness"
+    else:
+        breadth_regime = "mixed"
+
+    as_of_date = date_counter.most_common(1)[0][0] if date_counter else None
+    return {
+        "total_components": total,
+        "processed": processed,
+        "coverage_pct": coverage_pct,
+        "as_of_date": as_of_date,
+        "breadth_regime": breadth_regime,
+        "above_ma50": {
+            "count": above_ma50,
+            "pct": above_ma50_pct
+        },
+        "above_ma200": {
+            "count": above_ma200,
+            "pct": above_ma200_pct
+        },
+        "missing_components": max(0, total - processed),
+        "missing_examples": missing_examples
+    }
+
+def fetch_market_breadth_sync() -> Dict[str, Any]:
+    sp500_symbols = fetch_wikipedia_constituents_sync("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies")
+    nas100_symbols = fetch_wikipedia_constituents_sync("https://en.wikipedia.org/wiki/Nasdaq-100")
+
+    all_symbols: List[str] = []
+    seen = set()
+    for symbol in sp500_symbols + nas100_symbols:
+        yahoo_symbol = to_yahoo_symbol(symbol)
+        if yahoo_symbol in seen:
+            continue
+        seen.add(yahoo_symbol)
+        all_symbols.append(yahoo_symbol)
+
+    close_map = download_close_history_map(all_symbols)
+    now = datetime.now(timezone.utc)
+
+    return {
+        "timestamp": now.isoformat(),
+        "source": {
+            "constituents": "wikipedia",
+            "prices": "yahoo_finance",
+            "method": "close_above_sma_50_200"
+        },
+        "indices": {
+            "SP500": calculate_index_breadth(sp500_symbols, close_map),
+            "NAS100": calculate_index_breadth(nas100_symbols, close_map)
+        }
+    }
 
 def get_capital_credentials():
     api_key = os.environ.get("CAPITAL_COM_KEY") or os.environ.get("CAPITAL_COM_API_KEY")
@@ -2448,6 +2719,53 @@ async def get_vix_data():
             "timestamp": now.isoformat(),
             "source": "simulated"
         }
+
+@api_router.get("/market/breadth")
+async def get_market_breadth():
+    """Get real market breadth (% above MA50/MA200) for SP500 and NAS100."""
+    global _breadth_cache
+    now = datetime.now(timezone.utc)
+
+    if _breadth_cache["data"] and _breadth_cache["timestamp"]:
+        cache_age = (now - _breadth_cache["timestamp"]).total_seconds()
+        if cache_age < BREADTH_CACHE_TTL:
+            return _breadth_cache["data"]
+
+    breadth_fetch_lock = get_loop_bound_lock(_breadth_fetch_locks)
+    if breadth_fetch_lock.locked() and _breadth_cache["data"]:
+        return _breadth_cache["data"]
+
+    async with breadth_fetch_lock:
+        now = datetime.now(timezone.utc)
+        if _breadth_cache["data"] and _breadth_cache["timestamp"]:
+            cache_age = (now - _breadth_cache["timestamp"]).total_seconds()
+            if cache_age < BREADTH_CACHE_TTL:
+                return _breadth_cache["data"]
+
+        try:
+            payload = await asyncio.wait_for(
+                asyncio.to_thread(fetch_market_breadth_sync),
+                timeout=BREADTH_FETCH_TIMEOUT
+            )
+            sp_processed = payload.get("indices", {}).get("SP500", {}).get("processed", 0)
+            nas_processed = payload.get("indices", {}).get("NAS100", {}).get("processed", 0)
+            if sp_processed <= 0 and nas_processed <= 0:
+                raise RuntimeError("Breadth fetch returned no processed symbols")
+
+            _breadth_cache["data"] = payload
+            _breadth_cache["timestamp"] = now
+            return payload
+
+        except Exception as exc:
+            logger.warning(f"Market breadth fetch failed: {exc}")
+            if _breadth_cache["data"] and _breadth_cache["timestamp"]:
+                cache_age = int((now - _breadth_cache["timestamp"]).total_seconds())
+                return {
+                    **_breadth_cache["data"],
+                    "cache_stale": True,
+                    "cache_age_seconds": cache_age
+                }
+            raise HTTPException(status_code=503, detail="Market breadth data temporarily unavailable")
 
 @api_router.get("/market/prices")
 async def get_market_prices():

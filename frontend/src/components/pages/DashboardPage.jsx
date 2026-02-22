@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -286,6 +285,15 @@ const formatGammaScale = (value) => {
   return `${Math.round(value)}K`;
 };
 
+const formatSignedGammaExposure = (value) => {
+  if (!Number.isFinite(value)) return '-';
+  const abs = Math.abs(value);
+  const sign = value >= 0 ? '+' : '-';
+  if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(2)}M`;
+  if (abs >= 100) return `${sign}${abs.toFixed(0)}K`;
+  return `${sign}${abs.toFixed(1)}K`;
+};
+
 const formatStrikeLevel = (value) => {
   if (!Number.isFinite(value)) return '-';
   if (Math.abs(value) < 10) {
@@ -372,7 +380,7 @@ const useIsMobile = () => {
 };
 
 // Asset Charts Grid (2-3 charts visible at once)
-const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false, onSyncAsset }) => {
+const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false, onSyncAsset, className = '' }) => {
   // State with LocalStorage Persistence
   const [viewMode, setViewMode] = useState('focus');
   const [selectedAsset, setSelectedAsset] = useState(() => localStorage.getItem('dashboard_selectedAsset') || null);
@@ -561,6 +569,16 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
     seasonalityBias,
     weekRule.description
   ]);
+  const screeningFocusSummaryLines = (() => {
+    const lines = [...(dailyOutlook?.outlookLines || [])];
+    if (lines.length < 4) {
+      lines.push(`Contesto ATR: ${Math.round(atrProgress)}% del range medio giornaliero gia percorso.`);
+    }
+    while (lines.length < 4) {
+      lines.push('Monitoraggio multi-timeframe in corso per conferma direzionale.');
+    }
+    return lines.slice(0, 4);
+  })();
 
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
@@ -570,7 +588,10 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   };
 
   return (
-    <TechCard className="dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 lg:w-[46%] lg:mr-auto min-h-[474px] pb-[74px]">
+    <TechCard className={cn(
+      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 pb-[20px] relative w-full transition-all duration-300",
+      className
+    )}>
       {/* Info Tooltip - Genie Effect */}
       <AnimatePresence>
         {showInfo && (
@@ -660,39 +681,39 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
         )}
       >
         <div className="flex items-center justify-between mb-5">
-        <div className="relative flex items-center gap-2">
-          <div className="flex items-center gap-3 select-none">
-            <div className={cn(
-              "p-2 rounded-lg border transition-all",
-              viewMode === 'focus'
-                ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 font-bold"
-                : "bg-white/5 border-white/10 dark:bg-white/5 dark:border-white/10"
-            )}>
-              <BarChart3 className="w-5 h-5 text-[#00D9A5]" />
-            </div>
-            <div className="text-left">
-              <h4 className={cn(
-                "text-lg font-bold transition-colors select-none",
-                viewMode === 'focus' ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-white/80"
+          <div className="relative flex items-center gap-2">
+            <div className="flex items-center gap-3 select-none">
+              <div className={cn(
+                "p-2 rounded-lg border transition-all",
+                viewMode === 'focus'
+                  ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 font-bold"
+                  : "bg-white/5 border-white/10 dark:bg-white/5 dark:border-white/10"
               )}>
-                {viewMode === 'focus' ? 'Screening' : 'Screening'}
-              </h4>
-              <p className="text-xs text-slate-400 dark:text-white/40 leading-none mt-1">
-                Dettagli asset
-              </p>
+                <BarChart3 className="w-5 h-5 text-[#00D9A5]" />
+              </div>
+              <div className="text-left">
+                <h4 className={cn(
+                  "text-lg font-bold transition-colors select-none",
+                  viewMode === 'focus' ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-white/80"
+                )}>
+                  {viewMode === 'focus' ? 'Screening' : 'Screening'}
+                </h4>
+                <p className="text-xs text-slate-400 dark:text-white/40 leading-none mt-1">
+                  Dettagli asset
+                </p>
+              </div>
             </div>
+            {/* Info Button */}
+            <button
+              onClick={() => setShowInfo(!showInfo)}
+              className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
+            >
+              <Info className="w-3.5 h-3.5 text-white" />
+            </button>
           </div>
-          {/* Info Button */}
-          <button
-            onClick={() => setShowInfo(!showInfo)}
-            className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
-          >
-            <Info className="w-3.5 h-3.5 text-white" />
-          </button>
-        </div>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-          <div className="flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+            <div className="flex items-center gap-3">
               {/* Outlook Giornaliero */}
               {viewMode === 'focus' && currentAsset && (
                 <div className="text-right">
@@ -801,9 +822,9 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                   )}
                 </AnimatePresence>
               </div>
+            </div>
           </div>
         </div>
-      </div>
 
       <AnimatePresence mode="wait">
         {viewMode === 'grid' ? (
@@ -1001,17 +1022,30 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
             className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms] min-h-[364px] lg:min-h-[403px]"
           >
             {currentAsset.symbol === 'XAUUSD' ? (
-              <div className="w-full aspect-[16/8] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
-                {animationsReady ? (
-                  <TradingViewMiniChart
-                    assetSymbol={currentAsset.symbol}
-                    title={`tv-focus-${currentAsset.symbol}`}
-                    interval="15"
-                    interactive
-                  />
-                ) : (
-                  <div className="w-full h-full rounded-lg bg-white/5 animate-pulse" />
-                )}
+              <div className="space-y-3">
+                <div className="w-full aspect-[16/8] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
+                  {animationsReady ? (
+                    <TradingViewMiniChart
+                      assetSymbol={currentAsset.symbol}
+                      title={`tv-focus-${currentAsset.symbol}`}
+                      interval="15"
+                      interactive
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-lg bg-white/5 animate-pulse" />
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3">
+                  <ul className="space-y-1.5">
+                    {screeningFocusSummaryLines.map((line, i) => (
+                      <li key={`focus-summary-${i}`} className="flex items-start gap-2.5 text-sm font-semibold text-white/95 leading-relaxed tracking-tight">
+                        <div className="mt-2 w-1 h-1 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
+                        <TypewriterText text={line} speed={18} delay={400 + i * 320} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             ) : (
               <>
@@ -1119,6 +1153,125 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
       </AnimatePresence>
       </div>
     </TechCard >
+  );
+};
+
+const MarketBreadthPanel = ({ breadthData, className = '' }) => {
+  const breadthSP500 = breadthData?.indices?.SP500 || null;
+  const breadthNAS100 = breadthData?.indices?.NAS100 || null;
+  const breadthTimestamp = breadthData?.timestamp ? new Date(breadthData.timestamp) : null;
+  const breadthUpdatedLabel = breadthTimestamp
+    ? breadthTimestamp.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  const formatBreadthPct = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? `${num.toFixed(1)}%` : '—';
+  };
+
+  const getBreadthTone = (indexData) => {
+    if (!indexData) {
+      return {
+        label: 'Dati non disponibili',
+        className: 'text-yellow-300 border-yellow-300/20 bg-yellow-500/10'
+      };
+    }
+    if (indexData.breadth_regime === 'broad-bullish') {
+      return {
+        label: 'Ampio supporto',
+        className: 'text-[#00D9A5] border-[#00D9A5]/20 bg-[#00D9A5]/10'
+      };
+    }
+    if (indexData.breadth_regime === 'broad-weakness') {
+      return {
+        label: 'Rialzo fragile',
+        className: 'text-red-300 border-red-300/20 bg-red-500/10'
+      };
+    }
+    return {
+      label: 'Partecipazione mista',
+      className: 'text-yellow-300 border-yellow-300/20 bg-yellow-500/10'
+    };
+  };
+
+  return (
+    <TechCard className={cn(
+      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 min-h-[474px]",
+      className
+    )}>
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg border bg-[#00D9A5]/10 border-[#00D9A5]/20">
+            <Layers className="w-5 h-5 text-[#00D9A5]" />
+          </div>
+          <div>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Market Breadth</h4>
+            <p className="text-xs text-slate-400 dark:text-white/40 leading-none mt-1">
+              % titoli sopra MA50 / MA200
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-white/40 uppercase tracking-[0.15em] font-bold">Aggiornamento</p>
+          <p className="text-xs text-white/70 font-semibold">
+            {breadthUpdatedLabel ? breadthUpdatedLabel : 'Caricamento dati...'}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {[{ key: 'NAS100', label: 'Nasdaq-100', data: breadthNAS100 }, { key: 'SP500', label: 'S&P 500', data: breadthSP500 }].map((item) => {
+          const tone = getBreadthTone(item.data);
+          const ma50 = Number(item.data?.above_ma50?.pct);
+          const ma200 = Number(item.data?.above_ma200?.pct);
+          const coverage = Number(item.data?.coverage_pct);
+          return (
+            <div key={item.key} className="rounded-2xl border border-white/10 bg-[#13171C]/85 p-4">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <h4 className="text-sm font-black text-white uppercase tracking-[0.2em]">{item.label}</h4>
+                  <p className="text-xs text-white/50 mt-1">
+                    Copertura {Number.isFinite(coverage) ? `${coverage.toFixed(1)}%` : '—'} ({item.data?.processed || 0}/{item.data?.total_components || 0})
+                  </p>
+                </div>
+                <span className={cn("px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.15em]", tone.className)}>
+                  {tone.label}
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-white/60">% titoli sopra MA50</p>
+                    <p className="text-sm font-bold text-[#00D9A5]">{formatBreadthPct(ma50)}</p>
+                  </div>
+                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#00D9A5] transition-all duration-700"
+                      style={{ width: `${Math.max(0, Math.min(100, Number.isFinite(ma50) ? ma50 : 0))}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-white/60">% titoli sopra MA200</p>
+                    <p className="text-sm font-bold text-[#00D9A5]">{formatBreadthPct(ma200)}</p>
+                  </div>
+                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#00D9A5] transition-all duration-700"
+                      style={{ width: `${Math.max(0, Math.min(100, Number.isFinite(ma200) ? ma200 : 0))}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+      </div>
+    </TechCard>
   );
 };
 
@@ -1242,7 +1395,7 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
   return (
     <TechCard className={cn(
       "dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border font-apple relative",
-      compact ? "p-3 h-auto" : "p-4 min-h-[470px]"
+      compact ? "p-3 h-auto lg:min-h-[520px]" : "p-4 min-h-[680px]"
     )}>
       <div className={cn("flex items-start justify-between", compact ? "mb-2.5" : "mb-4")}>
         <div className="flex items-center gap-2.5">
@@ -1654,7 +1807,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
 
 
 // Options Flow Panel - Enhanced Interactive
-const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propAsset, onAssetChange }) => {
+const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propAsset, onAssetChange, className = '' }) => {
   const [showSelector, setShowSelector] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [internalSelectedAsset, setInternalSelectedAsset] = useState('XAUUSD');
@@ -1672,9 +1825,47 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
   const availableAssets = ['XAUUSD', 'NAS100', 'SP500', 'EURUSD', 'BTCUSD'];
 
   const currentData = STATIC_OPTIONS_DATA[selectedAsset] || STATIC_OPTIONS_DATA.XAUUSD;
+  const ratioSpread = currentData.call_ratio - currentData.put_ratio;
+  const grossPremium = currentData.call_million + currentData.put_million;
+  const dominantSide = ratioSpread >= 6 ? 'CALL' : ratioSpread <= -6 ? 'PUT' : 'BALANCED';
+  const netTone = currentData.net_million >= 0 ? 'pro-risk' : 'risk-off';
+  const signedPct = (value) => `${value >= 0 ? '+' : ''}${Number(value).toFixed(1)}%`;
+  const signedMillion = (value) => `${value >= 0 ? '+' : ''}${Math.round(value)}M`;
+
+  const flowBullets = useMemo(() => {
+    const momentumLine = currentData.net_change >= 6
+      ? 'Momentum intraday in accelerazione sul lato dominante.'
+      : currentData.net_change <= -6
+        ? 'Momentum intraday in decelerazione: possibile rotazione.'
+        : 'Momentum intraday stabile, senza accelerazioni anomale.';
+
+    const directionalLine = currentData.bias === 'bullish'
+      ? 'Flusso direzionale rialzista: privilegiare setup long solo con conferma prezzo.'
+      : currentData.bias === 'bearish'
+        ? 'Flusso direzionale ribassista: preferire trade difensivi e breakout short.'
+        : 'Flusso bilanciato: meglio operativita tattica finche non emerge uno sbilanciamento.';
+
+    return [
+      `Dominanza ${dominantSide}: spread Call/Put ${ratioSpread >= 0 ? '+' : ''}${Math.round(ratioSpread)} pt.`,
+      `Premium totale ${Math.round(grossPremium)}M con net flow ${signedMillion(currentData.net_million)} (${netTone}).`,
+      `Variazioni sessione: Call ${signedPct(currentData.call_change)} | Put ${signedPct(currentData.put_change)} | Net ${signedPct(currentData.net_change)}.`,
+      momentumLine,
+      directionalLine
+    ];
+  }, [
+    currentData.bias,
+    currentData.call_change,
+    currentData.net_change,
+    currentData.net_million,
+    currentData.put_change,
+    dominantSide,
+    grossPremium,
+    netTone,
+    ratioSpread
+  ]);
 
   return (
-    <TechCard className="dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border p-3 h-auto self-start font-apple relative">
+    <TechCard className={cn("dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border p-3 h-full font-apple relative", className)}>
       {/* Info Tooltip - Genie Effect */}
       <AnimatePresence>
         {showInfo && (
@@ -1918,19 +2109,40 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
             : 'Equilibrio tra opzioni call e put'}
       </p>
 
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="rounded-lg bg-white/5 border border-white/10 p-2 text-center">
+          <p className="text-[10px] uppercase tracking-widest text-white/45">C/P Spread</p>
+          <p className={cn(
+            "text-sm font-semibold mt-1",
+            ratioSpread >= 0 ? "text-[#00D9A5]" : "text-red-400"
+          )}>
+            {ratioSpread >= 0 ? '+' : ''}{Math.round(ratioSpread)} pt
+          </p>
+        </div>
+        <div className="rounded-lg bg-white/5 border border-white/10 p-2 text-center">
+          <p className="text-[10px] uppercase tracking-widest text-white/45">Gross Flow</p>
+          <p className="text-sm font-semibold mt-1 text-white">{Math.round(grossPremium)}M</p>
+        </div>
+        <div className="rounded-lg bg-white/5 border border-white/10 p-2 text-center">
+          <p className="text-[10px] uppercase tracking-widest text-white/45">Net Momentum</p>
+          <p className={cn(
+            "text-sm font-semibold mt-1",
+            currentData.net_change >= 0 ? "text-[#00D9A5]" : "text-red-400"
+          )}>
+            {signedPct(currentData.net_change)}
+          </p>
+        </div>
+      </div>
+
       {/* Options Interpretation - Bullet Points styled like Screening */}
       <div className="p-4 rounded-xl bg-white/5 border border-white/10">
         <ul className="space-y-1.5 text-base text-white/90">
-          {currentData.interpretation.map((line, idx) => (
+          {flowBullets.map((line, idx) => (
             <li key={idx} className="flex items-start gap-2">
               <span className="text-[#00D9A5] mt-0.5">•</span>
               <TypewriterText text={line} speed={20} delay={300 + idx * 800} />
             </li>
           ))}
-          <li className="flex items-start gap-2">
-            <span className="text-[#00D9A5] mt-0.5">•</span>
-            <TypewriterText text="Monitorare variazioni giornaliere per conferma direzionale." speed={20} delay={300 + 3 * 800} />
-          </li>
         </ul>
       </div>
 
@@ -1959,19 +2171,146 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
   const availableAssets = ['XAUUSD', 'NAS100', 'SP500', 'EURUSD', 'BTCUSD'];
   const currentData = STATIC_OPTIONS_DATA[selectedAsset] || STATIC_OPTIONS_DATA.XAUUSD;
   const gexProfile = useMemo(() => currentData.gex_profile || [], [currentData]);
+  const normalizedProfile = useMemo(
+    () => gexProfile
+      .map((row) => {
+        const strike = parseNumericValue(row.strike);
+        const call = parseNumericValue(row.call);
+        const put = parseNumericValue(row.put);
+        const parsedNet = parseNumericValue(row.net);
+        const net = Number.isFinite(parsedNet)
+          ? parsedNet
+          : (Number.isFinite(call) ? call : 0) + (Number.isFinite(put) ? put : 0);
+
+        return {
+          strike,
+          call: Number.isFinite(call) ? call : 0,
+          put: Number.isFinite(put) ? put : 0,
+          net
+        };
+      })
+      .filter((row) => Number.isFinite(row.strike)),
+    [gexProfile]
+  );
 
   const maxGamma = useMemo(() => {
-    const max = gexProfile.reduce((acc, row) => {
+    const max = normalizedProfile.reduce((acc, row) => {
       const rowMax = Math.max(Math.abs(row.put || 0), Math.abs(row.call || 0), Math.abs(row.net || 0));
       return Math.max(acc, rowMax);
     }, 0);
     return Math.max(max, 1);
-  }, [gexProfile]);
+  }, [normalizedProfile]);
+
+  const gexStats = useMemo(() => {
+    if (!normalizedProfile.length) {
+      return {
+        totalCall: 0,
+        totalPut: 0,
+        totalNet: 0,
+        zeroGammaLevel: parseNumericValue(currentData.gamma_flip),
+        callWall: null,
+        putWall: null,
+        regimeLabel: 'Neutral Gamma',
+        regimeHint: 'Nessuna lettura GEX disponibile.'
+      };
+    }
+
+    const totalCall = normalizedProfile.reduce((acc, row) => acc + Math.abs(row.call), 0);
+    const totalPut = normalizedProfile.reduce((acc, row) => acc + Math.abs(row.put), 0);
+    const totalNet = normalizedProfile.reduce((acc, row) => acc + row.net, 0);
+    const callWall = normalizedProfile.reduce((best, row) => {
+      if (!best || Math.abs(row.call) > Math.abs(best.call)) return row;
+      return best;
+    }, null);
+    const putWall = normalizedProfile.reduce((best, row) => {
+      if (!best || Math.abs(row.put) > Math.abs(best.put)) return row;
+      return best;
+    }, null);
+
+    let zeroGammaLevel = parseNumericValue(currentData.gamma_flip);
+    for (let i = 0; i < normalizedProfile.length - 1; i++) {
+      const current = normalizedProfile[i];
+      const next = normalizedProfile[i + 1];
+      if (current.net === 0) {
+        zeroGammaLevel = current.strike;
+        break;
+      }
+      if ((current.net > 0 && next.net < 0) || (current.net < 0 && next.net > 0)) {
+        const distance = Math.abs(current.net) + Math.abs(next.net);
+        const weight = distance > 0 ? Math.abs(current.net) / distance : 0.5;
+        zeroGammaLevel = current.strike + (next.strike - current.strike) * weight;
+        break;
+      }
+    }
+    if (!Number.isFinite(zeroGammaLevel)) {
+      zeroGammaLevel = normalizedProfile.reduce((closest, row) => (
+        Math.abs(row.net) < Math.abs(closest.net) ? row : closest
+      ), normalizedProfile[0]).strike;
+    }
+
+    const regimePositive = totalNet >= 0;
+
+    return {
+      totalCall,
+      totalPut,
+      totalNet,
+      zeroGammaLevel,
+      callWall,
+      putWall,
+      regimeLabel: regimePositive ? 'Positive Gamma' : 'Negative Gamma',
+      regimeHint: regimePositive
+        ? 'Dealer hedge contro-trend: favorisce compressione e mean reversion.'
+        : 'Dealer hedge pro-trend: aumenta rischio squeeze e accelerazioni.'
+    };
+  }, [currentData.gamma_flip, normalizedProfile]);
+
+  const gexActionPlan = useMemo(() => {
+    const lines = [
+      gexStats.regimeHint,
+      `Zero Gamma Level: ${formatStrikeLevel(gexStats.zeroGammaLevel)} (pivot intraday).`
+    ];
+
+    if (gexStats.callWall && gexStats.putWall) {
+      lines.push(
+        `Dealer range: Put Wall ${formatStrikeLevel(gexStats.putWall.strike)} - Call Wall ${formatStrikeLevel(gexStats.callWall.strike)}.`
+      );
+    }
+
+    lines.push(
+      gexStats.totalNet >= 0
+        ? 'Setup preferiti: fade degli estremi, rientro verso livelli centrali.'
+        : 'Setup preferiti: breakout direzionali veloci, evitare mean reversion aggressiva.'
+    );
+
+    return lines;
+  }, [gexStats]);
+
+  const netIntensity = useMemo(() => {
+    const magnitude = gexStats.totalCall + gexStats.totalPut;
+    if (magnitude <= 0) return 0;
+    return Math.min(100, Math.round((Math.abs(gexStats.totalNet) / magnitude) * 100));
+  }, [gexStats.totalCall, gexStats.totalNet, gexStats.totalPut]);
+
+  const gammaFlipValue = parseNumericValue(currentData.gamma_flip);
+  const gexKpiCards = useMemo(() => ([
+    {
+      key: 'zero-gamma',
+      label: 'Zero Gamma',
+      value: formatStrikeLevel(gexStats.zeroGammaLevel),
+      valueClass: 'text-white'
+    },
+    {
+      key: 'gamma-flip',
+      label: 'Gamma Flip',
+      value: formatStrikeLevel(gammaFlipValue),
+      valueClass: 'text-white'
+    }
+  ]), [gammaFlipValue, gexStats.zeroGammaLevel]);
 
   return (
     <TechCard className={cn(
       "dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border font-apple relative",
-      compact ? "p-3.5 h-auto" : "p-3 h-full"
+      compact ? "p-3.5 min-h-[680px]" : "p-3 h-full"
     )}>
       <AnimatePresence>
         {showInfo && (
@@ -1997,26 +2336,26 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
               </div>
               <div className="space-y-5 text-left">
                 <p className="text-lg text-white leading-relaxed font-normal">
-                  Il <span className="text-[#00D9A5] font-semibold">GEX (Gamma Exposure)</span> mostra dove i market maker sono più esposti per strike.
-                  Quando il gamma è concentrato, il prezzo tende a reagire su quelle aree.
+                  Il <span className="text-[#00D9A5] font-semibold">GEX 0DTE</span> mappa il posizionamento dealer per strike.
+                  Questa card serve a leggere regime gamma, livelli chiave e rischio di squeeze in tempo reale.
                 </p>
                 <ul className="space-y-4 text-left">
                   <li className="flex items-start gap-3">
                     <div className="mt-2.5 w-2 h-2 rounded-full bg-[#B574FF] shadow-[0_0_8px_#B574FF] flex-shrink-0" />
                     <p className="text-lg text-white leading-relaxed font-normal">
-                      <span className="font-semibold text-[#B574FF]">Put Gamma</span>: pressione dealer sul lato ribassista.
+                      <span className="font-semibold text-[#B574FF]">Put Wall / Put Gamma</span>: area di supporto dove il dealer tende a difendere.
                     </p>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="mt-2.5 w-2 h-2 rounded-full bg-[#E3C98A] shadow-[0_0_8px_#E3C98A] flex-shrink-0" />
                     <p className="text-lg text-white leading-relaxed font-normal">
-                      <span className="font-semibold text-[#E3C98A]">Call Gamma</span>: supporto lato rialzista.
+                      <span className="font-semibold text-[#E3C98A]">Call Wall / Call Gamma</span>: area di resistenza dove il dealer assorbe rally.
                     </p>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="mt-2.5 w-2 h-2 rounded-full bg-[#FF4D7A] shadow-[0_0_8px_#FF4D7A] flex-shrink-0" />
                     <p className="text-lg text-white leading-relaxed font-normal">
-                      <span className="font-semibold text-[#FF4D7A]">Net Gamma</span>: sintesi netta per strike, utile per identificare zone di assorbimento o accelerazione.
+                      <span className="font-semibold text-[#FF4D7A]">Zero Gamma Level</span>: cambio regime tra compressione (positive gamma) ed espansione (negative gamma).
                     </p>
                   </li>
                 </ul>
@@ -2030,12 +2369,26 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
         "transition-all duration-200",
         showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
       )}>
-      <div className={cn("flex items-center justify-between px-1", compact ? "mb-2.5" : "mb-3")}>
-        <div className="flex items-baseline gap-2">
-          <span className={cn("font-bold text-white", compact ? "text-[22px] leading-none" : "text-xl")}>{selectedAsset}</span>
-          <span className={cn("uppercase tracking-widest text-white/40", compact ? "text-sm" : "text-xs")}>Strike Ladder</span>
+      <div className={cn("flex items-start justify-between px-1", compact ? "mb-2.5" : "mb-3")}>
+        <div className="flex flex-col items-start mt-[2px]">
+          <div className="inline-flex items-center gap-2">
+            <Gauge className="w-5 h-5 text-[#00D9A5]" />
+            <span className="font-medium text-base text-white/90">
+              GEX 0DTE
+            </span>
+          </div>
+          <span className="mt-1.5 font-apple text-xl font-bold leading-none text-white">{selectedAsset}</span>
         </div>
         <div className="flex items-center gap-1.5">
+          <span className={cn(
+            "inline-flex items-center justify-center rounded-full border px-3 py-1.5 font-black uppercase tracking-[0.1em] leading-none whitespace-nowrap",
+            compact ? "text-[10px]" : "text-[10px]",
+            gexStats.totalNet >= 0
+              ? "text-[#00D9A5] border-[#00D9A5]/35 bg-[#001812]"
+              : "text-red-300 border-red-400/35 bg-[#22090F]"
+          )}>
+            {gexStats.regimeLabel}
+          </span>
           <button
             onClick={() => setShowInfo(!showInfo)}
             className={cn(
@@ -2090,41 +2443,48 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
         </div>
       </div>
 
-      <div className={cn("flex flex-wrap items-center text-white/65", compact ? "mb-2 gap-3 text-sm" : "mb-2 gap-3 text-[11px]")}>
-        <span className="inline-flex items-center gap-1.5">
-          <span className={cn("rounded-full bg-[#B574FF]", compact ? "w-2.5 h-2.5" : "w-2 h-2")} />
-          Put Gamma
+      <div className={cn("grid grid-cols-[1fr_auto_1fr] items-center", compact ? "mb-2 text-[12px]" : "mb-2 text-[12px]")}>
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-[#B574FF]/35 bg-[#B574FF]/10 px-2 py-1 font-semibold text-[#D9B9FF] justify-self-start">
+          Put Wall
+          <span className="font-black text-white">{formatStrikeLevel(gexStats.putWall?.strike)}</span>
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className={cn("rounded-full bg-[#E3C98A]", compact ? "w-2.5 h-2.5" : "w-2 h-2")} />
-          Call Gamma
+        <span className={cn(
+          "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-semibold justify-self-center translate-x-[6px]",
+          gexStats.totalNet >= 0
+            ? "border-[#00D9A5]/35 bg-[#00D9A5]/10 text-[#A7FFE7]"
+            : "border-red-400/35 bg-red-500/10 text-red-300"
+        )}>
+          Net GEX
+          <span className="font-black text-white">{formatSignedGammaExposure(gexStats.totalNet)}</span>
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className={cn("rounded-full bg-[#FF4D7A]", compact ? "w-2.5 h-2.5" : "w-2 h-2")} />
-          Net Gamma
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-[#E3C98A]/35 bg-[#E3C98A]/10 px-2 py-1 font-semibold text-[#F4DFB4] justify-self-end">
+          Call Wall
+          <span className="font-black text-white">{formatStrikeLevel(gexStats.callWall?.strike)}</span>
         </span>
       </div>
 
-      <div className={cn("rounded-xl bg-white/[0.03] border border-white/10", compact ? "p-2" : "p-2.5")}>
-        <div className={cn("space-y-1.5 overflow-y-auto scrollbar-thin pr-1", compact ? "max-h-[280px]" : "max-h-[240px]")}>
-          {gexProfile.map((row, idx) => {
+      <div className={cn("rounded-xl bg-white/[0.03] border border-white/10 mx-auto", compact ? "p-2 max-w-full" : "p-2 max-w-full")}>
+        <div className={cn("space-y-1 overflow-y-auto scrollbar-thin pr-1", compact ? "max-h-[250px]" : "max-h-[220px]")}>
+          {normalizedProfile.map((row, idx) => {
             const putWidth = Math.min((Math.abs(row.put || 0) / maxGamma) * 50, 50);
             const callWidth = Math.min((Math.abs(row.call || 0) / maxGamma) * 50, 50);
-            const netValue = typeof row.net === 'number' ? row.net : (row.call || 0) + (row.put || 0);
+            const netValue = row.net;
             const netWidth = Math.min((Math.abs(netValue) / maxGamma) * 50, 50);
             const isNetPositive = netValue >= 0;
 
             return (
-              <div key={`${row.strike}-${idx}`} className={cn("grid items-center gap-2", compact ? "grid-cols-[64px_1fr]" : "grid-cols-[64px_1fr]")}>
-                <span className={cn("text-right font-medium text-white/55", compact ? "text-sm" : "text-[11px]")}>{formatStrikeLevel(row.strike)}</span>
-                <div className={cn("relative rounded-md bg-black/20 overflow-hidden", compact ? "h-[18px]" : "h-3.5")}>
+              <div key={`${row.strike}-${idx}`} className={cn("grid items-center gap-1.5", compact ? "grid-cols-[56px_1fr]" : "grid-cols-[60px_1fr]")}>
+                <span className={cn("text-right font-bold text-white/90", compact ? "text-[13px]" : "text-[13px]")}>
+                  {formatStrikeLevel(row.strike)}
+                </span>
+                <div className={cn("relative rounded-md bg-black/20 overflow-hidden", compact ? "h-[15px]" : "h-3")}>
                   <div className="absolute inset-y-0 left-1/2 w-px bg-white/20" />
 
                   {putWidth > 0 && (
                     <div
                       className={cn(
                         "absolute right-1/2 top-1/2 -translate-y-1/2 rounded-l-sm bg-[#B574FF]/95",
-                        compact ? "h-[8px]" : "h-[7px]"
+                        compact ? "h-[6px]" : "h-[6px]"
                       )}
                       style={{ width: `${putWidth}%` }}
                     />
@@ -2134,7 +2494,7 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
                     <div
                       className={cn(
                         "absolute left-1/2 top-1/2 -translate-y-1/2 rounded-r-sm bg-[#E3C98A]/95",
-                        compact ? "h-[8px]" : "h-[7px]"
+                        compact ? "h-[6px]" : "h-[6px]"
                       )}
                       style={{ width: `${callWidth}%` }}
                     />
@@ -2144,7 +2504,7 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
                     <div
                       className={cn(
                         "absolute top-1/2 -translate-y-1/2 bg-[#FF4D7A]/95",
-                        compact ? "h-[6px]" : "h-[5px]",
+                        compact ? "h-[4px]" : "h-[4px]",
                         isNetPositive ? "left-1/2 rounded-r-sm" : "right-1/2 rounded-l-sm"
                       )}
                       style={{ width: `${netWidth}%` }}
@@ -2156,53 +2516,69 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
           })}
         </div>
 
-        <div className={cn("mt-2 grid items-center gap-2", compact ? "grid-cols-[64px_1fr]" : "grid-cols-[64px_1fr]")}>
+        <div className={cn("mt-1.5 grid items-center gap-1.5", compact ? "grid-cols-[56px_1fr]" : "grid-cols-[60px_1fr]")}>
           <span />
-          <div className={cn("flex items-center justify-between text-white/45", compact ? "text-sm" : "text-[10px]")}>
-            <span>-{formatGammaScale(maxGamma)}</span>
-            <span>0</span>
-            <span>{formatGammaScale(maxGamma)}</span>
+          <div className={cn("flex items-center justify-between text-white font-bold tabular-nums", compact ? "text-[13px]" : "text-[13px]")}>
+            <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">-{formatGammaScale(maxGamma)}</span>
+            <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">0</span>
+            <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">{formatGammaScale(maxGamma)}</span>
           </div>
         </div>
       </div>
 
-      <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2" : "mt-2.5 p-2.5")}>
-        <div className="flex items-center justify-between mb-1">
-          <span className={cn("text-white/80 font-medium", compact ? "text-base" : "text-sm")}>Gamma Exposure</span>
-          <span className={cn(
-            "font-bold",
-            compact ? "text-xl" : "text-base",
-            currentData.gamma_billion >= 0 ? "text-[#00D9A5]" : "text-red-400"
-          )}>
-            {currentData.gamma_billion >= 0 ? '+' : ''}{currentData.gamma_billion}B
-          </span>
-        </div>
-        <div className={cn("bg-white/10 rounded-full overflow-hidden", compact ? "h-2.5" : "h-2")}>
-          <div
-            className={cn(
-              "h-full rounded-full transition-all",
-              currentData.gamma_exposure >= 50 ? "bg-[#00D9A5]" : "bg-red-400"
-            )}
-            style={{ width: `${currentData.gamma_exposure}%` }}
-          />
-        </div>
+      <div className={cn("grid gap-2", compact ? "mt-2.5 mb-2.5 grid-cols-2" : "mt-3 mb-3 grid-cols-2")}>
+        {gexKpiCards.map((item) => (
+          <div key={item.key} className="rounded-md border border-white/10 bg-black/20 px-2.5 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] uppercase tracking-[0.08em] leading-none text-white/80 whitespace-nowrap font-semibold">
+                {item.label}
+              </p>
+              <p className={cn(
+                "font-bold leading-none whitespace-nowrap text-right",
+                compact ? "text-[16px]" : "text-[17px]",
+                item.valueClass
+              )}>
+                {item.value}
+              </p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className={cn("rounded-xl bg-white/5 border border-white/10 flex items-center justify-between", compact ? "mt-2.5 p-2.5" : "mt-3 p-3")}>
-        <div>
-          <p className={cn("uppercase tracking-widest text-white/45", compact ? "text-sm" : "text-xs")}>Gamma Flip</p>
-          <p className={cn("font-semibold text-white", compact ? "text-lg" : "text-base")}>{formatStrikeLevel(currentData.gamma_flip)}</p>
-        </div>
-        <div className="text-right">
-          <p className={cn("uppercase tracking-widest text-white/45", compact ? "text-sm" : "text-xs")}>Gamma Score</p>
-          <p className={cn(
-            compact ? "text-lg font-semibold" : "text-base font-semibold",
-            currentData.gamma_exposure >= 50 ? "text-[#00D9A5]" : "text-red-400"
-          )}>
-            {currentData.gamma_exposure}%
-          </p>
-        </div>
+      <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
+        <span className={cn("uppercase tracking-[0.1em] text-white/85 font-bold", compact ? "text-[12px]" : "text-[12px]")}>
+          Net GEX
+        </span>
+        <span className={cn(
+          "font-black tabular-nums drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]",
+          compact ? "text-[15px]" : "text-[15px]",
+          gexStats.totalNet >= 0 ? "text-[#00D9A5]" : "text-red-400"
+        )}>
+          {formatSignedGammaExposure(gexStats.totalNet)}
+        </span>
       </div>
+
+      <div className={cn("bg-white/10 rounded-full overflow-hidden flex items-center", compact ? "mb-2 h-2" : "mb-2 h-2")}>
+        <div
+          className={cn(
+            "h-1.5 rounded-full transition-all",
+            gexStats.totalNet >= 0 ? "bg-[#00D9A5]" : "bg-red-400"
+          )}
+          style={{ width: `${Math.max(netIntensity, 8)}%` }}
+        />
+      </div>
+
+      <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2.5" : "mt-2.5 p-3")}>
+        <ul className={cn("text-white/85 space-y-1.5", compact ? "text-sm" : "text-[12px]")}>
+          {gexActionPlan.map((line, idx) => (
+            <li key={idx} className="flex items-start gap-2">
+              <span className="text-[#00D9A5] mt-0.5">•</span>
+              <TypewriterText text={line} speed={18} delay={260 + idx * 480} />
+            </li>
+          ))}
+        </ul>
+      </div>
+
       </div>
     </TechCard>
   );
@@ -2564,7 +2940,7 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
 
   return (
     <div className="space-y-4">
-      <TechCard className="dashboard-panel-glass-boost p-4 font-apple glass-edge panel-left-edge fine-gray-border lg:w-[110%] lg:-ml-[4%] lg:relative lg:z-10">
+      <TechCard className="dashboard-panel-glass-boost p-4 font-apple glass-edge panel-left-edge fine-gray-border lg:w-full lg:ml-0 xl:w-[118%] xl:-ml-[17%] xl:relative xl:z-10">
         <div className="mb-4">
           <p className="text-3xl font-bold text-white/90 tracking-tight leading-none">{calendarModel.monthLabel}</p>
         </div>
@@ -2615,14 +2991,14 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
 
       <div>
         {/* News Section */}
-        <TechCard className="dashboard-panel-glass-boost p-4 font-apple flex flex-col glass-edge panel-left-edge fine-gray-border lg:h-[730px] lg:w-[110%] lg:-ml-[4%] lg:relative lg:z-10" style={{ maxHeight: '730px' }}>
+        <TechCard className="dashboard-panel-glass-boost p-4 font-apple flex flex-col glass-edge panel-left-edge fine-gray-border lg:h-[860px] lg:w-full lg:ml-0 xl:w-[118%] xl:-ml-[17%] xl:relative xl:z-10" style={{ maxHeight: '860px' }}>
           {/* Sticky Header */}
           <h4 className="text-base font-medium text-white/90 mb-3 flex items-center gap-2 sticky top-0 bg-inherit z-10 pb-2">
             <Newspaper className="w-5 h-5 text-[#00D9A5]" />
             News
           </h4>
           {/* Scrollable Content */}
-          <div className="space-y-2 overflow-y-auto flex-1 scrollbar-thin">
+          <div className="space-y-2 overflow-y-auto flex-1 scrollbar-thin pb-6 lg:max-h-[603px]">
             {newsData.map((item, i) => (
               <div
                 key={i}
@@ -2689,33 +3065,31 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
               </div>
             ))}
           </div>
+
+          <div className="mt-5 px-4 pt-1 pb-3 rounded-xl bg-white/5 border border-white/10 min-h-[145px]">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="w-5 h-5 text-[#00D9A5]" />
+              <h5 className="text-base font-semibold text-white/90 uppercase tracking-[0.08em]">Sintesi News</h5>
+            </div>
+            <ul className="space-y-2 text-base text-white/85 leading-relaxed">
+              {(newsSummaries?.three_hour
+                ? newsSummaries.three_hour
+                    .split('.')
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .slice(0, 4)
+                : ['Nessun riassunto disponibile al momento.']
+              ).map((line, idx) => (
+                <li key={idx} className="flex items-start gap-2">
+                  <span className="text-[#00D9A5] mt-0.5">•</span>
+                  <span>{line.endsWith('.') ? line : `${line}.`}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </TechCard>
       </div>
 
-      {/* 3h News Cycle Summary */}
-      {newsSummaries?.three_hour && (
-        <TechCard className="p-4 font-apple">
-          <h4 className="text-sm font-medium text-white/90 mb-2 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-[#00D9A5]" />
-            Sintesi 3H News Cycle
-          </h4>
-          <p className="text-sm text-white/70 leading-relaxed">{newsSummaries.three_hour}</p>
-        </TechCard>
-      )}
-
-      {/* Strategy Suggestions - from Strategy Projection Engine */}
-      <StrategySelectorPanel
-        projections={strategiesProjections}
-        strategiesCatalog={strategiesCatalog}
-        expandedNews={expandedNews}
-        setExpandedNews={setExpandedNews}
-      />
-      <Link
-        to="/app/strategy"
-        className="block mt-3 text-center text-base text-[#00D9A5] hover:underline"
-      >
-        Vedi tutte le strategie →
-      </Link>
     </div>
   );
 };
@@ -2964,6 +3338,7 @@ export default function DashboardPage() {
   const [cotSummary, setCotSummary] = useState(null);
   const [engineData, setEngineData] = useState([]);
   const [livePrices, setLivePrices] = useState({});
+  const [marketBreadth, setMarketBreadth] = useState(null);
   const [strategyProjections, setStrategyProjections] = useState([]);
   const [strategiesCatalog, setStrategiesCatalog] = useState([]);
   const [newsBriefing, setNewsBriefing] = useState(null);
@@ -2980,12 +3355,6 @@ export default function DashboardPage() {
   const [typedChars, setTypedChars] = useState(0);
   const [headerHidden, setHeaderHidden] = useState(() => !playIntro);
   const biasBarRef = useRef(null);
-
-  useEffect(() => {
-    if (!hasPlayedDashboardIntro) {
-      hasPlayedDashboardIntro = true;
-    }
-  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -3068,6 +3437,23 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchLivePrices]);
 
+  const fetchMarketBreadth = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/market/breadth`);
+      if (response?.data && typeof response.data === 'object') {
+        setMarketBreadth(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching market breadth:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMarketBreadth();
+    const interval = setInterval(fetchMarketBreadth, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchMarketBreadth]);
+
   const { analyses, vix, regime, next_event } = multiSourceData || {};
 
   // Mock data for demo mode when backend is unavailable
@@ -3141,6 +3527,14 @@ export default function DashboardPage() {
   // Use real COT data only when at least one symbol is available
   const hasLiveCotData = cotSummary?.data && Object.keys(cotSummary.data).length > 0;
   const cotDataToUse = hasLiveCotData ? cotSummary : mockCotData;
+  const handleSyncAsset = useCallback((symbol) => {
+    // Sync COT Favorites
+    if (cotDataToUse?.data?.[symbol]) {
+      setFavoriteCOT(prev => [symbol, ...prev.filter(s => s !== symbol)].slice(0, 3));
+    }
+    // Sync Options Asset
+    setOptionsSelectedAsset(symbol);
+  }, [cotDataToUse]);
 
   // Get greeting based on time of day
   const getGreeting = () => {
@@ -3189,8 +3583,14 @@ export default function DashboardPage() {
 
     const scrollTimer = setTimeout(() => {
       setIntroPhase('done');
+      hasPlayedDashboardIntro = true;
       if (biasBarRef.current) {
-        biasBarRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const rect = biasBarRef.current.getBoundingClientRect();
+        const viewportH = window.innerHeight || document.documentElement.clientHeight;
+        const needsScroll = rect.top < 0 || rect.bottom > viewportH;
+        if (needsScroll) {
+          biasBarRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
       }
       // After scroll animation finishes, hide the header completely
       setTimeout(() => {
@@ -3306,68 +3706,62 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Grid: Center + GEX + Right Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:mr-2 lg:items-start">
-        {/* CENTER: Charts + COT + Options */}
-        <div className="lg:col-span-8 space-y-6">
+      <div className="xl:overflow-x-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-4 lg:mr-2 lg:items-start xl:min-w-[1500px]">
+        {/* CENTER: Charts + COT + Market Breadth */}
+        <div className="lg:col-span-8 space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-start lg:gap-4">
+            <AssetChartPanel
+              assets={assetsList}
+              favoriteCharts={favoriteCharts}
+              onFavoriteChange={setFavoriteCharts}
+              animationsReady={headerHidden}
+              onSyncAsset={handleSyncAsset}
+              className="lg:w-[50%]"
+            />
+            <div className="lg:w-[40%]">
+              <GammaExposurePanel
+                selectedAsset={optionsSelectedAsset}
+                onAssetChange={setOptionsSelectedAsset}
+                compact
+              />
+            </div>
+          </div>
 
-          {/* Asset Charts Grid */}
-          <AssetChartPanel
-            assets={assetsList}
-            favoriteCharts={favoriteCharts}
-            onFavoriteChange={setFavoriteCharts}
-            animationsReady={headerHidden}
-            onSyncAsset={useCallback((symbol) => {
-              // Sync COT Favorites
-              if (cotDataToUse?.data?.[symbol]) {
-                setFavoriteCOT(prev => [symbol, ...prev.filter(s => s !== symbol)].slice(0, 3));
-              }
-              // Sync Options Asset
-              setOptionsSelectedAsset(symbol);
-            }, [cotDataToUse])}
-          />
-
-          {/* COT Row */}
-          <div className="lg:w-[51%] lg:mr-auto">
-            <COTPanel cotData={cotDataToUse} favoriteCOT={favoriteCOT} onFavoriteCOTChange={setFavoriteCOT} animationsReady={headerHidden} />
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-start lg:gap-4">
+            <div className="lg:w-[50%]">
+              <COTPanel cotData={cotDataToUse} favoriteCOT={favoriteCOT} onFavoriteCOTChange={setFavoriteCOT} animationsReady={headerHidden} />
+            </div>
+            <div className="lg:w-[40%]">
+              <OptionsPanel
+                animationsReady={headerHidden}
+                selectedAsset={optionsSelectedAsset}
+                onAssetChange={setOptionsSelectedAsset}
+                className="lg:mt-0"
+              />
+            </div>
           </div>
         </div>
 
         {/* GEX Column (left of News) */}
-        <div className="lg:col-span-2 self-start space-y-4 lg:w-[106%] lg:-ml-[8%] lg:relative lg:z-20">
+        <div className="lg:col-span-2 self-start space-y-4 lg:w-full lg:ml-0 lg:pr-0 lg:mr-0 xl:w-[122%] xl:-ml-[37%] xl:pr-2 xl:mr-2">
           <div className="relative">
-            <div className="hidden lg:block lg:absolute lg:top-0 lg:right-full lg:mr-5 lg:w-[112%]">
-              <FearGreedPanel
-                analyses={analysesData}
-                vix={vix || { current: 17.62, change: -0.96 }}
-                regime={regime || 'risk-on'}
-                compact={false}
-              />
-            </div>
-
-            <div className="lg:hidden mb-4">
+            <div className="space-y-4">
               <FearGreedPanel
                 analyses={analysesData}
                 vix={vix || { current: 17.62, change: -0.96 }}
                 regime={regime || 'risk-on'}
                 compact
               />
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                <MarketBreadthPanel breadthData={marketBreadth} className="lg:w-full lg:mt-4" />
+              </div>
             </div>
-
-            <GammaExposurePanel
-              selectedAsset={optionsSelectedAsset}
-              onAssetChange={setOptionsSelectedAsset}
-              compact
-            />
           </div>
-          <OptionsPanel
-            animationsReady={headerHidden}
-            selectedAsset={optionsSelectedAsset}
-            onAssetChange={setOptionsSelectedAsset}
-          />
         </div>
 
         {/* RIGHT SIDEBAR: News + Activity + Strategies */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 lg:pl-0">
           <ActivitySidebar
             news={newsBriefing?.events}
             newsSummaries={newsBriefing?.summaries}
@@ -3375,6 +3769,7 @@ export default function DashboardPage() {
             strategiesCatalog={strategiesCatalog}
           />
         </div>
+      </div>
       </div>
     </div>
   );
