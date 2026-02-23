@@ -2150,8 +2150,43 @@ _breadth_cache = {"data": None, "timestamp": None}
 _market_fetch_locks: Dict[int, asyncio.Lock] = {}
 _breadth_fetch_locks: Dict[int, asyncio.Lock] = {}
 MARKET_CACHE_HOT_TTL = 8  # seconds
-BREADTH_CACHE_TTL = 6 * 60 * 60  # 6 hours
+
+# Market Breadth pipeline config (single source of truth)
+BREADTH_REFRESH_INTERVAL_HOURS = 4
+BREADTH_REFRESH_INTERVAL_MINUTES = (BREADTH_REFRESH_INTERVAL_HOURS * 60) + 1
+BREADTH_CACHE_TTL = BREADTH_REFRESH_INTERVAL_MINUTES * 60
 BREADTH_FETCH_TIMEOUT = 120  # seconds
+BREADTH_INTRADAY_PRICE_FETCH = {
+    "period": "6mo",
+    "interval": "1h",
+    "resample": "4h",
+}
+BREADTH_INTRADAY_FALLBACK_FETCH = {
+    "period": "1y",
+    "interval": "1d",
+}
+BREADTH_COMPONENT_PRICE_FETCH = {
+    "period": "1y",
+    "interval": "1d",
+}
+BREADTH_WINDOWS = {
+    "ma_fast": 50,
+    "ma_slow": 200,
+}
+BREADTH_HISTORY_MAX_POINTS = 90
+BREADTH_REGIME_THRESHOLDS = {
+    "bullish_ma50_min": 70.0,
+    "bullish_ma200_min": 60.0,
+    "weak_ma50_max": 35.0,
+    "weak_ma200_max": 40.0,
+}
+BREADTH_PRICE_SYMBOLS = {
+    "SP500": "^GSPC",
+    "NAS100": "^NDX",
+    "XAUUSD": "GC=F",
+    "EURUSD": "EURUSD=X",
+}
+MARKET_BREADTH_TICKERS = tuple(BREADTH_PRICE_SYMBOLS.keys())
 _capital_session_locks: Dict[int, asyncio.Lock] = {}
 _capital_session = {
     "cst": None,
@@ -2343,8 +2378,8 @@ def download_close_history_map(symbols: List[str]) -> Dict[str, Any]:
         try:
             return yf.download(
                 " ".join(batch),
-                period="1y",
-                interval="1d",
+                period=BREADTH_COMPONENT_PRICE_FETCH["period"],
+                interval=BREADTH_COMPONENT_PRICE_FETCH["interval"],
                 auto_adjust=False,
                 progress=False,
                 group_by="ticker",
@@ -2390,6 +2425,54 @@ def normalize_series_date_index(series):
     normalized = normalized[~normalized.index.duplicated(keep="last")]
     return normalized
 
+def normalize_series_datetime_index(series):
+    normalized = series.copy()
+    dt_index = pd.to_datetime(normalized.index, errors="coerce")
+    if isinstance(dt_index, pd.DatetimeIndex):
+        if dt_index.tz is not None:
+            dt_index = dt_index.tz_localize(None)
+    normalized.index = dt_index
+    normalized = normalized[~normalized.index.isna()]
+    normalized = normalized[~normalized.index.duplicated(keep="last")]
+    return normalized
+
+def resample_series_to_4h(series):
+    if series is None:
+        return None
+    try:
+        normalized = normalize_series_datetime_index(series.dropna().astype(float))
+    except Exception:
+        return None
+    if len(normalized) == 0:
+        return None
+    resampled = normalized.sort_index().resample(BREADTH_INTRADAY_PRICE_FETCH["resample"]).last().dropna()
+    if len(resampled) == 0:
+        return None
+    return resampled
+
+def format_history_timestamp(idx) -> str:
+    ts = pd.to_datetime(idx, errors="coerce")
+    if pd.isna(ts):
+        return str(idx)[:16]
+    if getattr(ts, "tzinfo", None) is not None:
+        ts = ts.tz_localize(None)
+    if ts.hour == 0 and ts.minute == 0:
+        return ts.date().isoformat()
+    return ts.strftime("%Y-%m-%d %H:%M")
+
+def derive_breadth_regime(ma50_pct: float, ma200_pct: float) -> str:
+    if (
+        ma50_pct >= BREADTH_REGIME_THRESHOLDS["bullish_ma50_min"]
+        and ma200_pct >= BREADTH_REGIME_THRESHOLDS["bullish_ma200_min"]
+    ):
+        return "broad-bullish"
+    if (
+        ma50_pct <= BREADTH_REGIME_THRESHOLDS["weak_ma50_max"]
+        and ma200_pct <= BREADTH_REGIME_THRESHOLDS["weak_ma200_max"]
+    ):
+        return "broad-weakness"
+    return "mixed"
+
 def download_index_close_history_map(index_to_yahoo: Dict[str, str]) -> Dict[str, Any]:
     history_map: Dict[str, Any] = {}
     if not index_to_yahoo:
@@ -2399,24 +2482,41 @@ def download_index_close_history_map(index_to_yahoo: Dict[str, str]) -> Dict[str
     if not yahoo_symbols:
         return history_map
 
+    frame = None
     try:
         frame = yf.download(
             " ".join(yahoo_symbols),
-            period="1y",
-            interval="1d",
+            period=BREADTH_INTRADAY_PRICE_FETCH["period"],
+            interval=BREADTH_INTRADAY_PRICE_FETCH["interval"],
             auto_adjust=False,
             progress=False,
             group_by="ticker",
             threads=False
         )
     except Exception as exc:
-        logger.warning(f"Index price history download failed: {exc}")
-        return history_map
+        logger.warning(f"Index intraday history download failed, fallback daily: {exc}")
+
+    if frame is None or getattr(frame, "empty", True):
+        try:
+            frame = yf.download(
+                " ".join(yahoo_symbols),
+                period=BREADTH_INTRADAY_FALLBACK_FETCH["period"],
+                interval=BREADTH_INTRADAY_FALLBACK_FETCH["interval"],
+                auto_adjust=False,
+                progress=False,
+                group_by="ticker",
+                threads=False
+            )
+        except Exception as exc:
+            logger.warning(f"Index price history download failed: {exc}")
+            return history_map
 
     for index_key, yahoo_symbol in index_to_yahoo.items():
         series = extract_close_series(frame, yahoo_symbol)
-        if series is not None:
-            history_map[index_key] = series
+        if series is None:
+            continue
+        resampled_4h = resample_series_to_4h(series)
+        history_map[index_key] = resampled_4h if resampled_4h is not None else normalize_series_date_index(series)
 
     return history_map
 
@@ -2424,7 +2524,7 @@ def build_index_breadth_history(
     index_symbols: List[str],
     close_map: Dict[str, Any],
     index_price_series: Optional[Any] = None,
-    max_points: int = 90
+    max_points: int = BREADTH_HISTORY_MAX_POINTS
 ) -> List[Dict[str, Any]]:
     component_series: Dict[str, Any] = {}
 
@@ -2435,11 +2535,11 @@ def build_index_breadth_history(
             continue
 
         series = series.dropna()
-        if len(series) < 200:
+        if len(series) < BREADTH_WINDOWS["ma_slow"]:
             continue
 
         normalized = normalize_series_date_index(series.astype(float))
-        if len(normalized) < 200:
+        if len(normalized) < BREADTH_WINDOWS["ma_slow"]:
             continue
 
         component_series[yahoo_symbol] = normalized
@@ -2451,8 +2551,14 @@ def build_index_breadth_history(
     if prices_df.empty:
         return []
 
-    ma50_df = prices_df.rolling(window=50, min_periods=50).mean()
-    ma200_df = prices_df.rolling(window=200, min_periods=200).mean()
+    ma50_df = prices_df.rolling(
+        window=BREADTH_WINDOWS["ma_fast"],
+        min_periods=BREADTH_WINDOWS["ma_fast"]
+    ).mean()
+    ma200_df = prices_df.rolling(
+        window=BREADTH_WINDOWS["ma_slow"],
+        min_periods=BREADTH_WINDOWS["ma_slow"]
+    ).mean()
     valid_df = prices_df.notna() & ma50_df.notna() & ma200_df.notna()
 
     processed_series = valid_df.sum(axis=1)
@@ -2472,15 +2578,23 @@ def build_index_breadth_history(
         return []
 
     if index_price_series is not None:
-        price_series = normalize_series_date_index(index_price_series.dropna().astype(float))
-        history_df = history_df.join(price_series.rename("price"), how="left")
-        history_df["price"] = history_df["price"].ffill().bfill()
+        price_series = normalize_series_datetime_index(index_price_series.dropna().astype(float))
+        if not price_series.empty:
+            price_df = pd.DataFrame({"price": price_series}).sort_index()
+            price_df["breadth_date"] = pd.to_datetime(price_df.index, errors="coerce").normalize()
+            breadth_daily = history_df.copy()
+            breadth_daily.index = pd.to_datetime(breadth_daily.index, errors="coerce").normalize()
+            expanded = price_df.join(breadth_daily, on="breadth_date", how="left")
+            expanded = expanded.drop(columns=["breadth_date"])
+            expanded = expanded.dropna(subset=["above_ma50_pct", "above_ma200_pct"])
+            expanded["price"] = expanded["price"].ffill().bfill()
+            history_df = expanded
 
     history_df = history_df.tail(max_points)
 
     history: List[Dict[str, Any]] = []
     for idx, row in history_df.iterrows():
-        date_label = idx.date().isoformat() if hasattr(idx, "date") else str(idx)[:10]
+        date_label = format_history_timestamp(idx)
         price_val = row.get("price")
         history.append({
             "date": date_label,
@@ -2492,6 +2606,96 @@ def build_index_breadth_history(
         })
 
     return history
+
+def build_price_proxy_breadth_payload(
+    price_series: Optional[Any],
+    total_components: int = 100,
+    max_points: int = BREADTH_HISTORY_MAX_POINTS
+) -> Optional[Dict[str, Any]]:
+    if price_series is None:
+        return None
+
+    try:
+        normalized = normalize_series_datetime_index(price_series.dropna().astype(float))
+    except Exception:
+        return None
+
+    if len(normalized) < BREADTH_WINDOWS["ma_slow"]:
+        return None
+
+    df = pd.DataFrame({"price": normalized}).sort_index()
+    df["ma50_value"] = df["price"].rolling(
+        window=BREADTH_WINDOWS["ma_fast"],
+        min_periods=BREADTH_WINDOWS["ma_fast"]
+    ).mean()
+    df["ma200_value"] = df["price"].rolling(
+        window=BREADTH_WINDOWS["ma_slow"],
+        min_periods=BREADTH_WINDOWS["ma_slow"]
+    ).mean()
+    df["above50_flag"] = (df["price"] > df["ma50_value"]).astype(float)
+    df["above200_flag"] = (df["price"] > df["ma200_value"]).astype(float)
+    df["above_ma50_pct"] = df["above50_flag"].rolling(
+        window=BREADTH_WINDOWS["ma_fast"],
+        min_periods=BREADTH_WINDOWS["ma_fast"]
+    ).mean() * 100.0
+    df["above_ma200_pct"] = df["above200_flag"].rolling(
+        window=BREADTH_WINDOWS["ma_slow"],
+        min_periods=BREADTH_WINDOWS["ma_slow"]
+    ).mean() * 100.0
+    df = df.dropna(subset=["ma50_value", "ma200_value", "above_ma50_pct", "above_ma200_pct"])
+    if df.empty:
+        return None
+
+    precision = 5 if float(df["price"].median()) < 10 else 2
+
+    history_df = df.tail(max_points)
+    history: List[Dict[str, Any]] = []
+    for idx, row in history_df.iterrows():
+        date_label = format_history_timestamp(idx)
+        history.append({
+            "date": date_label,
+            "price": round(float(row["price"]), precision),
+            "ma50_value": round(float(row["ma50_value"]), precision),
+            "ma200_value": round(float(row["ma200_value"]), precision),
+            "above_ma50_pct": round(float(row["above_ma50_pct"]), 2),
+            "above_ma200_pct": round(float(row["above_ma200_pct"]), 2),
+            "coverage_pct": 100.0,
+            "processed": int(total_components)
+        })
+
+    if not history:
+        return None
+
+    latest = history[-1]
+    ma50_pct = round(float(latest["above_ma50_pct"]), 2)
+    ma200_pct = round(float(latest["above_ma200_pct"]), 2)
+    total = int(total_components)
+    ma50_count = int(round((ma50_pct / 100.0) * total))
+    ma200_count = int(round((ma200_pct / 100.0) * total))
+
+    breadth_regime = derive_breadth_regime(ma50_pct, ma200_pct)
+
+    return {
+        "total_components": total,
+        "processed": total,
+        "coverage_pct": 100.0,
+        "as_of_date": latest["date"],
+        "breadth_regime": breadth_regime,
+        "above_ma50": {
+            "count": ma50_count,
+            "pct": ma50_pct
+        },
+        "above_ma200": {
+            "count": ma200_count,
+            "pct": ma200_pct
+        },
+        "missing_components": 0,
+        "missing_examples": [],
+        "latest_ma50": latest.get("ma50_value"),
+        "latest_ma200": latest.get("ma200_value"),
+        "history": history,
+        "latest_price": latest["price"]
+    }
 
 def calculate_index_breadth(index_symbols: List[str], close_map: Dict[str, Any]) -> Dict[str, Any]:
     total = len(index_symbols)
@@ -2511,8 +2715,8 @@ def calculate_index_breadth(index_symbols: List[str], close_map: Dict[str, Any])
 
         processed += 1
         last_close = float(series.iloc[-1])
-        ma50 = float(series.iloc[-50:].mean())
-        ma200 = float(series.iloc[-200:].mean())
+        ma50 = float(series.iloc[-BREADTH_WINDOWS["ma_fast"]:].mean())
+        ma200 = float(series.iloc[-BREADTH_WINDOWS["ma_slow"]:].mean())
         if last_close > ma50:
             above_ma50 += 1
         if last_close > ma200:
@@ -2529,12 +2733,7 @@ def calculate_index_breadth(index_symbols: List[str], close_map: Dict[str, Any])
     above_ma50_pct = round((above_ma50 / processed) * 100, 2) if processed else 0.0
     above_ma200_pct = round((above_ma200 / processed) * 100, 2) if processed else 0.0
 
-    if above_ma50_pct >= 70 and above_ma200_pct >= 60:
-        breadth_regime = "broad-bullish"
-    elif above_ma50_pct <= 35 and above_ma200_pct <= 40:
-        breadth_regime = "broad-weakness"
-    else:
-        breadth_regime = "mixed"
+    breadth_regime = derive_breadth_regime(above_ma50_pct, above_ma200_pct)
 
     as_of_date = date_counter.most_common(1)[0][0] if date_counter else None
     return {
@@ -2569,10 +2768,7 @@ def fetch_market_breadth_sync() -> Dict[str, Any]:
         all_symbols.append(yahoo_symbol)
 
     close_map = download_close_history_map(all_symbols)
-    index_price_history = download_index_close_history_map({
-        "SP500": "^GSPC",
-        "NAS100": "^NDX"
-    })
+    index_price_history = download_index_close_history_map(BREADTH_PRICE_SYMBOLS)
     now = datetime.now(timezone.utc)
 
     sp_payload = calculate_index_breadth(sp500_symbols, close_map)
@@ -2582,13 +2778,13 @@ def fetch_market_breadth_sync() -> Dict[str, Any]:
         sp500_symbols,
         close_map,
         index_price_history.get("SP500"),
-        max_points=90
+        max_points=BREADTH_HISTORY_MAX_POINTS
     )
     nas_history = build_index_breadth_history(
         nas100_symbols,
         close_map,
         index_price_history.get("NAS100"),
-        max_points=90
+        max_points=BREADTH_HISTORY_MAX_POINTS
     )
 
     if sp_history:
@@ -2598,16 +2794,34 @@ def fetch_market_breadth_sync() -> Dict[str, Any]:
         nas_payload["history"] = nas_history
         nas_payload["latest_price"] = nas_history[-1].get("price")
 
+    xau_payload = build_price_proxy_breadth_payload(
+        index_price_history.get("XAUUSD"),
+        total_components=100,
+        max_points=BREADTH_HISTORY_MAX_POINTS
+    )
+    eur_payload = build_price_proxy_breadth_payload(
+        index_price_history.get("EURUSD"),
+        total_components=100,
+        max_points=BREADTH_HISTORY_MAX_POINTS
+    )
+
     return {
         "timestamp": now.isoformat(),
         "source": {
             "constituents": "wikipedia",
             "prices": "yahoo_finance",
-            "method": "close_above_sma_50_200_with_history"
+            "method": "close_above_sma_50_200_with_history_plus_price_proxy",
+            "timeframe": BREADTH_INTRADAY_PRICE_FETCH["resample"],
+            "refresh_interval_hours": BREADTH_REFRESH_INTERVAL_HOURS,
+            "refresh_interval_minutes": BREADTH_REFRESH_INTERVAL_MINUTES,
+            "tracked_tickers": list(MARKET_BREADTH_TICKERS),
+            "symbols": {f"{k}_price": v for k, v in BREADTH_PRICE_SYMBOLS.items()}
         },
         "indices": {
             "SP500": sp_payload,
-            "NAS100": nas_payload
+            "NAS100": nas_payload,
+            **({"XAUUSD": xau_payload} if xau_payload else {}),
+            **({"EURUSD": eur_payload} if eur_payload else {})
         }
     }
 
@@ -2870,7 +3084,7 @@ async def get_vix_data():
 
 @api_router.get("/market/breadth")
 async def get_market_breadth():
-    """Get real market breadth (% above MA50/MA200) for SP500 and NAS100."""
+    """Get market breadth payload for SP500/NAS100 plus XAUUSD/EURUSD proxy series (4H)."""
     global _breadth_cache
     now = datetime.now(timezone.utc)
 

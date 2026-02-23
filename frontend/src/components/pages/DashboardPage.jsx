@@ -123,6 +123,19 @@ const STAT_BIAS = {
 const API = `${process.env.REACT_APP_BACKEND_URL || ''}/api`;
 let hasPlayedDashboardIntro = false;
 
+const DASHBOARD_FETCH_INTERVALS_MS = {
+  core: 30 * 1000,
+  cot: 3 * 60 * 60 * 1000,
+  livePrices: 8 * 1000,
+  marketBreadth: (4 * 60 + 1) * 60 * 1000
+};
+
+const MARKET_BREADTH_CONFIG = {
+  selectorKeys: ['NAS100', 'SP500', 'XAUUSD', 'EURUSD'],
+  updateCadenceLabel: 'ogni 4 ore e 1 minuto',
+  timeframeLabel: '4H'
+};
+
 const PRICE_DECIMALS = {
   EURUSD: 5
 };
@@ -1158,17 +1171,13 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 };
 
 const MarketBreadthPanel = ({ breadthData, className = '' }) => {
+  const MA50_COLOR = '#00D9A5';
+  const MA200_COLOR = '#E3C98A';
   const [selectedIndex, setSelectedIndex] = useState('NAS100');
-  const breadthSP500 = breadthData?.indices?.SP500 || null;
-  const breadthNAS100 = breadthData?.indices?.NAS100 || null;
+  const [showSelector, setShowSelector] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  const breadthIndices = useMemo(() => breadthData?.indices || {}, [breadthData]);
   const breadthTimestampIso = breadthData?.timestamp || null;
-  const breadthTimestamp = breadthTimestampIso ? new Date(breadthTimestampIso) : null;
-  const breadthUpdatedLabel = breadthTimestamp
-    ? breadthTimestamp.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
-    : null;
-  const breadthUpdatedDate = breadthTimestamp
-    ? breadthTimestamp.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })
-    : null;
 
   const formatBreadthPct = (value) => {
     const num = Number(value);
@@ -1207,51 +1216,85 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
     };
   };
 
-  const indexConfigs = {
+  const indexConfigs = useMemo(() => ({
     NAS100: { label: 'NASDAQ 100', short: 'NAS', priceColor: '#67D8FF' },
-    SP500: { label: 'S&P 500', short: 'SPX', priceColor: '#FFB86A' }
-  };
+    SP500: { label: 'S&P 500', short: 'SPX', priceColor: '#67D8FF' },
+    XAUUSD: { label: 'Gold Spot', short: 'XAU', priceColor: '#67D8FF' },
+    EURUSD: { label: 'Euro / Dollar', short: 'EURUSD', priceColor: '#67D8FF' }
+  }), []);
+  const selectorIndexKeys = useMemo(() => MARKET_BREADTH_CONFIG.selectorKeys, []);
 
-  const selectedData = selectedIndex === 'SP500' ? breadthSP500 : breadthNAS100;
-  const selectedTone = getBreadthTone(selectedData);
-  const selectedCfg = indexConfigs[selectedIndex];
+  const selectedData = breadthIndices[selectedIndex] || null;
+  const selectedDataResolved = useMemo(() => {
+    if (!selectedData) return null;
+    return {
+      ...selectedData,
+      history: Array.isArray(selectedData.history) ? selectedData.history : []
+    };
+  }, [selectedData]);
+  const selectedTone = getBreadthTone(selectedDataResolved);
+  const selectedCfg = indexConfigs[selectedIndex] || indexConfigs.NAS100;
+  const usePriceMALines = selectedIndex === 'XAUUSD' || selectedIndex === 'EURUSD';
 
   const chartData = useMemo(() => {
-    const history = Array.isArray(selectedData?.history) ? selectedData.history : [];
+    const history = Array.isArray(selectedDataResolved?.history) ? selectedDataResolved.history : [];
     if (history.length > 0) {
       const normalized = history
         .map((point) => {
           const dateRaw = String(point?.date || '');
+          const hasIntradayTime = dateRaw.length >= 16 && dateRaw.includes(':');
+          const dateLabel = dateRaw.length >= 10
+            ? (hasIntradayTime
+                ? `${dateRaw.slice(8, 10)}/${dateRaw.slice(5, 7)} ${dateRaw.slice(11, 13)}h`
+                : `${dateRaw.slice(8, 10)}/${dateRaw.slice(5, 7)}`)
+            : dateRaw;
           return {
             date: dateRaw,
-            dateLabel: dateRaw.length >= 10 ? `${dateRaw.slice(8, 10)}/${dateRaw.slice(5, 7)}` : dateRaw,
+            dateLabel,
             price: Number(point?.price),
             ma50: Number(point?.above_ma50_pct),
             ma200: Number(point?.above_ma200_pct),
+            ma50Price: Number(point?.ma50_value),
+            ma200Price: Number(point?.ma200_value),
             coverage: Number(point?.coverage_pct),
             processed: Number(point?.processed)
           };
         })
-        .filter((row) => Number.isFinite(row.ma50) && Number.isFinite(row.ma200));
+        .filter((row) => {
+          if (usePriceMALines) {
+            return Number.isFinite(row.price) && Number.isFinite(row.ma50Price) && Number.isFinite(row.ma200Price);
+          }
+          return Number.isFinite(row.ma50) && Number.isFinite(row.ma200);
+        });
       if (normalized.length > 0) return normalized;
     }
 
     const fallbackDate = breadthTimestampIso ? breadthTimestampIso.slice(0, 10) : '';
-    const fallbackMa50 = Number(selectedData?.above_ma50?.pct);
-    const fallbackMa200 = Number(selectedData?.above_ma200?.pct);
-    const fallbackCoverage = Number(selectedData?.coverage_pct);
-    const fallbackPrice = Number(selectedData?.latest_price);
+    const fallbackPrice = Number(selectedDataResolved?.latest_price);
+    const fallbackMa50 = Number(selectedDataResolved?.above_ma50?.pct);
+    const fallbackMa200 = Number(selectedDataResolved?.above_ma200?.pct);
+    const fallbackMa50Price = Number(selectedDataResolved?.latest_ma50);
+    const fallbackMa200Price = Number(selectedDataResolved?.latest_ma200);
+    const fallbackCoverage = Number(selectedDataResolved?.coverage_pct);
+    const fallbackProcessed = Number(selectedDataResolved?.processed);
+
+    const hasAny = [
+      fallbackPrice, fallbackMa50, fallbackMa200, fallbackMa50Price, fallbackMa200Price
+    ].some((v) => Number.isFinite(v));
+    if (!hasAny) return [];
 
     return [{
       date: fallbackDate,
       dateLabel: fallbackDate ? `${fallbackDate.slice(8, 10)}/${fallbackDate.slice(5, 7)}` : 'NOW',
       price: Number.isFinite(fallbackPrice) ? fallbackPrice : null,
-      ma50: Number.isFinite(fallbackMa50) ? fallbackMa50 : 0,
-      ma200: Number.isFinite(fallbackMa200) ? fallbackMa200 : 0,
-      coverage: Number.isFinite(fallbackCoverage) ? fallbackCoverage : 0,
-      processed: Number(selectedData?.processed || 0)
+      ma50: Number.isFinite(fallbackMa50) ? fallbackMa50 : null,
+      ma200: Number.isFinite(fallbackMa200) ? fallbackMa200 : null,
+      ma50Price: Number.isFinite(fallbackMa50Price) ? fallbackMa50Price : null,
+      ma200Price: Number.isFinite(fallbackMa200Price) ? fallbackMa200Price : null,
+      coverage: Number.isFinite(fallbackCoverage) ? fallbackCoverage : null,
+      processed: Number.isFinite(fallbackProcessed) ? fallbackProcessed : null
     }];
-  }, [breadthTimestampIso, selectedData]);
+  }, [breadthTimestampIso, selectedDataResolved, usePriceMALines]);
 
   const hasPriceSeries = chartData.some((row) => Number.isFinite(row.price));
   const firstPoint = chartData[0] || null;
@@ -1259,19 +1302,42 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
   const priceDeltaPct = (Number.isFinite(firstPoint?.price) && Number.isFinite(latestPoint?.price) && firstPoint.price > 0)
     ? ((latestPoint.price - firstPoint.price) / firstPoint.price) * 100
     : null;
-  const breadthSpread = (Number.isFinite(latestPoint?.ma50) && Number.isFinite(latestPoint?.ma200))
-    ? latestPoint.ma50 - latestPoint.ma200
-    : null;
+  const breadthSpread = usePriceMALines
+    ? (Number.isFinite(latestPoint?.ma50Price) && Number.isFinite(latestPoint?.ma200Price)
+        ? latestPoint.ma50Price - latestPoint.ma200Price
+        : null)
+    : (Number.isFinite(latestPoint?.ma50) && Number.isFinite(latestPoint?.ma200)
+        ? latestPoint.ma50 - latestPoint.ma200
+        : null);
   const coverageNow = Number.isFinite(latestPoint?.coverage)
     ? latestPoint.coverage
-    : Number(selectedData?.coverage_pct);
+    : Number(selectedDataResolved?.coverage_pct);
   const processedNow = Number.isFinite(latestPoint?.processed)
     ? latestPoint.processed
-    : Number(selectedData?.processed);
-  const totalNow = Number(selectedData?.total_components);
+    : Number(selectedDataResolved?.processed);
+  const totalNow = Number(selectedDataResolved?.total_components);
+  const latestPriceValue = Number.isFinite(latestPoint?.price) ? Number(latestPoint.price) : null;
+  const ma50BadgeValue = usePriceMALines
+    ? formatPrice(latestPoint?.ma50Price)
+    : formatBreadthPct(latestPoint?.ma50);
+  const ma200BadgeValue = usePriceMALines
+    ? formatPrice(latestPoint?.ma200Price)
+    : formatBreadthPct(latestPoint?.ma200);
 
   const summaryLine = (() => {
     if (!latestPoint) return 'Storico in aggiornamento.';
+    if (usePriceMALines) {
+      if (!Number.isFinite(latestPoint?.price) || !Number.isFinite(latestPoint?.ma50Price) || !Number.isFinite(latestPoint?.ma200Price)) {
+        return 'Serie medie in caricamento.';
+      }
+      if (latestPoint.price > latestPoint.ma50Price && latestPoint.ma50Price > latestPoint.ma200Price) {
+        return 'Prezzo sopra MA50 e MA200: struttura di trend solida.';
+      }
+      if (latestPoint.price < latestPoint.ma50Price && latestPoint.ma50Price < latestPoint.ma200Price) {
+        return 'Prezzo sotto MA50 e MA200: struttura debole.';
+      }
+      return 'Prezzo in transizione rispetto alle medie principali.';
+    }
     if (!Number.isFinite(priceDeltaPct) || !Number.isFinite(breadthSpread)) {
       return 'Lettura breadth disponibile, linea prezzo in attesa dati.';
     }
@@ -1293,111 +1359,199 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
         <p className="text-xs text-white/90 mt-1">
           Prezzo: <span className="font-bold" style={{ color: selectedCfg.priceColor }}>{formatPrice(row?.price)}</span>
         </p>
-        <p className="text-xs text-white/90">
-          % &gt; MA50: <span className="font-bold text-[#00D9A5]">{formatBreadthPct(row?.ma50)}</span>
-        </p>
-        <p className="text-xs text-white/90">
-          % &gt; MA200: <span className="font-bold text-[#E3C98A]">{formatBreadthPct(row?.ma200)}</span>
-        </p>
+        {usePriceMALines ? (
+          <>
+            <p className="text-xs text-white/90">
+              MA50: <span className="font-bold" style={{ color: MA50_COLOR }}>{formatPrice(row?.ma50Price)}</span>
+            </p>
+            <p className="text-xs text-white/90">
+              MA200: <span className="font-bold" style={{ color: MA200_COLOR }}>{formatPrice(row?.ma200Price)}</span>
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-white/90">
+              % &gt; MA50: <span className="font-bold" style={{ color: MA50_COLOR }}>{formatBreadthPct(row?.ma50)}</span>
+            </p>
+            <p className="text-xs text-white/90">
+              % &gt; MA200: <span className="font-bold" style={{ color: MA200_COLOR }}>{formatBreadthPct(row?.ma200)}</span>
+            </p>
+          </>
+        )}
       </div>
     );
   };
 
   return (
     <TechCard className={cn(
-      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 min-h-[564px]",
+      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 min-h-[618px]",
       className
     )}>
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg border bg-[#00D9A5]/10 border-[#00D9A5]/20">
-            <Layers className="w-5 h-5 text-[#00D9A5]" />
-          </div>
-          <div>
-            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Market Breadth</h4>
-            <p className="text-xs text-slate-400 dark:text-white/40 leading-none mt-1">
-              % titoli sopra MA50 / MA200
-            </p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] text-white/40 uppercase tracking-[0.15em] font-bold">Aggiornamento</p>
-          <p className="text-xs text-white/70 font-semibold">
-            {breadthUpdatedLabel ? `${breadthUpdatedDate} ${breadthUpdatedLabel}` : 'Caricamento dati...'}
-          </p>
-        </div>
-      </div>
+      <AnimatePresence>
+        {showInfo && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0, y: -20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0, y: -20 }}
+            transition={{
+              type: "spring",
+              stiffness: 350,
+              damping: 25,
+              mass: 0.6
+            }}
+            style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
+            className="absolute inset-3 z-50 bg-[#0B0E14]/74 backdrop-blur-[10px] rounded-[24px]"
+          >
+            <div className="relative px-8 py-6 bg-[#0A0D12]/86 border border-[#00D9A5]/30 rounded-[24px] shadow-2xl w-full h-full overflow-y-auto scrollbar-thin font-apple">
+              <div className="flex items-center justify-between mb-5">
+                <h4 className="text-xl font-bold text-white uppercase tracking-[0.15em]">Guida Market Breadth</h4>
+                <button onClick={() => setShowInfo(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
+                  <X className="w-5 h-5 text-white/50" />
+                </button>
+              </div>
+              <div className="space-y-5 text-left">
+                <p className="text-lg text-white leading-relaxed font-normal">
+                  Il <span className="text-[#00D9A5] font-semibold">Market Breadth</span> misura la partecipazione interna del mercato:
+                  quante azioni sono sopra MA50 e MA200 mentre l'indice si muove.
+                </p>
+                <ul className="space-y-4 text-left">
+                  <li className="flex items-start gap-3">
+                    <div className="mt-2.5 w-2 h-2 rounded-full bg-[#67D8FF] shadow-[0_0_8px_#67D8FF] flex-shrink-0" />
+                    <p className="text-lg text-white leading-relaxed font-normal">
+                      <span className="font-semibold text-[#67D8FF]">Linea prezzo</span>: andamento dell'asset selezionato (NAS, SPX, XAU, EURUSD).
+                    </p>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="mt-2.5 w-2 h-2 rounded-full bg-[#00D9A5] shadow-[0_0_8px_#00D9A5] flex-shrink-0" />
+                    <p className="text-lg text-white leading-relaxed font-normal">
+                      <span className="font-semibold text-[#00D9A5]">% sopra MA50</span>: ampiezza di breve/medio periodo.
+                    </p>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="mt-2.5 w-2 h-2 rounded-full bg-[#E3C98A] shadow-[0_0_8px_#E3C98A] flex-shrink-0" />
+                    <p className="text-lg text-white leading-relaxed font-normal">
+                      <span className="font-semibold text-[#E3C98A]">% sopra MA200</span>: solidita strutturale del trend.
+                    </p>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <div className="mt-2.5 w-2 h-2 rounded-full bg-white/70 shadow-[0_0_8px_rgba(255,255,255,0.4)] flex-shrink-0" />
+                    <p className="text-lg text-white leading-relaxed font-normal">
+                      <span className="font-semibold text-white">Delta Prezzo</span>: variazione percentuale tra primo e ultimo punto della serie visibile.
+                    </p>
+                  </li>
+                </ul>
+                <div className="mt-1 rounded-xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm font-black uppercase tracking-[0.16em] text-white/60 mb-2">Dettagli Tab</p>
+                  <div className="space-y-1.5 text-[15px] text-white/90 leading-relaxed">
+                    <p><span className="text-white/60">Tempistiche aggiornamento tab:</span> {MARKET_BREADTH_CONFIG.updateCadenceLabel}</p>
+                    <p><span className="text-white/60">Timeframe grafico:</span> {MARKET_BREADTH_CONFIG.timeframeLabel}</p>
+                  </div>
+                </div>
+                <div className="mt-1 rounded-xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm font-black uppercase tracking-[0.16em] text-white/60 mb-2">Consigli Lettura</p>
+                  <ul className="space-y-2 text-[15px] text-white/85 leading-relaxed">
+                    <li>Delta positivo + Spread MA positivo: rialzo con partecipazione interna solida.</li>
+                    <li>Delta positivo + Spread MA in calo/negativo: rialzo fragile, rischio di perdita momentum.</li>
+                    <li>Delta negativo + Spread MA in miglioramento: debolezza prezzo ma struttura interna che si sta stabilizzando.</li>
+                    <li>Copertura bassa: leggi ogni segnale con prudenza, perche il campione di titoli validi e ridotto.</li>
+                    <li>Confronta sempre MA50 e MA200: se entrambe migliorano insieme, il segnale e piu affidabile.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="rounded-2xl border border-white/10 bg-[#13171C]/90 p-4">
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div className="inline-flex rounded-lg border border-white/10 bg-white/5 p-1">
-            {Object.entries(indexConfigs).map(([indexKey, cfg]) => (
+      <div className={cn(
+        "transition-all duration-200",
+        showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
+      )}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-start gap-2.5">
+          <Layers className="w-5 h-5 text-[#00D9A5] mt-[1px]" />
+          <div>
+            <div className="inline-flex items-center gap-2">
+              <h4 className="font-medium text-base text-white/90 leading-none">Market Breadth</h4>
               <button
-                key={indexKey}
-                onClick={() => setSelectedIndex(indexKey)}
-                className={cn(
-                  "px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-[0.12em] transition-colors",
-                  selectedIndex === indexKey
-                    ? "bg-[#00D9A5]/20 text-[#00D9A5]"
-                    : "text-white/55 hover:text-white/80 hover:bg-white/5"
-                )}
+                type="button"
+                onClick={() => setShowInfo((prev) => !prev)}
+                className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
+                aria-label="Informazioni Market Breadth"
+                title="Informazioni Market Breadth"
+                aria-expanded={showInfo}
               >
-                {cfg.short}
+                <Info className="w-3.5 h-3.5 text-white" />
               </button>
-            ))}
+            </div>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
           <span className={cn("px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.15em]", selectedTone.className)}>
             {selectedTone.label}
           </span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
-            <p className="text-[9px] uppercase tracking-[0.12em] text-white/45 font-black">Copertura</p>
-            <p className="text-xs font-bold text-white mt-0.5">
-              {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}
-            </p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
-            <p className="text-[9px] uppercase tracking-[0.12em] text-white/45 font-black">Spread MA</p>
-            <p className={cn(
-              "text-xs font-bold mt-0.5",
-              Number.isFinite(breadthSpread)
-                ? breadthSpread >= 0 ? "text-[#00D9A5]" : "text-red-300"
-                : "text-white"
-            )}>
-              {Number.isFinite(breadthSpread) ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)} pp` : '—'}
-            </p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5">
-            <p className="text-[9px] uppercase tracking-[0.12em] text-white/45 font-black">Delta Prezzo</p>
-            <p className={cn(
-              "text-xs font-bold mt-0.5",
-              Number.isFinite(priceDeltaPct)
-                ? priceDeltaPct >= 0 ? "text-[#67D8FF]" : "text-red-300"
-                : "text-white"
-            )}>
-              {Number.isFinite(priceDeltaPct) ? `${priceDeltaPct > 0 ? '+' : ''}${priceDeltaPct.toFixed(2)}%` : '—'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 mb-3">
-          <div className="text-[11px] text-white/70">
-            <span className="inline-block w-2.5 h-2.5 rounded-full mr-1.5" style={{ background: selectedCfg.priceColor }} />
-            Prezzo {selectedCfg.label}
-          </div>
-          <div className="text-[11px] text-white/70">
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#00D9A5] mr-1.5" />
-            % sopra MA50
-          </div>
-          <div className="text-[11px] text-white/70">
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#E3C98A] mr-1.5" />
-            % sopra MA200
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowSelector((prev) => !prev)}
+              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
+              aria-label="Seleziona asset market breadth"
+              aria-expanded={showSelector}
+            >
+              <Eye className="w-4 h-4 text-white" />
+            </button>
+            <AnimatePresence>
+              {showSelector && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                  transition={{ duration: 0.16 }}
+                  className="absolute right-0 top-full mt-1 z-40 min-w-[124px] rounded-xl border border-white/15 bg-[#0F1319]/95 p-1.5 shadow-2xl"
+                >
+                  {selectorIndexKeys.map((key) => {
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setSelectedIndex(key);
+                          setShowSelector(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-2 py-1.5 rounded-md text-[10px] font-black uppercase tracking-[0.13em] transition-colors",
+                          selectedIndex === key
+                            ? "bg-[#00D9A5]/20 text-[#00D9A5]"
+                            : "text-white/75 hover:bg-white/10 hover:text-white"
+                        )}
+                      >
+                        {indexConfigs[key].short}
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
+      </div>
 
-        <div className="h-[296px] w-full rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.015)_100%)] p-2">
+      <div>
+        <div className="mb-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <span className="inline-flex justify-self-start items-center gap-2 rounded-md border border-[#00D9A5]/50 bg-[#00D9A5]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#00D9A5]">
+            MA50
+            <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma50BadgeValue}</span>
+          </span>
+          <span className="inline-flex justify-self-center items-center gap-2 rounded-md border border-[#67D8FF]/50 bg-[#67D8FF]/12 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#67D8FF]">
+            Prezzo
+            <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{formatPrice(latestPoint?.price)}</span>
+          </span>
+          <span className="inline-flex justify-self-end items-center gap-2 rounded-md border border-[#E3C98A]/50 bg-[#E3C98A]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#E3C98A]">
+            MA200
+            <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma200BadgeValue}</span>
+          </span>
+        </div>
+        <div className="relative h-[274px] w-full rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.015)_100%)] p-2 overflow-hidden">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 8, right: 8, left: 2, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
@@ -1423,13 +1577,25 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
                 yAxisId="breadth"
                 orientation="right"
                 width={46}
+                hide={usePriceMALines}
                 domain={[0, 100]}
                 tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(value) => `${Math.round(value)}%`}
               />
-              <ReferenceLine yAxisId="breadth" y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="5 5" />
+              {!usePriceMALines && (
+                <ReferenceLine yAxisId="breadth" y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="5 5" />
+              )}
+              {hasPriceSeries && Number.isFinite(latestPriceValue) && (
+                <ReferenceLine
+                  yAxisId="price"
+                  y={latestPriceValue}
+                  ifOverflow="extendDomain"
+                  stroke="rgba(103, 216, 255, 0.25)"
+                  strokeDasharray="3 4"
+                />
+              )}
               <Tooltip content={renderTooltip} />
               <Line
                 yAxisId="price"
@@ -1443,52 +1609,75 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
                 activeDot={{ r: 4, strokeWidth: 2, stroke: selectedCfg.priceColor, fill: '#0F1319' }}
               />
               <Line
-                yAxisId="breadth"
-                dataKey="ma50"
+                yAxisId={usePriceMALines ? "price" : "breadth"}
+                dataKey={usePriceMALines ? "ma50Price" : "ma50"}
                 type="monotone"
-                stroke="#00D9A5"
+                stroke={MA50_COLOR}
                 strokeWidth={2.1}
                 dot={false}
                 connectNulls
                 isAnimationActive={false}
-                activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: '#00D9A5', fill: '#0F1319' }}
+                activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA50_COLOR, fill: '#0F1319' }}
               />
               <Line
-                yAxisId="breadth"
-                dataKey="ma200"
+                yAxisId={usePriceMALines ? "price" : "breadth"}
+                dataKey={usePriceMALines ? "ma200Price" : "ma200"}
                 type="monotone"
-                stroke="#E3C98A"
+                stroke={MA200_COLOR}
                 strokeWidth={2.1}
                 dot={false}
                 connectNulls
                 isAnimationActive={false}
-                activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: '#E3C98A', fill: '#0F1319' }}
+                activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA200_COLOR, fill: '#0F1319' }}
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
-            <p className="text-[10px] uppercase tracking-[0.12em] text-white/55 font-black">MA50 / MA200</p>
-            <p className="text-sm font-bold text-white mt-1">
-              {formatBreadthPct(latestPoint?.ma50)} / {formatBreadthPct(latestPoint?.ma200)}
-            </p>
+        <div
+          className="grid grid-cols-3 gap-2 mt-3"
+          style={{ fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
+        >
+          <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
+            <div className="flex items-center justify-between gap-1.5">
+              <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Copertura</p>
+              <p className="whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] text-white leading-none tabular-nums">
+                {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}
+              </p>
+            </div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
-            <p className="text-[10px] uppercase tracking-[0.12em] text-white/55 font-black">Prezzo</p>
-            <p className="text-sm font-bold mt-1" style={{ color: selectedCfg.priceColor }}>
-              {formatPrice(latestPoint?.price)}
-            </p>
+          <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
+            <div className="flex items-center justify-between gap-1.5">
+              <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Spread</p>
+              <p className={cn(
+                "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
+                Number.isFinite(breadthSpread)
+                  ? breadthSpread >= 0 ? "text-[#00D9A5]" : "text-red-300"
+                  : "text-white"
+              )}>
+                {Number.isFinite(breadthSpread) ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)} pp` : '—'}
+              </p>
+            </div>
+          </div>
+          <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
+            <div className="flex items-center justify-between gap-1.5">
+              <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Delta</p>
+              <p className={cn(
+                "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
+                Number.isFinite(priceDeltaPct)
+                  ? priceDeltaPct >= 0 ? "" : "text-red-300"
+                  : "text-white"
+              )} style={Number.isFinite(priceDeltaPct) && priceDeltaPct >= 0 ? { color: selectedCfg.priceColor } : undefined}>
+                {Number.isFinite(priceDeltaPct) ? `${priceDeltaPct > 0 ? '+' : ''}${priceDeltaPct.toFixed(2)}%` : '—'}
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="mt-3 rounded-xl bg-white/5 border border-white/10 p-2.5">
+        <div className="mt-3 min-h-[146px] rounded-xl bg-white/5 border border-white/10 p-2.5 flex flex-col justify-between">
           <p className="text-sm text-white/85 leading-relaxed">{summaryLine}</p>
-          <p className="text-[11px] text-white/45 mt-1">
-            Universo: {Number.isFinite(processedNow) ? processedNow : 0}/{Number.isFinite(totalNow) ? totalNow : 0} componenti validi.
-          </p>
         </div>
+      </div>
       </div>
     </TechCard>
   );
@@ -1719,7 +1908,7 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
   return (
     <TechCard className={cn(
       "dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border font-apple relative",
-      compact ? "px-3 pt-3 pb-[6px] h-auto lg:min-h-[486px]" : "p-4 min-h-[680px]"
+      compact ? "px-3 pt-3 pb-[14px] h-auto lg:min-h-[500px]" : "p-4 min-h-[680px]"
     )}>
       <AnimatePresence>
         {showInfo && (
@@ -1817,7 +2006,7 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
       </div>
 
       <div className="relative">
-      <div className={cn("relative mx-auto", compact ? "-mt-[3px] h-[390px] w-full max-w-[420px]" : "h-[470px] w-full max-w-[500px]")}>
+      <div className={cn("relative mx-auto", compact ? "-mt-[3px] h-[366px] w-full max-w-[396px]" : "h-[470px] w-full max-w-[500px]")}>
         <svg
           className="h-full w-full overflow-visible"
           viewBox={`0 0 ${radarChart.size} ${radarChart.size}`}
@@ -2829,7 +3018,7 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
   return (
     <TechCard className={cn(
       "dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border font-apple relative",
-      compact ? "p-3.5 min-h-[680px]" : "p-3 h-full"
+      compact ? "p-3.5 h-auto" : "p-3 h-full"
     )}>
       <AnimatePresence>
         {showInfo && (
@@ -3510,14 +3699,14 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
 
       <div>
         {/* News Section */}
-        <TechCard className="dashboard-panel-glass-boost p-4 font-apple flex flex-col glass-edge panel-left-edge fine-gray-border lg:h-[860px] lg:w-full lg:ml-0 xl:w-[118%] xl:-ml-[17%] xl:relative xl:z-10" style={{ maxHeight: '860px' }}>
+        <TechCard className="dashboard-panel-glass-boost p-4 font-apple flex flex-col glass-edge panel-left-edge fine-gray-border lg:h-[932px] lg:w-full lg:ml-0 xl:w-[118%] xl:-ml-[17%] xl:relative xl:z-10" style={{ maxHeight: '932px' }}>
           {/* Sticky Header */}
           <h4 className="text-base font-medium text-white/90 mb-3 flex items-center gap-2 sticky top-0 bg-inherit z-10 pb-2">
             <Newspaper className="w-5 h-5 text-[#00D9A5]" />
             News
           </h4>
           {/* Scrollable Content */}
-          <div className="space-y-2 overflow-y-auto flex-1 scrollbar-thin pb-6 lg:max-h-[603px]">
+          <div className="space-y-2 overflow-y-auto flex-1 scrollbar-thin pb-6 lg:max-h-[675px]">
             {newsData.map((item, i) => (
               <div
                 key={i}
@@ -3907,7 +4096,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000); // Live update every 30s
+    const interval = setInterval(fetchData, DASHBOARD_FETCH_INTERVALS_MS.core);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -3935,7 +4124,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchCotData();
-    const interval = setInterval(fetchCotData, 3 * 60 * 60 * 1000);
+    const interval = setInterval(fetchCotData, DASHBOARD_FETCH_INTERVALS_MS.cot);
     return () => clearInterval(interval);
   }, [fetchCotData]);
 
@@ -3952,7 +4141,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchLivePrices();
-    const interval = setInterval(fetchLivePrices, 8000);
+    const interval = setInterval(fetchLivePrices, DASHBOARD_FETCH_INTERVALS_MS.livePrices);
     return () => clearInterval(interval);
   }, [fetchLivePrices]);
 
@@ -3969,7 +4158,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchMarketBreadth();
-    const interval = setInterval(fetchMarketBreadth, 30 * 60 * 1000);
+    const interval = setInterval(fetchMarketBreadth, DASHBOARD_FETCH_INTERVALS_MS.marketBreadth);
     return () => clearInterval(interval);
   }, [fetchMarketBreadth]);
 
@@ -4236,9 +4425,9 @@ export default function DashboardPage() {
               onFavoriteChange={setFavoriteCharts}
               animationsReady={headerHidden}
               onSyncAsset={handleSyncAsset}
-              className="lg:w-[50%]"
+              className="lg:w-[48%]"
             />
-            <div className="lg:w-[34%]">
+            <div className="lg:w-[36%]">
               <GammaExposurePanel
                 selectedAsset={optionsSelectedAsset}
                 onAssetChange={setOptionsSelectedAsset}
@@ -4248,10 +4437,10 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-start lg:gap-4">
-            <div className="lg:w-[50%]">
+            <div className="lg:w-[48%]">
               <COTPanel cotData={cotDataToUse} favoriteCOT={favoriteCOT} onFavoriteCOTChange={setFavoriteCOT} animationsReady={headerHidden} />
             </div>
-            <div className="lg:w-[34%]">
+            <div className="lg:w-[36%]">
               <OptionsPanel
                 animationsReady={headerHidden}
                 selectedAsset={optionsSelectedAsset}
@@ -4273,7 +4462,7 @@ export default function DashboardPage() {
                 compact
               />
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                <MarketBreadthPanel breadthData={marketBreadth} className="lg:w-full lg:mt-[3px]" />
+                <MarketBreadthPanel breadthData={marketBreadth} className="lg:w-full lg:mt-[1px]" />
               </div>
             </div>
           </div>

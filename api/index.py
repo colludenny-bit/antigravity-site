@@ -209,10 +209,38 @@ _intelligence_cache = {
 }
 INTELLIGENCE_CACHE_TTL = 45  # seconds
 _breadth_cache = {"data": None, "timestamp": None}
-BREADTH_CACHE_TTL = 30 * 60  # 30 minutes
+
+# Market Breadth pipeline config (single source of truth)
+BREADTH_REFRESH_INTERVAL_HOURS = 4
+BREADTH_REFRESH_INTERVAL_MINUTES = (BREADTH_REFRESH_INTERVAL_HOURS * 60) + 1
+BREADTH_CACHE_TTL = BREADTH_REFRESH_INTERVAL_MINUTES * 60
+BREADTH_TIMEFRAME = "4h"
+BREADTH_INTRADAY_FETCH = {
+    "range": "6mo",
+    "interval": "1h",
+}
+BREADTH_INTRADAY_FALLBACK = {
+    "range": "1y",
+    "interval": "1d",
+}
+BREADTH_RESAMPLE_HOURS = 4
+BREADTH_WINDOWS = {
+    "ma_fast": 50,
+    "ma_slow": 200,
+}
+BREADTH_PRICE_HISTORY_POINTS = 260
+BREADTH_HISTORY_POINTS = 60
+BREADTH_REGIME_THRESHOLDS = {
+    "bullish_ma50_min": 70.0,
+    "bullish_ma200_min": 60.0,
+    "weak_ma50_max": 35.0,
+    "weak_ma200_max": 40.0,
+}
 BREADTH_SYMBOL_MAP = {
-    "SP500": {"ma50": "$S5FI", "ma200": "$S5TH", "total_components": 503, "price_symbol": "^GSPC"},
-    "NAS100": {"ma50": "$NDFI", "ma200": "$NDTH", "total_components": 101, "price_symbol": "^NDX"},
+    "SP500": {"kind": "index_indicator", "ma50": "$S5FI", "ma200": "$S5TH", "total_components": 503, "price_symbol": "^GSPC"},
+    "NAS100": {"kind": "index_indicator", "ma50": "$NDFI", "ma200": "$NDTH", "total_components": 101, "price_symbol": "^NDX"},
+    "XAUUSD": {"kind": "price_proxy", "total_components": 100, "price_symbol": "GC=F"},
+    "EURUSD": {"kind": "price_proxy", "total_components": 100, "price_symbol": "EURUSD=X"},
 }
 
 _verification_cache = {}
@@ -413,9 +441,15 @@ def _fetch_barchart_indicator_value(symbol: str):
 
 
 def _derive_breadth_regime(ma50_pct: float, ma200_pct: float) -> str:
-    if ma50_pct >= 70 and ma200_pct >= 60:
+    if (
+        ma50_pct >= BREADTH_REGIME_THRESHOLDS["bullish_ma50_min"]
+        and ma200_pct >= BREADTH_REGIME_THRESHOLDS["bullish_ma200_min"]
+    ):
         return "broad-bullish"
-    if ma50_pct <= 35 and ma200_pct <= 40:
+    if (
+        ma50_pct <= BREADTH_REGIME_THRESHOLDS["weak_ma50_max"]
+        and ma200_pct <= BREADTH_REGIME_THRESHOLDS["weak_ma200_max"]
+    ):
         return "broad-weakness"
     return "mixed"
 
@@ -424,16 +458,35 @@ def _clamp_pct(value: float) -> float:
     return max(0.0, min(100.0, value))
 
 
-def _fetch_index_price_history(index_symbol: str, max_points: int = 60):
+def _fetch_index_price_history(
+    index_symbol: str,
+    max_points: int = BREADTH_HISTORY_POINTS,
+    range_param: str = BREADTH_INTRADAY_FETCH["range"]
+):
     encoded_symbol = urllib_parse.quote(index_symbol, safe="")
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{encoded_symbol}?range=6mo&interval=1d"
+    url = (
+        f"https://query1.finance.yahoo.com/v8/finance/chart/{encoded_symbol}"
+        f"?range={range_param}&interval={BREADTH_INTRADAY_FETCH['interval']}"
+    )
     req = urllib_request.Request(
         url,
         headers={"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"}
     )
 
-    with urllib_request.urlopen(req, timeout=20) as response:
-        payload = json.loads(response.read().decode("utf-8", errors="ignore"))
+    try:
+        with urllib_request.urlopen(req, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="ignore"))
+    except Exception:
+        fallback_url = (
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{encoded_symbol}"
+            f"?range={BREADTH_INTRADAY_FALLBACK['range']}&interval={BREADTH_INTRADAY_FALLBACK['interval']}"
+        )
+        fallback_req = urllib_request.Request(
+            fallback_url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"}
+        )
+        with urllib_request.urlopen(fallback_req, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="ignore"))
 
     result = (payload or {}).get("chart", {}).get("result", [])
     if not result:
@@ -448,14 +501,116 @@ def _fetch_index_price_history(index_symbol: str, max_points: int = 60):
             if close is None:
                 continue
             close_val = float(close)
-            dt = datetime.fromtimestamp(int(ts), tz=timezone.utc).date().isoformat()
-            points.append({"date": dt, "price": round(close_val, 2)})
+            dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
+            points.append({"dt": dt, "price": close_val})
         except Exception:
             continue
 
-    if len(points) > max_points:
-        points = points[-max_points:]
-    return points
+    if not points:
+        return []
+
+    points.sort(key=lambda p: p["dt"])
+    bucketed = {}
+    for point in points:
+        dt = point["dt"]
+        bucket_hour = dt.hour - (dt.hour % BREADTH_RESAMPLE_HOURS)
+        bucket = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+        bucketed[bucket] = float(point["price"])
+
+    resampled = []
+    for bucket_dt in sorted(bucketed.keys()):
+        resampled.append({
+            "date": bucket_dt.strftime("%Y-%m-%d %H:%M"),
+            "price": float(bucketed[bucket_dt])
+        })
+
+    if len(resampled) > max_points:
+        resampled = resampled[-max_points:]
+    return resampled
+
+
+def _moving_average(values: List[float], window: int):
+    if window <= 0:
+        return [None for _ in values]
+    out = [None for _ in values]
+    rolling_sum = 0.0
+    for idx, val in enumerate(values):
+        rolling_sum += float(val)
+        if idx >= window:
+            rolling_sum -= float(values[idx - window])
+        if idx >= window - 1:
+            out[idx] = rolling_sum / float(window)
+    return out
+
+
+def _rolling_flag_pct(flags: List[Optional[int]], window: int):
+    if window <= 0:
+        return [None for _ in flags]
+    out = [None for _ in flags]
+    valid_sum = 0
+    valid_count = 0
+    queue: List[Optional[int]] = []
+
+    for idx, flag in enumerate(flags):
+        queue.append(flag)
+        if flag is not None:
+            valid_sum += int(flag)
+            valid_count += 1
+
+        if len(queue) > window:
+            removed = queue.pop(0)
+            if removed is not None:
+                valid_sum -= int(removed)
+                valid_count -= 1
+
+        if len(queue) == window and valid_count > 0:
+            out[idx] = (float(valid_sum) / float(valid_count)) * 100.0
+    return out
+
+
+def _build_price_proxy_history(price_history: List[Dict], max_points: int = BREADTH_HISTORY_POINTS):
+    if not price_history:
+        return []
+
+    prices = []
+    dates = []
+    for point in price_history:
+        price = point.get("price")
+        date = point.get("date")
+        if not isinstance(price, (int, float)) or not date:
+            continue
+        prices.append(float(price))
+        dates.append(str(date))
+
+    if len(prices) < BREADTH_WINDOWS["ma_slow"]:
+        return []
+
+    ma50 = _moving_average(prices, BREADTH_WINDOWS["ma_fast"])
+    ma200 = _moving_average(prices, BREADTH_WINDOWS["ma_slow"])
+    above50_flags = [None if ma50[idx] is None else (1 if prices[idx] > ma50[idx] else 0) for idx in range(len(prices))]
+    above200_flags = [None if ma200[idx] is None else (1 if prices[idx] > ma200[idx] else 0) for idx in range(len(prices))]
+    above50_pct_series = _rolling_flag_pct(above50_flags, BREADTH_WINDOWS["ma_fast"])
+    above200_pct_series = _rolling_flag_pct(above200_flags, BREADTH_WINDOWS["ma_slow"])
+    precision = 5 if (sum(prices) / len(prices)) < 10 else 2
+
+    history = []
+    for idx, price in enumerate(prices):
+        ma50_pct = above50_pct_series[idx]
+        ma200_pct = above200_pct_series[idx]
+        if ma50_pct is None or ma200_pct is None or ma50[idx] is None or ma200[idx] is None:
+            continue
+        history.append({
+            "date": dates[idx],
+            "price": round(price, precision),
+            "ma50_value": round(float(ma50[idx]), precision),
+            "ma200_value": round(float(ma200[idx]), precision),
+            "above_ma50_pct": round(float(ma50_pct), 2),
+            "above_ma200_pct": round(float(ma200_pct), 2),
+        })
+
+    if len(history) > max_points:
+        history = history[-max_points:]
+    return history
 
 
 def _build_modeled_breadth_history(current_ma50: float, current_ma200: float, price_history: List[Dict]):
@@ -522,7 +677,7 @@ def _build_breadth_index_payload(index_key: str):
     latest_price = None
 
     try:
-        price_history = _fetch_index_price_history(config["price_symbol"], max_points=60)
+        price_history = _fetch_index_price_history(config["price_symbol"], max_points=BREADTH_HISTORY_POINTS)
     except Exception:
         price_history = []
 
@@ -547,27 +702,83 @@ def _build_breadth_index_payload(index_key: str):
     return payload
 
 
+def _build_price_proxy_breadth_payload(index_key: str):
+    config = BREADTH_SYMBOL_MAP[index_key]
+    total = int(config.get("total_components", 100))
+    price_symbol = config.get("price_symbol")
+    if not price_symbol:
+        return None
+
+    try:
+        price_history = _fetch_index_price_history(
+            price_symbol,
+            max_points=BREADTH_PRICE_HISTORY_POINTS,
+            range_param=BREADTH_INTRADAY_FALLBACK["range"]
+        )
+    except Exception:
+        price_history = []
+
+    history = _build_price_proxy_history(price_history, max_points=BREADTH_HISTORY_POINTS)
+    if not history:
+        return None
+
+    latest = history[-1]
+    ma50_pct = round(float(latest["above_ma50_pct"]), 2)
+    ma200_pct = round(float(latest["above_ma200_pct"]), 2)
+    ma50_count = int(round((ma50_pct / 100.0) * total))
+    ma200_count = int(round((ma200_pct / 100.0) * total))
+
+    payload = {
+        "total_components": total,
+        "processed": total,
+        "coverage_pct": 100.0,
+        "as_of_date": latest.get("date"),
+        "breadth_regime": _derive_breadth_regime(ma50_pct, ma200_pct),
+        "above_ma50": {"count": ma50_count, "pct": ma50_pct},
+        "above_ma200": {"count": ma200_count, "pct": ma200_pct},
+        "missing_components": 0,
+        "missing_examples": [],
+        "latest_ma50": latest.get("ma50_value"),
+        "latest_ma200": latest.get("ma200_value"),
+        "latest_price": latest.get("price"),
+        "history": history,
+    }
+    return payload
+
+
 def _fetch_market_breadth_payload():
     sp_payload = _build_breadth_index_payload("SP500")
     nas_payload = _build_breadth_index_payload("NAS100")
     if not sp_payload or not nas_payload:
         raise RuntimeError("Unable to fetch market breadth indicators")
+    xau_payload = _build_price_proxy_breadth_payload("XAUUSD")
+    eur_payload = _build_price_proxy_breadth_payload("EURUSD")
+
+    symbols_meta = {}
+    for key, cfg in BREADTH_SYMBOL_MAP.items():
+        if cfg.get("ma50"):
+            symbols_meta[f"{key}_ma50"] = cfg["ma50"]
+        if cfg.get("ma200"):
+            symbols_meta[f"{key}_ma200"] = cfg["ma200"]
+        if cfg.get("price_symbol"):
+            symbols_meta[f"{key}_price"] = cfg["price_symbol"]
 
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source": {
             "provider": "barchart",
-            "symbols": {
-                "SP500_ma50": "$S5FI",
-                "SP500_ma200": "$S5TH",
-                "NAS100_ma50": "$NDFI",
-                "NAS100_ma200": "$NDTH",
-            },
-            "method": "index_breadth_indicators_above_ma50_ma200_with_price_modeled_history",
+            "symbols": symbols_meta,
+            "method": "index_breadth_indicators_plus_price_proxy_ma50_ma200_history",
+            "timeframe": BREADTH_TIMEFRAME,
+            "refresh_interval_hours": BREADTH_REFRESH_INTERVAL_HOURS,
+            "refresh_interval_minutes": BREADTH_REFRESH_INTERVAL_MINUTES,
+            "tracked_tickers": list(BREADTH_SYMBOL_MAP.keys()),
         },
         "indices": {
             "SP500": sp_payload,
             "NAS100": nas_payload,
+            **({"XAUUSD": xau_payload} if xau_payload else {}),
+            **({"EURUSD": eur_payload} if eur_payload else {}),
         },
     }
 
