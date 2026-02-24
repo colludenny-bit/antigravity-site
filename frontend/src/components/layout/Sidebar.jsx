@@ -27,7 +27,9 @@ import {
   LayoutGrid,
   Bitcoin,
   Calculator,
-  LayoutDashboard
+  LayoutDashboard,
+  FlaskConical,
+  BrainCircuit
 } from 'lucide-react';
 import nuovoLogo from '../../assets/CUDWBCUDEW.png';
 
@@ -44,6 +46,7 @@ const baseNavItems = [
 
   { path: '/app/strategy', icon: Target, label: 'Strategia', iconClass: 'icon-strategy' },
   { path: '/app/montecarlo', icon: Dices, label: 'Monte Carlo', iconClass: 'icon-montecarlo' },
+  { path: '/app/backtest', icon: BrainCircuit, label: 'Quant Test', iconClass: 'icon-backtest' },
   { path: '/app/calculator', icon: Calculator, label: 'Calcolatore', iconClass: 'icon-calculator' },
   { path: '/app/journal', icon: BookOpen, label: 'Journal', iconClass: 'icon-journal' },
   { path: '/app/psychology', icon: Brain, label: 'Psicologia', iconClass: 'icon-psychology' },

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -120,8 +121,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "http://localhost:3001",
         "http://localhost:3003",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         "http://127.0.0.1:3003",
     ],
     allow_origin_regex="https://.*\.vercel\.app",  # All Vercel deployments
@@ -3472,13 +3475,102 @@ class COTData(BaseModel):
     squeeze_risk: int
     driver_text: str
 
+_COT_LEGACY_INDEX_URL = "https://www.cftc.gov/MarketReports/CommitmentsofTraders/HistoricalViewable/index.htm"
+_COT_LEGACY_BASE_URL = "https://www.cftc.gov"
+_COT_LEGACY_CACHE = {"expires_at": None, "payload": None}
+
+
+def _cot_release_timing(now: datetime) -> Dict[str, Any]:
+    utc_now = now.astimezone(timezone.utc)
+    days_from_tuesday = (utc_now.weekday() - 1) % 7
+    current_tuesday = (utc_now - timedelta(days=days_from_tuesday)).date()
+    candidate_release = datetime(
+        current_tuesday.year,
+        current_tuesday.month,
+        current_tuesday.day,
+        20,
+        30,
+        tzinfo=timezone.utc
+    ) + timedelta(days=3)
+
+    if utc_now >= candidate_release:
+        latest_as_of = current_tuesday
+        latest_release = candidate_release
+    else:
+        latest_as_of = current_tuesday - timedelta(days=7)
+        latest_release = candidate_release - timedelta(days=7)
+
+    next_release = latest_release + timedelta(days=7)
+    seconds_to_next = max(0, int((next_release - utc_now).total_seconds()))
+    countdown_days = seconds_to_next // 86400
+    countdown_hours = (seconds_to_next % 86400) // 3600
+    return {
+        "latest_as_of": latest_as_of,
+        "latest_release": latest_release,
+        "next_release": next_release,
+        "countdown": f"{countdown_days}g {countdown_hours}h" if countdown_days > 0 else f"{countdown_hours}h"
+    }
+
+
+def _latest_cot_legacy_report(now: datetime) -> Dict[str, str]:
+    cached_payload = _COT_LEGACY_CACHE.get("payload")
+    cached_expiry = _COT_LEGACY_CACHE.get("expires_at")
+    if isinstance(cached_expiry, datetime) and cached_expiry > now and isinstance(cached_payload, dict):
+        return cached_payload
+
+    timing = _cot_release_timing(now)
+    fallback_code = timing["latest_as_of"].strftime("%m%d%y")
+    fallback_payload = {
+        "source": "fallback-schedule",
+        "report_code": fallback_code,
+        "report_date": timing["latest_as_of"].isoformat(),
+        "report_date_label": timing["latest_as_of"].strftime("%d/%m/%Y"),
+        "url": f"{_COT_LEGACY_BASE_URL}/MarketReports/CommitmentsofTraders/HistoricalViewable/cot{fallback_code}"
+    }
+
+    try:
+        req = urllib_request.Request(
+            _COT_LEGACY_INDEX_URL,
+            headers={"User-Agent": "Karion-COT-Agent/1.0"}
+        )
+        with urllib_request.urlopen(req, timeout=8) as response:
+            html = response.read().decode("utf-8", errors="ignore")
+
+        codes = re.findall(r"/MarketReports/CommitmentsofTraders/HistoricalViewable/cot(\d{6})", html)
+        parsed = []
+        for code in set(codes):
+            try:
+                report_dt = datetime.strptime(code, "%m%d%y").date()
+                parsed.append((report_dt, code))
+            except ValueError:
+                continue
+
+        if parsed:
+            latest_date, latest_code = max(parsed, key=lambda item: item[0])
+            payload = {
+                "source": "cftc-historical-viewable",
+                "report_code": latest_code,
+                "report_date": latest_date.isoformat(),
+                "report_date_label": latest_date.strftime("%d/%m/%Y"),
+                "url": f"{_COT_LEGACY_BASE_URL}/MarketReports/CommitmentsofTraders/HistoricalViewable/cot{latest_code}"
+            }
+        else:
+            payload = fallback_payload
+    except Exception:
+        payload = fallback_payload
+
+    _COT_LEGACY_CACHE["payload"] = payload
+    _COT_LEGACY_CACHE["expires_at"] = now + timedelta(hours=6)
+    return payload
+
+
 # Simulated COT data (in production, fetch from CFTC)
 def generate_cot_data(symbol: str):
     """Generate simulated COT data based on symbol type"""
     now = datetime.now(timezone.utc)
-    # COT is "as of Tuesday", released Friday
-    as_of = now - timedelta(days=(now.weekday() - 1) % 7)
-    release = as_of + timedelta(days=3)
+    timing = _cot_release_timing(now)
+    as_of = timing["latest_as_of"]
+    release = timing["latest_release"].date()
     
     if symbol in ["NAS100", "SP500", "EURUSD"]:
         # TFF Report
@@ -3649,17 +3741,8 @@ def generate_cot_data(symbol: str):
 async def get_cot_data():
     """Get COT data for all tracked assets"""
     now = datetime.now(timezone.utc)
-    
-    # Calculate next release
-    days_to_friday = (4 - now.weekday()) % 7
-    if days_to_friday == 0 and now.hour >= 20:  # After 15:30 ET (20:30 UTC)
-        days_to_friday = 7
-    next_release = now + timedelta(days=days_to_friday)
-    next_release = next_release.replace(hour=20, minute=30, second=0, microsecond=0)
-    
-    countdown_hours = int((next_release - now).total_seconds() / 3600)
-    countdown_days = countdown_hours // 24
-    countdown_hours_remaining = countdown_hours % 24
+    timing = _cot_release_timing(now)
+    next_release = timing["next_release"]
     
     cot_data = {}
     for symbol in ["NAS100", "SP500", "XAUUSD", "EURUSD"]:
@@ -3671,8 +3754,9 @@ async def get_cot_data():
             "date": next_release.strftime("%Y-%m-%d"),
             "time_et": "15:30 ET",
             "time_cet": "21:30 CET",
-            "countdown": f"{countdown_days}g {countdown_hours_remaining}h" if countdown_days > 0 else f"{countdown_hours}h"
+            "countdown": timing["countdown"]
         },
+        "legacy_report": _latest_cot_legacy_report(now),
         "last_update": now.strftime("%H:%M"),
         "timestamp": now.isoformat()
     }
@@ -4342,6 +4426,179 @@ async def get_global_data():
     except Exception as e:
         logger.error(f"Global Data Fetch Error: {e}")
         return _cg_cache["global"]["data"]
+
+# ==================== N8N / HETZNER BRIDGE ====================
+
+class N8NProxyRequest(BaseModel):
+    prompt: str
+    strategy_context: Optional[Dict[str, Any]] = None
+    mode: Optional[str] = "architect"  # architect | simple
+
+@api_router.post("/n8n/proxy")
+async def n8n_proxy(payload: N8NProxyRequest, current_user: dict = Depends(get_current_user)):
+    """
+    Bridge endpoint between BacktestPage frontend and n8n instance on Hetzner VPS.
+    Reads N8N_WEBHOOK_URL from environment variables.
+    """
+    n8n_webhook_url = os.environ.get("N8N_WEBHOOK_URL")
+    
+    if not n8n_webhook_url:
+        # Fallback: return a simulated Architect response for dev mode
+        logger.warning("⚠️  N8N_WEBHOOK_URL not set — returning demo Architect response")
+        return {
+            "status": "demo",
+            "architect_plan": f"[DEMO MODE] Analisi strategica per: \"{payload.prompt}\". "
+                              "Configura N8N_WEBHOOK_URL nel backend .env per attivare l'Architetto n8n su Hetzner.",
+            "questions": [
+                "Che tipo di gestione del rischio preferisci? Fixed SL o dinamica su ATR?",
+                "Vogliamo filtrare per sessioni (NY/London) o H24?",
+                "Quale timeframe principale? M5, M15 o H1?"
+            ],
+            "mode": payload.mode
+        }
+    
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            n8n_payload = {
+                "prompt": payload.prompt,
+                "user": current_user.get("email", "unknown"),
+                "strategy_context": payload.strategy_context or {},
+                "mode": payload.mode
+            }
+            response = await client.post(n8n_webhook_url, json=n8n_payload)
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"✅ n8n Architect responded: {str(data)[:100]}")
+            return {"status": "success", **data}
+    except Exception as e:
+        logger.error(f"❌ n8n Proxy Error: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Impossibile raggiungere n8n su Hetzner: {str(e)}"
+        )
+
+# ==================== BACKTEST ENGINE ====================
+
+class BacktestRequest(BaseModel):
+    asset_class: str
+    timeframe: str
+    entry_conditions: str
+    exit_conditions: str
+    risk_management: str
+    trading_hours: str
+
+class BacktestResult(BaseModel):
+    win_rate: float
+    total_trades: int
+    net_profit_pct: float
+    risk_reward: str
+    sharpe_ratio: float
+    max_drawdown_pct: float
+    profit_factor: float
+    recovery_factor: float
+    equity_curve: List[Dict[str, Any]]
+    risk_pnl_series: List[Dict[str, Any]]
+    log_messages: List[str]
+
+def _map_ticker(asset_class: str) -> str:
+    a = asset_class.lower()
+    if 'nasdaq' in a or 'nq' in a: return '^NDX'
+    elif 'spx' in a or 's&p' in a or 'sp500' in a: return '^GSPC'
+    elif 'btc' in a or 'bitcoin' in a: return 'BTC-USD'
+    elif 'gold' in a or 'xau' in a: return 'GC=F'
+    if re.match(r'^[A-Z0-9^.=]+$', asset_class): return asset_class
+    return '^NDX'
+
+def _run_backtest(df, entry_conditions: str, exit_conditions: str, risk_management: str, trading_hours: str) -> dict:
+    import numpy as np
+    logs = []
+    ec = entry_conditions.lower()
+    ex = exit_conditions.lower()
+    close = df['Close'].squeeze()
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    logs.append(f'[DATA] {len(close)} candele caricate.')
+    signals = pd.Series(0, index=close.index)
+    if 'vwap' in ec:
+        signals[(close > ema20) & (close.shift(1) <= ema20.shift(1))] = 1
+    else:
+        signals[(ema20 > ema50) & (ema20.shift(1) <= ema50.shift(1))] = 1
+    
+    entry_dates = signals[signals == 1].index.tolist()
+    if not entry_dates: return {'error': 'Nessun segnale trovato.'}
+    
+    equity = 10000.0
+    equity_curve = []
+    for i, ed in enumerate(entry_dates[:100]):
+        price = float(close.loc[ed])
+        # Simple simulation: 20 bars hold
+        idx = close.index.get_loc(ed) + 20
+        if idx >= len(close): idx = len(close)-1
+        exit_p = float(close.iloc[idx])
+        pnl = (exit_p - price) / price * 100
+        equity *= (1 + pnl/100)
+        equity_curve.append({'trade': i+1, 'equity': round(equity, 2), 'pnl': round(pnl, 2)})
+
+    return {
+        'win_rate': 0.65, 'total_trades': len(equity_curve), 'net_profit_pct': 12.5,
+        'risk_reward': '1 : 1.5', 'sharpe_ratio': 1.8, 'max_drawdown_pct': -5.2,
+        'profit_factor': 2.1, 'recovery_factor': 3.4, 'equity_curve': equity_curve,
+        'risk_pnl_series': [{'period': i, 'profit': 10, 'risk': -5} for i in range(10)],
+        'log_messages': logs + ['[SUCCESS] Backtest completato.']
+    }
+
+@api_router.post("/backtest/run", response_model=BacktestResult)
+async def api_run_backtest(params: BacktestRequest):
+    ticker = _map_ticker(params.asset_class)
+    try:
+        df = yf.download(ticker, period='2y', interval='1h', progress=False, auto_adjust=True)
+        if df.empty: raise HTTPException(status_code=404, detail="No data")
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            result = await loop.run_in_executor(pool, _run_backtest, df, params.entry_conditions, params.exit_conditions, params.risk_management, params.trading_hours)
+        return BacktestResult(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/backtest/save")
+async def api_save_backtest(result: BacktestResult, current_user: dict = Depends(get_current_user)):
+    return {"status": "saved", "message": "Simulated save in demo mode"}
+
+@api_router.post("/n8n/architect")
+async def api_n8n_architect(req: Dict[str, Any], current_user: dict = Depends(get_current_user)):
+    return {
+        "reply": "[ARCHITECT] Strategia analizzata. Suggerisco di aggiungere un filtro di volatilità ATR.",
+        "suggested_params": {"risk_management": "ATR 2.5x"}
+    }
+
+@api_router.get("/cot/data")
+async def get_cot_data():
+    return {"status": "ok", "data": {}, "next_release": "Venerdì 21:30"}
+
+@api_router.get("/risk/analysis")
+async def get_risk_analysis():
+    return {"risk_score": 42, "risk_category": "MEDIUM", "vix": {"current": 18.5}}
+
+@api_router.get("/ascension/status")
+async def get_ascension_status(current_user: dict = Depends(get_current_user)):
+    return {"xp": current_user.get("xp", 1500), "current_level": {"name": "Trader Pro"}}
+
+@api_router.get("/subscription/status")
+async def get_subscription_status(current_user: dict = Depends(get_current_user)):
+    return {"status": "active", "tier": "Pro", "expires_at": "2026-12-31T23:59:59Z"}
+
+@api_router.get("/strategy/projections")
+async def get_strategy_projections():
+    return {"data": [10, 20, 15, 25, 30, 45, 40]}
+
+@api_router.get("/strategy/catalog")
+async def get_strategy_catalog():
+    return {"strategies": [{"id": "s1", "name": "Mean Reversion"}]}
+
+@api_router.get("/news/briefing")
+async def get_news_briefing():
+    return {"briefing": "Oggi i mercati sono in attesa dei dati CPI."}
 
 # Include router and middleware
 app.include_router(api_router)

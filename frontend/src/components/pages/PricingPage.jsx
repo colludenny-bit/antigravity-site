@@ -17,7 +17,7 @@ import kairongBull from '../../assets/kairon-bull.png';
 const plans = [
     {
         id: 'essential',
-        name: 'Essential',
+        name: 'Standard',
         price: '14.99',
         period: '/mo',
         icon: Shield,
@@ -44,7 +44,7 @@ const plans = [
     },
     {
         id: 'plus',
-        name: 'Plus',
+        name: 'Pro',
         price: '29.99',
         period: '/mo',
         icon: Zap,
@@ -71,7 +71,7 @@ const plans = [
     },
     {
         id: 'pro',
-        name: 'Pro',
+        name: 'Elite',
         price: '49.99',
         period: '/mo',
         icon: Crown,
@@ -253,7 +253,7 @@ const PricingCard = ({ plan, index, annual, onCheckout }) => {
                         >
                             <plan.icon className="w-5 h-5" style={{ color: plan.color }} />
                         </div>
-                        <h3 className="text-2xl font-black text-white tracking-tight">{plan.name}</h3>
+                        <h3 className="text-3xl font-black text-white tracking-tight">{plan.name}</h3>
                     </div>
 
                     {/* Description */}
@@ -444,24 +444,24 @@ const PricingPage = () => {
             </nav>
 
             {/* Hero */}
-            <section className="relative pt-36 pb-16 z-10">
+            <section className="relative pt-[70px] pb-2 z-10">
                 <div className="max-w-[1200px] mx-auto px-6 text-center">
                     <motion.div
                         initial={{ opacity: 0, y: 25 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.7 }}
                     >
-                        <span className="inline-block px-5 py-2 rounded-full bg-[#00D9A5]/8 border border-[#00D9A5]/15 text-[#00D9A5] text-xs font-bold uppercase tracking-[0.25em] mb-6">
+                        <span className="inline-block px-5 py-1.5 rounded-full bg-[#00D9A5]/8 border border-[#00D9A5]/15 text-[#00D9A5] text-[10px] font-bold uppercase tracking-[0.25em] mb-2">
                             ✦ Pricing
                         </span>
                         <h1
-                            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black mb-5 leading-[0.95] tracking-tighter text-white"
+                            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black mb-2 leading-[0.95] tracking-tighter text-white"
                             style={{ textShadow: '0 0 40px rgba(255,255,255,0.12)' }}
                         >
                             Plans for Every<br />
                             <span className="text-white">Stage.</span>
                         </h1>
-                        <p className="text-xl text-white/45 max-w-xl mx-auto mb-10">
+                        <p className="text-lg text-white/45 max-w-xl mx-auto mb-4">
                             Scegli il piano che si adatta al tuo livello. Upgrade quando vuoi.
                         </p>
 
@@ -496,7 +496,7 @@ const PricingPage = () => {
                         </div>
 
                         {/* Discount Code Section */}
-                        <div className="flex flex-col items-center mb-16">
+                        <div className="flex flex-col items-center mb-4">
                             {!showCouponInput ? (
                                 <button
                                     onClick={() => setShowCouponInput(true)}

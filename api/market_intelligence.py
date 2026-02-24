@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import math
+import re
 from typing import Dict, List, Optional
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 
 ASSET_CONFIG = {
@@ -10,6 +13,13 @@ ASSET_CONFIG = {
     "NAS100": {"base": 21940.0, "amp_pct": 0.0041, "speed": 1.3, "offset": 1.1},
     "SP500": {"base": 6068.0, "amp_pct": 0.0032, "speed": 1.1, "offset": 2.0},
     "EURUSD": {"base": 1.0865, "amp_pct": 0.0027, "speed": 1.5, "offset": 2.6},
+}
+
+COT_LEGACY_INDEX_URL = "https://www.cftc.gov/MarketReports/CommitmentsofTraders/HistoricalViewable/index.htm"
+COT_LEGACY_BASE_URL = "https://www.cftc.gov"
+_COT_LEGACY_CACHE: Dict[str, Optional[object]] = {
+    "expires_at": None,
+    "payload": None,
 }
 
 
@@ -129,6 +139,96 @@ def _clamp(value: float, minimum: float, maximum: float) -> float:
 def _to_phase(now: datetime) -> float:
     day_seconds = now.hour * 3600 + now.minute * 60 + now.second
     return (day_seconds / 86400.0) * 2 * math.pi
+
+
+def _cot_timing(now: datetime) -> dict:
+    utc_now = now.astimezone(timezone.utc)
+    days_from_tuesday = (utc_now.weekday() - 1) % 7
+    current_tuesday = (utc_now - timedelta(days=days_from_tuesday)).date()
+    candidate_release = datetime(
+        current_tuesday.year,
+        current_tuesday.month,
+        current_tuesday.day,
+        20,
+        30,
+        tzinfo=timezone.utc,
+    ) + timedelta(days=3)
+
+    if utc_now >= candidate_release:
+        latest_as_of = current_tuesday
+        latest_release = candidate_release
+    else:
+        latest_as_of = current_tuesday - timedelta(days=7)
+        latest_release = candidate_release - timedelta(days=7)
+
+    next_release = latest_release + timedelta(days=7)
+    countdown_seconds = max(0, int((next_release - utc_now).total_seconds()))
+    countdown_days = countdown_seconds // 86400
+    countdown_hours = (countdown_seconds % 86400) // 3600
+    countdown_label = (
+        f"{countdown_days}g {countdown_hours}h" if countdown_days > 0 else f"{countdown_hours}h"
+    )
+    return {
+        "latest_as_of": latest_as_of,
+        "latest_release": latest_release,
+        "next_release": next_release,
+        "countdown": countdown_label,
+    }
+
+
+def _latest_cot_legacy_report(now: datetime) -> dict:
+    cached_payload = _COT_LEGACY_CACHE.get("payload")
+    cached_expiry = _COT_LEGACY_CACHE.get("expires_at")
+    if isinstance(cached_expiry, datetime) and cached_expiry > now and isinstance(cached_payload, dict):
+        return cached_payload
+
+    fallback_timing = _cot_timing(now)
+    fallback_code = fallback_timing["latest_as_of"].strftime("%m%d%y")
+    fallback_payload = {
+        "source": "fallback-schedule",
+        "report_code": fallback_code,
+        "report_date": fallback_timing["latest_as_of"].isoformat(),
+        "report_date_label": fallback_timing["latest_as_of"].strftime("%d/%m/%Y"),
+        "url": f"{COT_LEGACY_BASE_URL}/MarketReports/CommitmentsofTraders/HistoricalViewable/cot{fallback_code}",
+    }
+
+    try:
+        req = urllib_request.Request(
+            COT_LEGACY_INDEX_URL,
+            headers={"User-Agent": "Karion-COT-Agent/1.0"},
+        )
+        with urllib_request.urlopen(req, timeout=8) as response:
+            html = response.read().decode("utf-8", errors="ignore")
+
+        codes = re.findall(
+            r"/MarketReports/CommitmentsofTraders/HistoricalViewable/cot(\d{6})",
+            html,
+        )
+        parsed = []
+        for code in set(codes):
+            try:
+                report_dt = datetime.strptime(code, "%m%d%y").date()
+                parsed.append((report_dt, code))
+            except ValueError:
+                continue
+
+        if parsed:
+            latest_date, latest_code = max(parsed, key=lambda item: item[0])
+            payload = {
+                "source": "cftc-historical-viewable",
+                "report_code": latest_code,
+                "report_date": latest_date.isoformat(),
+                "report_date_label": latest_date.strftime("%d/%m/%Y"),
+                "url": f"{COT_LEGACY_BASE_URL}/MarketReports/CommitmentsofTraders/HistoricalViewable/cot{latest_code}",
+            }
+        else:
+            payload = fallback_payload
+    except (urllib_error.URLError, TimeoutError, ValueError):
+        payload = fallback_payload
+
+    _COT_LEGACY_CACHE["payload"] = payload
+    _COT_LEGACY_CACHE["expires_at"] = now + timedelta(hours=6)
+    return payload
 
 
 def _impact_rank(impact: str) -> int:
@@ -326,6 +426,8 @@ def build_multi_source_snapshot(now: Optional[datetime] = None) -> dict:
 def build_cot_snapshot(analyses: Dict[str, dict], now: Optional[datetime] = None) -> dict:
     now = now or datetime.now(timezone.utc)
     phase = _to_phase(now)
+    timing = _cot_timing(now)
+    legacy_report = _latest_cot_legacy_report(now)
     data = {}
 
     for idx, symbol in enumerate(["NAS100", "SP500", "XAUUSD", "EURUSD"]):
@@ -357,7 +459,14 @@ def build_cot_snapshot(analyses: Dict[str, dict], now: Optional[datetime] = None
         ]
 
         key = "managed_money" if symbol == "XAUUSD" else "asset_manager"
+        report_type = "Disaggregated" if symbol == "XAUUSD" else "TFF"
         data[symbol] = {
+            "symbol": symbol,
+            "report_type": report_type,
+            "as_of_date": timing["latest_as_of"].isoformat(),
+            "release_date": timing["latest_release"].date().isoformat(),
+            "release_time_et": "15:30 ET",
+            "release_time_cet": "21:30 CET",
             "bias": bias,
             "categories": {
                 key: {
@@ -368,7 +477,19 @@ def build_cot_snapshot(analyses: Dict[str, dict], now: Optional[datetime] = None
             "rolling_bias": rolling,
         }
 
-    return {"status": "success", "data": data, "updated_at": now.isoformat()}
+    return {
+        "status": "success",
+        "data": data,
+        "next_release": {
+            "date": timing["next_release"].date().isoformat(),
+            "time_et": "15:30 ET",
+            "time_cet": "21:30 CET",
+            "countdown": timing["countdown"],
+        },
+        "legacy_report": legacy_report,
+        "last_update": now.strftime("%H:%M"),
+        "updated_at": now.isoformat(),
+    }
 
 
 def build_engine_cards(analyses: Dict[str, dict], cot_data: Dict[str, dict], now: Optional[datetime] = None) -> List[dict]:

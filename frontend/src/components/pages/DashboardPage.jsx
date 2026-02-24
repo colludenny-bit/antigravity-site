@@ -263,8 +263,12 @@ const STATIC_OPTIONS_DATA = {
   }
 };
 
+const COT_LEGACY_FALLBACK_URL = 'https://www.cftc.gov/dea/futures/deacmelf.htm';
+
 const getCotReleaseKey = (payload) => {
   if (!payload || typeof payload !== 'object') return null;
+  const legacyCode = payload?.legacy_report?.report_code;
+  if (legacyCode) return String(legacyCode);
   const data = payload.data;
   if (!data || typeof data !== 'object') return null;
   const firstEntry = Object.values(data).find((entry) => entry && typeof entry === 'object');
@@ -603,7 +607,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 
   return (
     <TechCard className={cn(
-      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 pb-[20px] relative w-full transition-all duration-300",
+      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 pb-[20px] relative w-full transition-all duration-300 min-h-[616px]",
       className
     )}>
       {/* Info Tooltip - Genie Effect */}
@@ -840,161 +844,87 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
           </div>
         </div>
 
-      <AnimatePresence mode="wait">
-        {viewMode === 'grid' ? (
-          <motion.div
-            key="grid"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="min-h-[364px] lg:min-h-[403px]"
-          >
-            {/* MOBILE: single zoomed chart with navigation */}
-            {isMobile ? (
-              <div className="relative">
-                {/* Navigation arrows */}
-                {assets.length > 1 && (
-                  <div className="flex items-center justify-between mb-3">
-                    <button
-                      onClick={() => setMobileChartIndex((prev) => (prev - 1 + assets.length) % assets.length)}
-                      className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <div className="flex items-center gap-1.5">
-                      {assets.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setMobileChartIndex(i)}
-                          className={cn(
-                            "w-1.5 h-1.5 rounded-full transition-all",
-                            i === mobileChartIndex ? "bg-[#00D9A5] w-4" : "bg-white/20"
-                          )}
-                        />
-                      ))}
+        <AnimatePresence mode="wait">
+          {viewMode === 'grid' ? (
+            <motion.div
+              key="grid"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="min-h-[364px] lg:min-h-[403px]"
+            >
+              {/* MOBILE: single zoomed chart with navigation */}
+              {isMobile ? (
+                <div className="relative">
+                  {/* Navigation arrows */}
+                  {assets.length > 1 && (
+                    <div className="flex items-center justify-between mb-3">
+                      <button
+                        onClick={() => setMobileChartIndex((prev) => (prev - 1 + assets.length) % assets.length)}
+                        className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {assets.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setMobileChartIndex(i)}
+                            className={cn(
+                              "w-1.5 h-1.5 rounded-full transition-all",
+                              i === mobileChartIndex ? "bg-[#00D9A5] w-4" : "bg-white/20"
+                            )}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setMobileChartIndex((prev) => (prev + 1) % assets.length)}
+                        className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setMobileChartIndex((prev) => (prev + 1) % assets.length)}
-                      className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-                {/* Single chart card — zoomed */}
-                {(() => {
-                  const asset = assets[mobileChartIndex % assets.length];
-                  if (!asset) return null;
-                  const color = chartColors[mobileChartIndex % chartColors.length];
-                  return (
-                    <button
-                      onClick={() => handleFocusAsset(asset.symbol)}
-                      className="w-full group relative p-3 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:shadow-none font-apple"
-                    >
-                      <div className="mb-2 relative z-10 flex items-start justify-between">
-                        <div>
-                          <h3 className="text-base font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
-                          <span className="text-xl font-bold text-white tracking-tight">
-                            {formatAssetPrice(asset.price, asset.symbol)}
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-[8px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
-                          <span className="text-base font-black leading-none text-[#00D9A5]">{asset.confidence}%</span>
-                        </div>
-                      </div>
-                      <div className="h-28 -ml-2 relative z-10 overflow-hidden rounded-lg mb-2">
-                        {animationsReady && (
-                          asset.symbol === 'XAUUSD' ? (
-                            <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-mobile-${asset.symbol}`} />
-                          ) : (
-                            <GlowingChart
-                              data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
-                              width={380}
-                              height={140}
-                              color={color}
-                              showPrice={false}
-                            />
-                          )
-                        )}
-                      </div>
-                      <div className="relative z-10">
-                        <div className={cn(
-                          "inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border",
-                          getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 text-[#00D9A5]" :
-                            getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500/10 border-red-500/20 text-red-500" :
-                              "bg-yellow-500/10 border-yellow-500/20 text-yellow-500"
-                        )}>
-                          <div className={cn(
-                            "w-2 h-2 rounded-full",
-                            getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]" :
-                              getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500" : "bg-yellow-500"
-                          )} />
-                          <p className="text-[10px] font-black uppercase tracking-[0.2em] leading-none">
-                            {getDailyOutlook(asset).conclusion}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })()}
-              </div>
-            ) : (
-              /* DESKTOP: original grid view */
-              <div className={cn(
-                "grid gap-3",
-                visibleAssets.length === 2 ? "grid-cols-2" : "grid-cols-3"
-              )}>
-                {visibleAssets.map((asset, index) => {
-                  const color = chartColors[index % chartColors.length];
-                  return (
-                    <button
-                      key={asset.symbol}
-                      onClick={() => handleFocusAsset(asset.symbol)}
-                      className="group relative p-3 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.15)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:hover:!border-white/20 dark:shadow-none font-apple"
-                    >
-                      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
-
-                      <div className="mb-2 relative z-10 flex items-start justify-between">
-                        <div>
-                          <h3 className="text-base font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold text-white tracking-tight">
+                  )}
+                  {/* Single chart card — zoomed */}
+                  {(() => {
+                    const asset = assets[mobileChartIndex % assets.length];
+                    if (!asset) return null;
+                    const color = chartColors[mobileChartIndex % chartColors.length];
+                    return (
+                      <button
+                        onClick={() => handleFocusAsset(asset.symbol)}
+                        className="w-full group relative p-3 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:shadow-none font-apple"
+                      >
+                        <div className="mb-2 relative z-10 flex items-start justify-between">
+                          <div>
+                            <h3 className="text-base font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
+                            <span className="text-xl font-bold text-white tracking-tight">
                               {formatAssetPrice(asset.price, asset.symbol)}
                             </span>
                           </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[8px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
+                            <span className="text-base font-black leading-none text-[#00D9A5]">{asset.confidence}%</span>
+                          </div>
                         </div>
-
-                        {/* Confidence Percentage - Repositioned to Top Right */}
-                        <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
-                          <span className="text-base font-black leading-none text-[#00D9A5]">
-                            {asset.confidence}%
-                          </span>
+                        <div className="h-28 -ml-2 relative z-10 overflow-hidden rounded-lg mb-2">
+                          {animationsReady && (
+                            asset.symbol === 'XAUUSD' ? (
+                              <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-mobile-${asset.symbol}`} />
+                            ) : (
+                              <GlowingChart
+                                data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
+                                width={380}
+                                height={140}
+                                color={color}
+                                showPrice={false}
+                              />
+                            )
+                          )}
                         </div>
-                      </div>
-
-                      <div className="h-[55px] -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
-                        {animationsReady && (
-                          asset.symbol === 'XAUUSD' ? (
-                            <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-grid-${asset.symbol}`} />
-                          ) : (
-                            <GlowingChart
-                              data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
-                              width={400}
-                              height={110}
-                              color={color}
-                              showPrice={false}
-                            />
-                          )
-                        )}
-                      </div>
-
-                      <div className="relative z-10 space-y-2 mt-2">
-                        {/* Bias & Confidence Row - HIGHLIGHTED */}
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="relative z-10">
                           <div className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all",
+                            "inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border",
                             getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 text-[#00D9A5]" :
                               getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500/10 border-red-500/20 text-red-500" :
                                 "bg-yellow-500/10 border-yellow-500/20 text-yellow-500"
@@ -1002,169 +932,243 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                             <div className={cn(
                               "w-2 h-2 rounded-full",
                               getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]" :
-                                getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500" :
-                                  "bg-yellow-500"
+                                getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500" : "bg-yellow-500"
                             )} />
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] leading-none">
                               {getDailyOutlook(asset).conclusion}
                             </p>
                           </div>
                         </div>
-
-                        {/* Analysis Points - LARGER TEXT */}
-                        <ul className="space-y-1.5">
-                          {getDailyOutlook(asset).outlookLines.slice(0, 3).map((line, i) => (
-                            <li key={i} className="flex items-start gap-2.5 text-sm font-semibold text-white/95 leading-relaxed tracking-tight">
-                              <div className="mt-2 w-1 h-1 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
-                              <TypewriterText text={line} speed={20} delay={500 + i * 800} />
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
-        ) : (
-          <motion.div
-            key="focus"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms] min-h-[364px] lg:min-h-[403px]"
-          >
-            {currentAsset.symbol === 'XAUUSD' ? (
-              <div className="space-y-3">
-                <div className="w-full aspect-[16/8] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
-                  {animationsReady ? (
-                    <TradingViewMiniChart
-                      assetSymbol={currentAsset.symbol}
-                      title={`tv-focus-${currentAsset.symbol}`}
-                      interval="15"
-                      interactive
-                    />
-                  ) : (
-                    <div className="w-full h-full rounded-lg bg-white/5 animate-pulse" />
-                  )}
+                      </button>
+                    );
+                  })()}
                 </div>
+              ) : (
+                /* DESKTOP: original grid view */
+                <div className={cn(
+                  "grid gap-3",
+                  visibleAssets.length === 2 ? "grid-cols-2" : "grid-cols-3"
+                )}>
+                  {visibleAssets.map((asset, index) => {
+                    const color = chartColors[index % chartColors.length];
+                    return (
+                      <button
+                        key={asset.symbol}
+                        onClick={() => handleFocusAsset(asset.symbol)}
+                        className="group relative p-3 bg-white rounded-2xl !border !border-slate-400 shadow-[0_20px_50px_rgb(0,0,0,0.1)] hover:shadow-[0_20px_60px_rgb(0,0,0,0.15)] transition-all text-left overflow-hidden dark:bg-white/[0.03] dark:!border-white/10 dark:hover:!border-white/20 dark:shadow-none font-apple"
+                      >
+                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
 
-                <div className="rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3">
-                  <ul className="space-y-1.5">
-                    {screeningFocusSummaryLines.map((line, i) => (
-                      <li key={`focus-summary-${i}`} className="flex items-start gap-2.5 text-sm font-semibold text-white/95 leading-relaxed tracking-tight">
-                        <div className="mt-2 w-1 h-1 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
-                        <TypewriterText text={line} speed={18} delay={400 + i * 320} />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Focus View Header - Compact */}
-                <div className="flex flex-wrap items-center justify-between mb-5 gap-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-white mb-1 uppercase tracking-widest leading-none select-none">
-                      {currentAsset.symbol}
-                    </h3>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-4xl font-bold text-white tracking-tight">
-                        {formatAssetPrice(currentAsset.price, currentAsset.symbol)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <TechBadge variant={currentAsset.direction === 'Up' ? 'success' : 'warning'} className="px-3 py-1.5 font-bold uppercase tracking-[0.2em] leading-none flex flex-col items-center gap-0.5">
-                        <span className="text-xs">Confidenza</span>
-                        <span className="text-sm font-black">{currentAsset.confidence}%</span>
-                      </TechBadge>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Big Chart - Compatto */}
-                <div className="h-[55px] mb-4 relative group overflow-hidden">
-                  {/* Hover Gradient - Neutral */}
-                  <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
-                  <div className="w-full h-full flex items-center justify-center">
-                    {animationsReady && (
-                      <DetailChart
-                        data={(currentAsset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]).map((val, i) => ({
-                          date: `${10 + (i * 2)}:00`,
-                          value: val
-                        }))}
-                        height={100}
-                        color={chartLineColor}
-                        showgrid={false}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Details Grid - Compact */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 rounded-2xl border border-white/10 bg-[#13171C]/85 p-4">
-                  <div className="md:col-span-2">
-                    <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Analisi statistica</h5>
-                    <div className="space-y-4">
-                      <p className="text-base font-semibold text-white/95 leading-relaxed tracking-tight">
-                        {statisticalNarrative}
-                      </p>
-                      <p className="text-sm text-white/70 leading-relaxed tracking-tight">
-                        Contesto: {isIndex ? `${weekRule.description || '—'} • ${dayRule.note || '—'} • Bias mensile ${monthlyBias || '—'}` : `Seasonality ${seasonalityBias}`} • ATR {Math.round(atrProgress)}%
-                      </p>
-                      {/* Engine Drivers - Integrated */}
-                      {currentAsset.drivers?.length > 0 && (
-                        <div className="mt-8 pt-6 border-t border-white/5">
-                          <h5 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-3">Engine Drivers</h5>
-                          <div className="flex flex-wrap gap-2">
-                            {currentAsset.drivers.map((driver, i) => (
-                              <span
-                                key={i}
-                                className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-bold text-white/60 uppercase tracking-widest"
-                              >
-                                {driver}
+                        <div className="mb-2 relative z-10 flex items-start justify-between">
+                          <div>
+                            <h3 className="text-base font-bold text-white mb-1 tracking-tight">{asset.symbol}</h3>
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-bold text-white tracking-tight">
+                                {formatAssetPrice(asset.price, asset.symbol)}
                               </span>
-                            ))}
+                            </div>
+                          </div>
+
+                          {/* Confidence Percentage - Repositioned to Top Right */}
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Confidenza</span>
+                            <span className="text-base font-black leading-none text-[#00D9A5]">
+                              {asset.confidence}%
+                            </span>
                           </div>
                         </div>
+
+                        <div className="h-[55px] -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
+                          {animationsReady && (
+                            asset.symbol === 'XAUUSD' ? (
+                              <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-grid-${asset.symbol}`} />
+                            ) : (
+                              <GlowingChart
+                                data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
+                                width={400}
+                                height={110}
+                                color={color}
+                                showPrice={false}
+                              />
+                            )
+                          )}
+                        </div>
+
+                        <div className="relative z-10 space-y-2 mt-2">
+                          {/* Bias & Confidence Row - HIGHLIGHTED */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className={cn(
+                              "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all",
+                              getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 text-[#00D9A5]" :
+                                getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500/10 border-red-500/20 text-red-500" :
+                                  "bg-yellow-500/10 border-yellow-500/20 text-yellow-500"
+                            )}>
+                              <div className={cn(
+                                "w-2 h-2 rounded-full",
+                                getDailyOutlook(asset).conclusionType === 'bullish' ? "bg-[#00D9A5]" :
+                                  getDailyOutlook(asset).conclusionType === 'bearish' ? "bg-red-500" :
+                                    "bg-yellow-500"
+                              )} />
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] leading-none">
+                                {getDailyOutlook(asset).conclusion}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Analysis Points - LARGER TEXT */}
+                          <ul className="space-y-1.5">
+                            {getDailyOutlook(asset).outlookLines.slice(0, 3).map((line, i) => (
+                              <li key={i} className="flex items-start gap-2.5 text-sm font-semibold text-white/95 leading-relaxed tracking-tight">
+                                <div className="mt-2 w-1 h-1 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
+                                <TypewriterText text={line} speed={20} delay={500 + i * 800} />
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="focus"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms] min-h-[364px] lg:min-h-[403px]"
+            >
+              {currentAsset.symbol === 'XAUUSD' ? (
+                <div className="space-y-3">
+                  <div className="w-full aspect-[16/8] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
+                    {animationsReady ? (
+                      <TradingViewMiniChart
+                        assetSymbol={currentAsset.symbol}
+                        title={`tv-focus-${currentAsset.symbol}`}
+                        interval="15"
+                        interactive
+                      />
+                    ) : (
+                      <div className="w-full h-full rounded-lg bg-white/5 animate-pulse" />
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3">
+                    <ul className="space-y-1.5">
+                      {screeningFocusSummaryLines.map((line, i) => (
+                        <li key={`focus-summary-${i}`} className="flex items-start gap-2.5 text-sm font-semibold text-white/95 leading-relaxed tracking-tight">
+                          <div className="mt-2 w-1 h-1 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
+                          <TypewriterText text={line} speed={18} delay={400 + i * 320} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Focus View Header - Compact */}
+                  <div className="flex flex-wrap items-center justify-between mb-5 gap-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-1 uppercase tracking-widest leading-none select-none">
+                        {currentAsset.symbol}
+                      </h3>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-bold text-white tracking-tight">
+                          {formatAssetPrice(currentAsset.price, currentAsset.symbol)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <TechBadge variant={currentAsset.direction === 'Up' ? 'success' : 'warning'} className="px-3 py-1.5 font-bold uppercase tracking-[0.2em] leading-none flex flex-col items-center gap-0.5">
+                          <span className="text-xs">Confidenza</span>
+                          <span className="text-sm font-black">{currentAsset.confidence}%</span>
+                        </TechBadge>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Big Chart - Compatto */}
+                  <div className="h-[55px] mb-4 relative group overflow-hidden">
+                    {/* Hover Gradient - Neutral */}
+                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
+                    <div className="w-full h-full flex items-center justify-center">
+                      {animationsReady && (
+                        <DetailChart
+                          data={(currentAsset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]).map((val, i) => ({
+                            date: `${10 + (i * 2)}:00`,
+                            value: val
+                          }))}
+                          height={100}
+                          color={chartLineColor}
+                          showgrid={false}
+                        />
                       )}
                     </div>
                   </div>
 
-                  <div className="flex flex-col justify-between">
-                    <div>
-                      <h5 className="text-sm font-bold text-white uppercase tracking-[0.2em] mb-4">Metriche Rapide</h5>
+                  {/* Details Grid - Compact */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5 rounded-2xl border border-white/10 bg-[#13171C]/85 p-4">
+                    <div className="md:col-span-2">
+                      <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Analisi statistica</h5>
                       <div className="space-y-4">
-                        <div>
-                          <p className="text-xs text-white uppercase font-black tracking-[0.2em] mb-2 leading-none">ATR Daily Range</p>
-                          <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                            <div
-                              style={{ width: `${atrProgress}%` }}
-                              className="h-full rounded-full bg-[#00D9A5] transition-all duration-700"
-                            />
+                        <p className="text-base font-semibold text-white/95 leading-relaxed tracking-tight">
+                          {statisticalNarrative}
+                        </p>
+                        <p className="text-sm text-white/70 leading-relaxed tracking-tight">
+                          Contesto: {isIndex ? `${weekRule.description || '—'} • ${dayRule.note || '—'} • Bias mensile ${monthlyBias || '—'}` : `Seasonality ${seasonalityBias}`} • ATR {Math.round(atrProgress)}%
+                        </p>
+                        {/* Engine Drivers - Integrated */}
+                        {currentAsset.drivers?.length > 0 && (
+                          <div className="mt-8 pt-6 border-t border-white/5">
+                            <h5 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-3">Engine Drivers</h5>
+                            <div className="flex flex-wrap gap-2">
+                              {currentAsset.drivers.map((driver, i) => (
+                                <span
+                                  key={i}
+                                  className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-bold text-white/60 uppercase tracking-widest"
+                                >
+                                  {driver}
+                                </span>
+                              ))}
+                            </div>
                           </div>
-                          <div className="mt-2 flex items-center justify-between text-xs text-white/70 font-bold">
-                            <span>Percorso: {formatPoints(dayMovePoints)} pts ({Math.round(atrProgress)}%)</span>
-                            <span>Rimanente: {formatPoints(atrRemaining)} pts ({Math.max(0, 100 - Math.round(atrProgress))}%)</span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Statistical Bias</p>
-                          <p className="text-base font-bold text-[#00D9A5] leading-relaxed">{statisticalBiasSummary}</p>
-                        </div>
+                        )}
                       </div>
+                    </div>
 
-                      {/* Source Breakdown removed per request */}
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <h5 className="text-sm font-bold text-white uppercase tracking-[0.2em] mb-4">Metriche Rapide</h5>
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-xs text-white uppercase font-black tracking-[0.2em] mb-2 leading-none">ATR Daily Range</p>
+                            <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                              <div
+                                style={{ width: `${atrProgress}%` }}
+                                className="h-full rounded-full bg-[#00D9A5] transition-all duration-700"
+                              />
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-xs text-white/70 font-bold">
+                              <span>Percorso: {formatPoints(dayMovePoints)} pts ({Math.round(atrProgress)}%)</span>
+                              <span>Rimanente: {formatPoints(atrRemaining)} pts ({Math.max(0, 100 - Math.round(atrProgress))}%)</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Statistical Bias</p>
+                            <p className="text-base font-bold text-[#00D9A5] leading-relaxed">{statisticalBiasSummary}</p>
+                          </div>
+                        </div>
+
+                        {/* Source Breakdown removed per request */}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </TechCard >
   );
@@ -1245,8 +1249,8 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
           const hasIntradayTime = dateRaw.length >= 16 && dateRaw.includes(':');
           const dateLabel = dateRaw.length >= 10
             ? (hasIntradayTime
-                ? `${dateRaw.slice(8, 10)}/${dateRaw.slice(5, 7)} ${dateRaw.slice(11, 13)}h`
-                : `${dateRaw.slice(8, 10)}/${dateRaw.slice(5, 7)}`)
+              ? `${dateRaw.slice(8, 10)}/${dateRaw.slice(5, 7)} ${dateRaw.slice(11, 13)}h`
+              : `${dateRaw.slice(8, 10)}/${dateRaw.slice(5, 7)}`)
             : dateRaw;
           return {
             date: dateRaw,
@@ -1304,11 +1308,11 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
     : null;
   const breadthSpread = usePriceMALines
     ? (Number.isFinite(latestPoint?.ma50Price) && Number.isFinite(latestPoint?.ma200Price)
-        ? latestPoint.ma50Price - latestPoint.ma200Price
-        : null)
+      ? latestPoint.ma50Price - latestPoint.ma200Price
+      : null)
     : (Number.isFinite(latestPoint?.ma50) && Number.isFinite(latestPoint?.ma200)
-        ? latestPoint.ma50 - latestPoint.ma200
-        : null);
+      ? latestPoint.ma50 - latestPoint.ma200
+      : null);
   const coverageNow = Number.isFinite(latestPoint?.coverage)
     ? latestPoint.coverage
     : Number(selectedDataResolved?.coverage_pct);
@@ -1384,7 +1388,7 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
 
   return (
     <TechCard className={cn(
-      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 min-h-[618px]",
+      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 min-h-[616px]",
       className
     )}>
       <AnimatePresence>
@@ -1459,227 +1463,252 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </motion.div >
         )}
-      </AnimatePresence>
+      </AnimatePresence >
 
       <div className={cn(
         "transition-all duration-200",
         showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
       )}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-start gap-2.5">
-          <Layers className="w-5 h-5 text-[#00D9A5] mt-[1px]" />
-          <div>
-            <div className="inline-flex items-center gap-2">
-              <h4 className="font-medium text-base text-white/90 leading-none">Market Breadth</h4>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-start gap-2.5">
+            <Layers className="w-5 h-5 text-[#00D9A5] mt-[1px]" />
+            <div>
+              <div className="inline-flex items-center gap-2">
+                <h4 className="font-medium text-base text-white/90 leading-none">Market Breadth</h4>
+                <button
+                  type="button"
+                  onClick={() => setShowInfo((prev) => !prev)}
+                  className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
+                  aria-label="Informazioni Market Breadth"
+                  title="Informazioni Market Breadth"
+                  aria-expanded={showInfo}
+                >
+                  <Info className="w-3.5 h-3.5 text-white" />
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={cn("px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.15em]", selectedTone.className)}>
+              {selectedTone.label}
+            </span>
+            <div className="relative">
               <button
                 type="button"
-                onClick={() => setShowInfo((prev) => !prev)}
-                className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
-                aria-label="Informazioni Market Breadth"
-                title="Informazioni Market Breadth"
-                aria-expanded={showInfo}
+                onClick={() => setShowSelector((prev) => !prev)}
+                className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
+                aria-label="Seleziona asset market breadth"
+                aria-expanded={showSelector}
               >
-                <Info className="w-3.5 h-3.5 text-white" />
+                <Eye className="w-4 h-4 text-white" />
               </button>
+              <AnimatePresence>
+                {showSelector && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                    transition={{ duration: 0.16 }}
+                    className="absolute right-0 top-full mt-1 z-40 min-w-[124px] rounded-xl border border-white/15 bg-[#0F1319]/95 p-1.5 shadow-2xl"
+                  >
+                    {selectorIndexKeys.map((key) => {
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            setSelectedIndex(key);
+                            setShowSelector(false);
+                          }}
+                          className={cn(
+                            "w-full text-left px-2 py-1.5 rounded-md text-[10px] font-black uppercase tracking-[0.13em] transition-colors",
+                            selectedIndex === key
+                              ? "bg-[#00D9A5]/20 text-[#00D9A5]"
+                              : "text-white/75 hover:bg-white/10 hover:text-white"
+                          )}
+                        >
+                          {indexConfigs[key].short}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={cn("px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.15em]", selectedTone.className)}>
-            {selectedTone.label}
-          </span>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowSelector((prev) => !prev)}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
-              aria-label="Seleziona asset market breadth"
-              aria-expanded={showSelector}
+
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span
+              className="-translate-y-[4px] text-[20px] md:text-[21px] font-semibold uppercase tracking-[-0.015em] leading-none text-white/90"
+              style={{ fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
             >
-              <Eye className="w-4 h-4 text-white" />
-            </button>
-            <AnimatePresence>
-              {showSelector && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                  transition={{ duration: 0.16 }}
-                  className="absolute right-0 top-full mt-1 z-40 min-w-[124px] rounded-xl border border-white/15 bg-[#0F1319]/95 p-1.5 shadow-2xl"
-                >
-                  {selectorIndexKeys.map((key) => {
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => {
-                          setSelectedIndex(key);
-                          setShowSelector(false);
-                        }}
-                        className={cn(
-                          "w-full text-left px-2 py-1.5 rounded-md text-[10px] font-black uppercase tracking-[0.13em] transition-colors",
-                          selectedIndex === key
-                            ? "bg-[#00D9A5]/20 text-[#00D9A5]"
-                            : "text-white/75 hover:bg-white/10 hover:text-white"
-                        )}
-                      >
-                        {indexConfigs[key].short}
-                      </button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
+              {selectedIndex}
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-2 rounded-md border border-[#00D9A5]/50 bg-[#00D9A5]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#00D9A5]">
+                MA50
+                <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma50BadgeValue}</span>
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-md border border-[#67D8FF]/50 bg-[#67D8FF]/12 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#67D8FF]">
+                Prezzo
+                <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{formatPrice(latestPoint?.price)}</span>
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-md border border-[#E3C98A]/50 bg-[#E3C98A]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#E3C98A]">
+                MA200
+                <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma200BadgeValue}</span>
+              </span>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <div>
-        <div className="mb-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <span className="inline-flex justify-self-start items-center gap-2 rounded-md border border-[#00D9A5]/50 bg-[#00D9A5]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#00D9A5]">
-            MA50
-            <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma50BadgeValue}</span>
-          </span>
-          <span className="inline-flex justify-self-center items-center gap-2 rounded-md border border-[#67D8FF]/50 bg-[#67D8FF]/12 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#67D8FF]">
-            Prezzo
-            <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{formatPrice(latestPoint?.price)}</span>
-          </span>
-          <span className="inline-flex justify-self-end items-center gap-2 rounded-md border border-[#E3C98A]/50 bg-[#E3C98A]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#E3C98A]">
-            MA200
-            <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma200BadgeValue}</span>
-          </span>
-        </div>
-        <div className="relative h-[274px] w-full rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.015)_100%)] p-2 overflow-hidden">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 2, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
-              <XAxis
-                dataKey="dateLabel"
-                tick={{ fill: 'rgba(255,255,255,0.52)', fontSize: 10, fontWeight: 700 }}
-                axisLine={false}
-                tickLine={false}
-                minTickGap={22}
-              />
-              <YAxis
-                yAxisId="price"
-                orientation="left"
-                hide={!hasPriceSeries}
-                width={56}
-                tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700 }}
-                axisLine={false}
-                tickLine={false}
-                domain={['auto', 'auto']}
-                tickFormatter={(value) => formatPrice(value)}
-              />
-              <YAxis
-                yAxisId="breadth"
-                orientation="right"
-                width={46}
-                hide={usePriceMALines}
-                domain={[0, 100]}
-                tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(value) => `${Math.round(value)}%`}
-              />
-              {!usePriceMALines && (
-                <ReferenceLine yAxisId="breadth" y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="5 5" />
-              )}
-              {hasPriceSeries && Number.isFinite(latestPriceValue) && (
-                <ReferenceLine
-                  yAxisId="price"
-                  y={latestPriceValue}
-                  ifOverflow="extendDomain"
-                  stroke="rgba(103, 216, 255, 0.25)"
-                  strokeDasharray="3 4"
+          <div className="relative h-[274px] w-full rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.015)_100%)] p-2 overflow-hidden">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 8, right: 8, left: 2, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
+                <XAxis
+                  dataKey="dateLabel"
+                  tick={{ fill: 'rgba(255,255,255,0.52)', fontSize: 10, fontWeight: 700 }}
+                  axisLine={false}
+                  tickLine={false}
+                  minTickGap={22}
                 />
-              )}
-              <Tooltip content={renderTooltip} />
-              <Line
-                yAxisId="price"
-                dataKey="price"
-                type="monotone"
-                stroke={selectedCfg.priceColor}
-                strokeWidth={2.2}
-                dot={false}
-                connectNulls
-                isAnimationActive={false}
-                activeDot={{ r: 4, strokeWidth: 2, stroke: selectedCfg.priceColor, fill: '#0F1319' }}
-              />
-              <Line
-                yAxisId={usePriceMALines ? "price" : "breadth"}
-                dataKey={usePriceMALines ? "ma50Price" : "ma50"}
-                type="monotone"
-                stroke={MA50_COLOR}
-                strokeWidth={2.1}
-                dot={false}
-                connectNulls
-                isAnimationActive={false}
-                activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA50_COLOR, fill: '#0F1319' }}
-              />
-              <Line
-                yAxisId={usePriceMALines ? "price" : "breadth"}
-                dataKey={usePriceMALines ? "ma200Price" : "ma200"}
-                type="monotone"
-                stroke={MA200_COLOR}
-                strokeWidth={2.1}
-                dot={false}
-                connectNulls
-                isAnimationActive={false}
-                activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA200_COLOR, fill: '#0F1319' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+                <YAxis
+                  yAxisId="price"
+                  orientation="left"
+                  hide={!hasPriceSeries}
+                  width={56}
+                  tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700 }}
+                  axisLine={false}
+                  tickLine={false}
+                  domain={['auto', 'auto']}
+                  tickFormatter={(value) => formatPrice(value)}
+                />
+                <YAxis
+                  yAxisId="breadth"
+                  orientation="right"
+                  width={46}
+                  hide={usePriceMALines}
+                  domain={[0, 100]}
+                  tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => `${Math.round(value)}%`}
+                />
+                {!usePriceMALines && (
+                  <ReferenceLine yAxisId="breadth" y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="5 5" />
+                )}
+                {hasPriceSeries && Number.isFinite(latestPriceValue) && (
+                  <ReferenceLine
+                    yAxisId="price"
+                    y={latestPriceValue}
+                    ifOverflow="extendDomain"
+                    stroke="rgba(103, 216, 255, 0.25)"
+                    strokeDasharray="3 4"
+                  />
+                )}
+                <Tooltip content={renderTooltip} />
+                <Line
+                  yAxisId="price"
+                  dataKey="price"
+                  type="monotone"
+                  stroke={selectedCfg.priceColor}
+                  strokeWidth={2.2}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                  activeDot={{ r: 4, strokeWidth: 2, stroke: selectedCfg.priceColor, fill: '#0F1319' }}
+                />
+                <Line
+                  yAxisId={usePriceMALines ? "price" : "breadth"}
+                  dataKey={usePriceMALines ? "ma50Price" : "ma50"}
+                  type="monotone"
+                  stroke={MA50_COLOR}
+                  strokeWidth={2.1}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                  activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA50_COLOR, fill: '#0F1319' }}
+                />
+                <Line
+                  yAxisId={usePriceMALines ? "price" : "breadth"}
+                  dataKey={usePriceMALines ? "ma200Price" : "ma200"}
+                  type="monotone"
+                  stroke={MA200_COLOR}
+                  strokeWidth={2.1}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                  activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA200_COLOR, fill: '#0F1319' }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
 
-        <div
-          className="grid grid-cols-3 gap-2 mt-3"
-          style={{ fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
-        >
-          <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
-            <div className="flex items-center justify-between gap-1.5">
-              <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Copertura</p>
-              <p className="whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] text-white leading-none tabular-nums">
-                {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}
-              </p>
+          <div
+            className="grid grid-cols-3 gap-2 mt-3"
+            style={{ fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
+          >
+            <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
+              <div className="flex items-center justify-between gap-1.5">
+                <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Copertura</p>
+                <p className="whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] text-white leading-none tabular-nums">
+                  {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}
+                </p>
+              </div>
+            </div>
+            <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
+              <div className="flex items-center justify-between gap-1.5">
+                <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Spread</p>
+                <p className={cn(
+                  "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
+                  Number.isFinite(breadthSpread)
+                    ? breadthSpread >= 0 ? "text-[#00D9A5]" : "text-red-300"
+                    : "text-white"
+                )}>
+                  {Number.isFinite(breadthSpread) ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)} pp` : '—'}
+                </p>
+              </div>
+            </div>
+            <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
+              <div className="flex items-center justify-between gap-1.5">
+                <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Delta</p>
+                <p className={cn(
+                  "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
+                  Number.isFinite(priceDeltaPct)
+                    ? priceDeltaPct >= 0 ? "" : "text-red-300"
+                    : "text-white"
+                )} style={Number.isFinite(priceDeltaPct) && priceDeltaPct >= 0 ? { color: selectedCfg.priceColor } : undefined}>
+                  {Number.isFinite(priceDeltaPct) ? `${priceDeltaPct > 0 ? '+' : ''}${priceDeltaPct.toFixed(2)}%` : '—'}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
-            <div className="flex items-center justify-between gap-1.5">
-              <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Spread</p>
-              <p className={cn(
-                "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
-                Number.isFinite(breadthSpread)
-                  ? breadthSpread >= 0 ? "text-[#00D9A5]" : "text-red-300"
-                  : "text-white"
-              )}>
-                {Number.isFinite(breadthSpread) ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)} pp` : '—'}
-              </p>
-            </div>
-          </div>
-          <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
-            <div className="flex items-center justify-between gap-1.5">
-              <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Delta</p>
-              <p className={cn(
-                "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
-                Number.isFinite(priceDeltaPct)
-                  ? priceDeltaPct >= 0 ? "" : "text-red-300"
-                  : "text-white"
-              )} style={Number.isFinite(priceDeltaPct) && priceDeltaPct >= 0 ? { color: selectedCfg.priceColor } : undefined}>
-                {Number.isFinite(priceDeltaPct) ? `${priceDeltaPct > 0 ? '+' : ''}${priceDeltaPct.toFixed(2)}%` : '—'}
-              </p>
-            </div>
-          </div>
-        </div>
 
-        <div className="mt-3 min-h-[146px] rounded-xl bg-white/5 border border-white/10 p-2.5 flex flex-col justify-between">
-          <p className="text-sm text-white/85 leading-relaxed">{summaryLine}</p>
+          <div className="mt-3 min-h-[146px] rounded-xl bg-white/5 border border-white/10 p-4 flex flex-col justify-between">
+            <ul className="space-y-1.5 text-base text-white/90">
+              <li className="flex items-start gap-2">
+                <span className="text-[#00D9A5] mt-0.5">•</span>
+                <span>{summaryLine}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#00D9A5] mt-0.5">•</span>
+                <span>Copertura: {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#00D9A5] mt-0.5">•</span>
+                <span>
+                  Spread: {Number.isFinite(breadthSpread)
+                    ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)}${usePriceMALines ? '' : ' pp'}`
+                    : '—'}.
+                </span>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
-      </div>
-    </TechCard>
+    </TechCard >
   );
 };
 
@@ -1820,9 +1849,9 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
   }, [model]);
 
   const radarChart = useMemo(() => {
-    const size = compact ? 420 : 500;
+    const size = compact ? 380 : 500;
     const center = size / 2;
-    const radius = compact ? 178 : 214;
+    const radius = compact ? 155 : 214;
     const labelRadius = radius + (compact ? 12 : 14);
     const ringLevels = [0.2, 0.4, 0.6, 0.8, 1];
     const axisCount = radarAxes.length;
@@ -1973,195 +2002,195 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
         "transition-all duration-200",
         showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
       )}>
-      <div className={cn("flex items-start justify-between", compact ? "mt-1 mb-2.5" : "mb-4")}>
-        <div className="flex items-center gap-2.5">
-          <div className="flex flex-col items-start mt-[2px]">
-            <div className="inline-flex items-center gap-2">
-              <Activity className="w-5 h-5 text-[#00D9A5]" />
-              <span className="font-medium text-base text-white/90">
-                Fear &amp; Greed Index
-              </span>
+        <div className={cn("flex items-start justify-between", compact ? "mt-1 mb-2.5" : "mb-4")}>
+          <div className="flex items-center gap-2.5">
+            <div className="flex flex-col items-start mt-[2px]">
+              <div className="inline-flex items-center gap-2">
+                <Activity className="w-5 h-5 text-[#00D9A5]" />
+                <span className="font-medium text-base text-white/90">
+                  Fear &amp; Greed Index
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowInfo((prev) => !prev)}
+                className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
+                aria-label="Informazioni Fear and Greed"
+                title="Informazioni Fear and Greed"
+                aria-expanded={showInfo}
+              >
+                <Info className="w-3.5 h-3.5 text-white" />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowInfo((prev) => !prev)}
-              className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
-              aria-label="Informazioni Fear and Greed"
-              title="Informazioni Fear and Greed"
-              aria-expanded={showInfo}
+          <span className={cn(
+            "inline-flex items-center justify-center rounded-full border px-3 py-1.5 font-black uppercase tracking-[0.1em] leading-none whitespace-nowrap",
+            compact ? "text-[10px]" : "text-[10px]",
+            regimeBadgeClass
+          )}>
+            {regimeBadgeLabel}
+          </span>
+        </div>
+
+        <div className="relative">
+          <div className={cn("relative mx-auto flex justify-center items-center overflow-visible", compact ? "h-[320px] w-full max-w-[350px] -mt-1" : "h-[470px] w-full max-w-[500px]")}>
+            <svg
+              className="h-full w-full overflow-visible"
+              viewBox={`0 0 ${radarChart.size} ${radarChart.size}`}
+              role="img"
+              aria-label="Fear and Greed spider chart"
             >
-              <Info className="w-3.5 h-3.5 text-white" />
-            </button>
+              <defs>
+                <radialGradient
+                  id={radarGradientIdRef.current}
+                  gradientUnits="userSpaceOnUse"
+                  cx={radarChart.center}
+                  cy={radarChart.center}
+                  r={compact ? 155 : 214}
+                >
+                  <stop offset="0%" stopColor="rgba(34,18,10,0.07)" />
+                  <stop offset="30%" stopColor="rgba(96,52,33,0.16)" />
+                  <stop offset="64%" stopColor="rgba(192,116,78,0.38)" />
+                  <stop offset="100%" stopColor="rgba(242,169,128,0.58)" />
+                </radialGradient>
+                <filter id={radarGlowIdRef.current} x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="2.4" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+
+              {radarChart.ringPolygons.map((points, ringIndex) => (
+                <polygon
+                  key={`ring-${ringIndex}`}
+                  points={points}
+                  fill="none"
+                  stroke={ringIndex === radarChart.ringPolygons.length - 1 ? "rgba(245,245,245,0.25)" : "rgba(245,245,245,0.19)"}
+                  strokeWidth={ringIndex === radarChart.ringPolygons.length - 1 ? 1.1 : 0.9}
+                />
+              ))}
+
+              {radarChart.axisLines.map((line, lineIndex) => (
+                <line
+                  key={`axis-${lineIndex}`}
+                  x1={line.x1}
+                  y1={line.y1}
+                  x2={line.x2}
+                  y2={line.y2}
+                  stroke="rgba(245,245,245,0.2)"
+                  strokeWidth="0.95"
+                />
+              ))}
+
+              <polygon
+                points={radarChart.valuePolygon}
+                fill={`url(#${radarGradientIdRef.current})`}
+                stroke="rgba(247,188,146,0.86)"
+                strokeWidth="1.6"
+                filter={`url(#${radarGlowIdRef.current})`}
+              />
+
+              {radarChart.valuePoints.map((point, pointIndex) => (
+                <circle
+                  key={`value-${pointIndex}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r={compact ? 3.8 : 4.4}
+                  fill="rgba(255,222,193,0.88)"
+                  stroke="rgba(255,190,143,0.8)"
+                  strokeWidth="0.8"
+                />
+              ))}
+
+              {radarChart.labelPoints.map((labelPoint, labelIndex) => (
+                <text
+                  key={`label-${labelIndex}`}
+                  x={labelPoint.x}
+                  y={labelPoint.y}
+                  textAnchor={labelPoint.anchor}
+                  dominantBaseline="middle"
+                  fill="rgba(245,245,245,0.92)"
+                  fontSize={compact ? 17 : 19}
+                  fontWeight="700"
+                  letterSpacing="0.3"
+                >
+                  {labelPoint.label}
+                </text>
+              ))}
+
+              <circle
+                cx={radarChart.center}
+                cy={radarChart.center}
+                r={compact ? 30 : 36}
+                fill="rgba(8,11,16,0.9)"
+                stroke="rgba(255,255,255,0.2)"
+              />
+              <text
+                x={radarChart.center}
+                y={radarChart.center + 1}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className={cn("font-black", compact ? "text-[24px]" : "text-[30px]")}
+                fill="rgba(255,236,219,0.99)"
+              >
+                {model.score}
+              </text>
+            </svg>
+          </div>
+
+          <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
+            <span className={cn("uppercase tracking-[0.1em] text-white/88 font-bold", compact ? "text-[14px]" : "text-[14px]")}>
+              Fear &amp; Greed
+            </span>
+            <span className={cn(
+              "font-black tabular-nums drop-shadow-[0_0_10px_rgba(255,174,126,0.55)] text-[#FFC69A]",
+              compact ? "text-[18px]" : "text-[18px]"
+            )}>
+              {model.score}
+            </span>
+          </div>
+
+          <div className={cn("bg-white/10 rounded-full overflow-hidden", compact ? "mb-2 h-[7.2px]" : "mb-2 h-[7.2px]")}>
+            <div
+              className={cn("h-[7.2px] rounded-full transition-all", radarBarClass)}
+              style={{ width: `${Math.max(model.score, 8)}%` }}
+            />
+          </div>
+
+          <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
+            <span className={cn("uppercase tracking-[0.1em] text-white/88 font-bold", compact ? "text-[14px]" : "text-[14px]")}>
+              Rischio
+            </span>
+            <span className={cn(
+              "font-black tabular-nums drop-shadow-[0_0_10px_rgba(255,120,148,0.5)] text-[#FF99AF]",
+              compact ? "text-[18px]" : "text-[18px]"
+            )}>
+              {model.riskPressure}%
+            </span>
+          </div>
+
+          <div className={cn("bg-white/10 rounded-full overflow-hidden", compact ? "mb-2 h-[7.2px]" : "mb-2 h-[7.2px]")}>
+            <div
+              className={cn("h-[7.2px] rounded-full transition-all", riskBarClass)}
+              style={{ width: `${Math.max(model.riskPressure, 8)}%` }}
+            />
+          </div>
+
+          <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2.5" : "mt-2.5 p-3")}>
+            <ul className={cn("text-white/85 space-y-1.5", compact ? "text-sm" : "text-[12px]")}>
+              {fearSummaryLines.map((line, idx) => (
+                <li key={idx} className="flex items-start gap-2">
+                  <span className={idx === 2 ? "text-[#FF99AF] mt-0.5" : "text-[#00D9A5] mt-0.5"}>•</span>
+                  <TypewriterText text={line} speed={18} delay={220 + idx * 340} />
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
-        <span className={cn(
-          "inline-flex items-center justify-center rounded-full border px-3 py-1.5 font-black uppercase tracking-[0.1em] leading-none whitespace-nowrap",
-          compact ? "text-[10px]" : "text-[10px]",
-          regimeBadgeClass
-        )}>
-          {regimeBadgeLabel}
-        </span>
-      </div>
-
-      <div className="relative">
-      <div className={cn("relative mx-auto", compact ? "-mt-[3px] h-[366px] w-full max-w-[396px]" : "h-[470px] w-full max-w-[500px]")}>
-        <svg
-          className="h-full w-full overflow-visible"
-          viewBox={`0 0 ${radarChart.size} ${radarChart.size}`}
-          role="img"
-          aria-label="Fear and Greed spider chart"
-        >
-          <defs>
-            <radialGradient
-              id={radarGradientIdRef.current}
-              gradientUnits="userSpaceOnUse"
-              cx={radarChart.center}
-              cy={radarChart.center}
-              r={compact ? 178 : 214}
-            >
-              <stop offset="0%" stopColor="rgba(34,18,10,0.07)" />
-              <stop offset="30%" stopColor="rgba(96,52,33,0.16)" />
-              <stop offset="64%" stopColor="rgba(192,116,78,0.38)" />
-              <stop offset="100%" stopColor="rgba(242,169,128,0.58)" />
-            </radialGradient>
-            <filter id={radarGlowIdRef.current} x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation="2.4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          {radarChart.ringPolygons.map((points, ringIndex) => (
-            <polygon
-              key={`ring-${ringIndex}`}
-              points={points}
-              fill="none"
-              stroke={ringIndex === radarChart.ringPolygons.length - 1 ? "rgba(245,245,245,0.25)" : "rgba(245,245,245,0.19)"}
-              strokeWidth={ringIndex === radarChart.ringPolygons.length - 1 ? 1.1 : 0.9}
-            />
-          ))}
-
-          {radarChart.axisLines.map((line, lineIndex) => (
-            <line
-              key={`axis-${lineIndex}`}
-              x1={line.x1}
-              y1={line.y1}
-              x2={line.x2}
-              y2={line.y2}
-              stroke="rgba(245,245,245,0.2)"
-              strokeWidth="0.95"
-            />
-          ))}
-
-          <polygon
-            points={radarChart.valuePolygon}
-            fill={`url(#${radarGradientIdRef.current})`}
-            stroke="rgba(247,188,146,0.86)"
-            strokeWidth="1.6"
-            filter={`url(#${radarGlowIdRef.current})`}
-          />
-
-          {radarChart.valuePoints.map((point, pointIndex) => (
-            <circle
-              key={`value-${pointIndex}`}
-              cx={point.x}
-              cy={point.y}
-              r={compact ? 3.8 : 4.4}
-              fill="rgba(255,222,193,0.88)"
-              stroke="rgba(255,190,143,0.8)"
-              strokeWidth="0.8"
-            />
-          ))}
-
-          {radarChart.labelPoints.map((labelPoint, labelIndex) => (
-            <text
-              key={`label-${labelIndex}`}
-              x={labelPoint.x}
-              y={labelPoint.y}
-              textAnchor={labelPoint.anchor}
-              dominantBaseline="middle"
-              fill="rgba(245,245,245,0.92)"
-              fontSize={compact ? 17 : 19}
-              fontWeight="700"
-              letterSpacing="0.3"
-            >
-              {labelPoint.label}
-            </text>
-          ))}
-
-          <circle
-            cx={radarChart.center}
-            cy={radarChart.center}
-            r={compact ? 30 : 36}
-            fill="rgba(8,11,16,0.9)"
-            stroke="rgba(255,255,255,0.2)"
-          />
-          <text
-            x={radarChart.center}
-            y={radarChart.center + 1}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            className={cn("font-black", compact ? "text-[24px]" : "text-[30px]")}
-            fill="rgba(255,236,219,0.99)"
-          >
-            {model.score}
-          </text>
-        </svg>
-      </div>
-
-      <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
-        <span className={cn("uppercase tracking-[0.1em] text-white/88 font-bold", compact ? "text-[14px]" : "text-[14px]")}>
-          Fear &amp; Greed
-        </span>
-        <span className={cn(
-          "font-black tabular-nums drop-shadow-[0_0_10px_rgba(255,174,126,0.55)] text-[#FFC69A]",
-          compact ? "text-[18px]" : "text-[18px]"
-        )}>
-          {model.score}
-        </span>
-      </div>
-
-      <div className={cn("bg-white/10 rounded-full overflow-hidden", compact ? "mb-2 h-[7.2px]" : "mb-2 h-[7.2px]")}>
-        <div
-          className={cn("h-[7.2px] rounded-full transition-all", radarBarClass)}
-          style={{ width: `${Math.max(model.score, 8)}%` }}
-        />
-      </div>
-
-      <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
-        <span className={cn("uppercase tracking-[0.1em] text-white/88 font-bold", compact ? "text-[14px]" : "text-[14px]")}>
-          Rischio
-        </span>
-        <span className={cn(
-          "font-black tabular-nums drop-shadow-[0_0_10px_rgba(255,120,148,0.5)] text-[#FF99AF]",
-          compact ? "text-[18px]" : "text-[18px]"
-        )}>
-          {model.riskPressure}%
-        </span>
-      </div>
-
-      <div className={cn("bg-white/10 rounded-full overflow-hidden", compact ? "mb-2 h-[7.2px]" : "mb-2 h-[7.2px]")}>
-        <div
-          className={cn("h-[7.2px] rounded-full transition-all", riskBarClass)}
-          style={{ width: `${Math.max(model.riskPressure, 8)}%` }}
-        />
-      </div>
-
-      <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2.5" : "mt-2.5 p-3")}>
-        <ul className={cn("text-white/85 space-y-1.5", compact ? "text-sm" : "text-[12px]")}>
-          {fearSummaryLines.map((line, idx) => (
-            <li key={idx} className="flex items-start gap-2">
-              <span className={idx === 2 ? "text-[#FF99AF] mt-0.5" : "text-[#00D9A5] mt-0.5"}>•</span>
-              <TypewriterText text={line} speed={18} delay={220 + idx * 340} />
-            </li>
-          ))}
-        </ul>
-      </div>
-      </div>
 
       </div>
     </TechCard>
@@ -2275,6 +2304,18 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
   };
 
   const interpretation = getInterpretation(data, metrics);
+  const legacyReport = cotData?.legacy_report && typeof cotData.legacy_report === 'object'
+    ? cotData.legacy_report
+    : null;
+  const fallbackLegacyDateLabel = (() => {
+    const raw = data?.release_date;
+    if (typeof raw !== 'string' || raw.length < 10) return null;
+    const [year, month, day] = raw.split('-');
+    if (!year || !month || !day) return null;
+    return `${day}/${month}/${year}`;
+  })();
+  const legacyReportDateLabel = legacyReport?.report_date_label || fallbackLegacyDateLabel || 'n.d.';
+  const legacyReportUrl = legacyReport?.url || COT_LEGACY_FALLBACK_URL;
 
   if (selectedInstruments.length === 0) {
     return (
@@ -2285,9 +2326,9 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
   }
 
   return (
-    <TechCard className="dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border p-3 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex flex-col">
+    <TechCard className="dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border p-4 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-3">
         <div className={cn(
           "flex items-center gap-2 transition-all duration-200",
           showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
@@ -2438,7 +2479,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
       </div>
 
       <div className={cn(
-        "flex-1 flex flex-col -mt-[18px] transition-all duration-200",
+        "flex-1 flex flex-col transition-all duration-200",
         showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
       )}>
         {/* Main Title & Value */}
@@ -2446,9 +2487,9 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
         {/* Left Aligned Compact Row */}
         {/* Left Stack Title & NetPos */}
         {/* Left Stack Title & NetPos - Big & Spaced */}
-        <div className="flex flex-col items-start px-1 mb-0 relative top-[18px] shrink-0">
+        <div className="flex flex-col items-start px-2 mb-2 shrink-0">
           <h2 className="text-xl font-bold text-white leading-none mb-0.5">{currentSymbol || '-'}</h2>
-          <div className="flex flex-col items-start mt-0.5 relative top-[14px]">
+          <div className="flex flex-col items-start mt-1">
             <span className="text-xs text-white/70 font-bold uppercase tracking-wider leading-none mb-1">Net Position</span>
             <span className={cn(
               "text-3xl font-bold tracking-tighter leading-none",
@@ -2458,7 +2499,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
         </div>
 
         {/* Rolling Bias Section */}
-        <div className="mb-0 -mt-[30px] px-0">
+        <div className="-mt-4 mb-2 px-1">
           <WeeklyBiasScale
             data={data?.rolling_bias || [
               { label: 'W-3', value: 45, isCurrent: false },
@@ -2473,7 +2514,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
         </div>
 
         {/* Metrics Row */}
-        <div className="flex items-start justify-evenly px-0 -mt-2 mb-1">
+        <div className="flex items-start justify-evenly px-1 mb-2">
           <div className="flex flex-col items-center">
             <span className="text-xs font-bold text-white/70 uppercase tracking-widest mb-0.5">Confidence</span>
             <span className="text-xl font-bold text-[#00D9A5]"><CountUp value={metrics.confidence} suffix="%" duration={1800} delay={200} /></span>
@@ -2496,15 +2537,29 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
 
 
         {/* Bias Interpretation */}
-        <div className="relative top-[4px] p-4 rounded-xl bg-white/5 border border-white/10">
+        <div className="p-4 rounded-xl bg-white/5 border border-white/10">
           <ul className="space-y-1.5 text-base text-white/90">
-            {interpretation.slice(0, 4).map((line, i) => (
+            {interpretation.slice(0, 3).map((line, i) => (
               <li key={i} className="flex items-start gap-2">
                 <span className="text-[#00D9A5] mt-0.5">•</span>
                 <TypewriterText text={line} speed={20} delay={300 + i * 800} />
               </li>
             ))}
           </ul>
+          <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
+            <p className="text-base text-white/70">
+              Ultimo rilascio COT Legacy: <span className="font-bold text-white text-[17px] ml-1">{legacyReportDateLabel}</span>
+            </p>
+            <a
+              href={legacyReportUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#67D8FF]/35 bg-[#67D8FF]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.09em] text-[#67D8FF] hover:bg-[#67D8FF]/16 transition-colors"
+            >
+              Apri report COT Legacy
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
       </div>
     </TechCard >
@@ -2652,209 +2707,209 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
         "transition-all duration-200",
         showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
       )}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Layers className="w-5 h-5 text-[#00D9A5]" />
-          <span className="font-medium text-base text-white/90">Options Flow</span>
-          {/* Info Button */}
-          <button
-            onClick={() => setShowInfo(!showInfo)}
-            className="p-1.5 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
-          >
-            <Info className="w-3.5 h-3.5 text-white" />
-          </button>
-        </div>
-        {/* Eye Icon Selector */}
-        <div className="relative" onMouseLeave={() => setShowSelector(false)}>
-          <button
-            onClick={() => setShowSelector(!showSelector)}
-            className="p-1.5 rounded-lg transition-colors border bg-slate-100 border-slate-200 hover:bg-slate-200 dark:bg-white/5 dark:border-white/20 dark:hover:bg-white/10"
-          >
-            <Eye className="w-4 h-4 text-slate-500 dark:text-white/60" />
-          </button>
-          {/* Dropdown Selector */}
-          <AnimatePresence>
-            {showSelector && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200 rounded-lg shadow-xl min-w-[160px] dark:bg-black/90 dark:border-white/10"
-              >
-                <div className="mb-2 px-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset</p>
-                </div>
-                <div className="space-y-1">
-                  {availableAssets.map(asset => (
-                    <button
-                      key={asset}
-                      onClick={() => handleAssetChange(asset)}
-                      className={cn(
-                        "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors font-medium",
-                        selectedAsset === asset
-                          ? "bg-[#00D9A5]/10 text-[#00D9A5]"
-                          : "bg-transparent text-slate-500 hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/5"
-                      )}
-                    >
-                      <span>{asset}</span>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* Asset Name - Prominent Display */}
-      <div className="flex items-center justify-between mb-1 px-2">
-        <span className="text-xl font-bold text-white">{selectedAsset}</span>
-        <span className={cn(
-          "px-2 py-1 rounded text-sm font-semibold",
-          currentData.bias === 'bullish' ? "bg-[#00D9A5]/20 text-[#00D9A5]" :
-            currentData.bias === 'bearish' ? "bg-red-500/20 text-red-400" :
-              "bg-yellow-500/20 text-yellow-400"
-        )}>
-          {currentData.bias === 'bullish' ? 'Bullish' : currentData.bias === 'bearish' ? 'Bearish' : 'Neutral'}
-        </span>
-      </div>
-
-      {/* Three Circles Layout: Call | Net Flow | Put - Responsive */}
-      <div className="flex items-end justify-center gap-2 sm:gap-4 lg:gap-6 mb-0 p-0 overflow-hidden" style={{ minHeight: '80px' }}>
-        {/* Left - Calls with Millions */}
-        <div className="flex flex-col items-center flex-shrink min-w-0">
-          <div className="relative w-[75px] h-[75px] sm:w-[90px] sm:h-[90px] lg:w-[105px] lg:h-[105px]">
-            {animationsReady && (
-              <MiniDonut
-                value={currentData.call_ratio}
-                size="100%"
-                strokeWidth={6}
-                color="#00D9A5"
-                showValue={false}
-              />
-            )}
-            {animationsReady && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={cn(
-                  "text-[10px] sm:text-xs font-medium",
-                  currentData.call_change >= 0 ? "text-[#00D9A5]" : "text-red-400"
-                )}>
-                  <CountUp value={currentData.call_change} prefix={currentData.call_change >= 0 ? '+' : ''} suffix="%" duration={1200} delay={300} />
-                </span>
-                <span className="text-xs sm:text-sm font-bold text-[#00D9A5]"><CountUp value={currentData.call_million} suffix="M" duration={1500} delay={500} /></span>
-              </div>
-            )}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Layers className="w-5 h-5 text-[#00D9A5]" />
+            <span className="font-medium text-base text-white/90">Options Flow</span>
+            {/* Info Button */}
+            <button
+              onClick={() => setShowInfo(!showInfo)}
+              className="p-1.5 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
+            >
+              <Info className="w-3.5 h-3.5 text-white" />
+            </button>
           </div>
-          <p className="text-xs sm:text-sm text-white/60 mt-1 sm:mt-2 font-medium">Calls</p>
-        </div>
-
-        {/* Center - Net Flow (larger, prominent) */}
-        <div className="flex flex-col items-center flex-shrink-0">
-          <div className="relative w-[95px] h-[95px] sm:w-[115px] sm:h-[115px] lg:w-[135px] lg:h-[135px]">
-            {animationsReady && (
-              <MiniDonut
-                value={currentData.net_flow}
-                size="100%"
-                strokeWidth={8}
-                color={currentData.bias === 'bearish' ? "#EF4444" : "#00D9A5"}
-                showValue={false}
-              />
-            )}
-            {animationsReady && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={cn(
-                  "text-[10px] sm:text-xs font-medium",
-                  currentData.net_change >= 0 ? "text-[#00D9A5]" : "text-red-400"
-                )}>
-                  <CountUp value={currentData.net_change} prefix={currentData.net_change >= 0 ? '+' : ''} suffix="%" duration={1200} delay={300} />
-                </span>
-                <span className={cn(
-                  "text-lg sm:text-xl lg:text-2xl font-bold",
-                  currentData.bias === 'bearish' ? "text-red-400" : "text-[#00D9A5]"
-                )}>
-                  <CountUp value={currentData.net_million} prefix={currentData.net_million > 0 ? '+' : ''} suffix="M" duration={1800} delay={500} />
-                </span>
-              </div>
-            )}
+          {/* Eye Icon Selector */}
+          <div className="relative" onMouseLeave={() => setShowSelector(false)}>
+            <button
+              onClick={() => setShowSelector(!showSelector)}
+              className="p-1.5 rounded-lg transition-colors border bg-slate-100 border-slate-200 hover:bg-slate-200 dark:bg-white/5 dark:border-white/20 dark:hover:bg-white/10"
+            >
+              <Eye className="w-4 h-4 text-slate-500 dark:text-white/60" />
+            </button>
+            {/* Dropdown Selector */}
+            <AnimatePresence>
+              {showSelector && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200 rounded-lg shadow-xl min-w-[160px] dark:bg-black/90 dark:border-white/10"
+                >
+                  <div className="mb-2 px-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset</p>
+                  </div>
+                  <div className="space-y-1">
+                    {availableAssets.map(asset => (
+                      <button
+                        key={asset}
+                        onClick={() => handleAssetChange(asset)}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors font-medium",
+                          selectedAsset === asset
+                            ? "bg-[#00D9A5]/10 text-[#00D9A5]"
+                            : "bg-transparent text-slate-500 hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/5"
+                        )}
+                      >
+                        <span>{asset}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          <p className="text-xs sm:text-sm text-white/60 mt-1 sm:mt-2 font-medium">Net Flow</p>
         </div>
 
-        {/* Right - Puts with Millions */}
-        <div className="flex flex-col items-center flex-shrink min-w-0">
-          <div className="relative w-[75px] h-[75px] sm:w-[90px] sm:h-[90px] lg:w-[105px] lg:h-[105px]">
-            {animationsReady && (
-              <MiniDonut
-                value={currentData.put_ratio}
-                size="100%"
-                strokeWidth={6}
-                color="#EF4444"
-                showValue={false}
-              />
-            )}
-            {animationsReady && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={cn(
-                  "text-[10px] sm:text-xs font-medium",
-                  currentData.put_change >= 0 ? "text-[#00D9A5]" : "text-red-400"
-                )}>
-                  <CountUp value={currentData.put_change} prefix={currentData.put_change >= 0 ? '+' : ''} suffix="%" duration={1200} delay={300} />
-                </span>
-                <span className="text-xs sm:text-sm font-bold text-red-400"><CountUp value={currentData.put_million} suffix="M" duration={1500} delay={500} /></span>
-              </div>
-            )}
-          </div>
-          <p className="text-xs sm:text-sm text-white/60 mt-1 sm:mt-2 font-medium">Puts</p>
-        </div>
-      </div>
-
-      {/* Summary Line */}
-      <p className="text-xs text-white/50 text-center mb-3 italic">
-        {currentData.bias === 'bullish'
-          ? 'Flussi istituzionali favorevoli al rialzo'
-          : currentData.bias === 'bearish'
-            ? 'Pressione ribassista sui derivati'
-            : 'Equilibrio tra opzioni call e put'}
-      </p>
-
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        <div className="rounded-lg bg-white/5 border border-white/10 p-2 text-center">
-          <p className="text-[10px] uppercase tracking-widest text-white/45">C/P Spread</p>
-          <p className={cn(
-            "text-sm font-semibold mt-1",
-            ratioSpread >= 0 ? "text-[#00D9A5]" : "text-red-400"
+        {/* Asset Name - Prominent Display */}
+        <div className="flex items-center justify-between mb-1 px-2">
+          <span className="text-xl font-bold text-white">{selectedAsset}</span>
+          <span className={cn(
+            "px-2 py-1 rounded text-sm font-semibold",
+            currentData.bias === 'bullish' ? "bg-[#00D9A5]/20 text-[#00D9A5]" :
+              currentData.bias === 'bearish' ? "bg-red-500/20 text-red-400" :
+                "bg-yellow-500/20 text-yellow-400"
           )}>
-            {ratioSpread >= 0 ? '+' : ''}{Math.round(ratioSpread)} pt
-          </p>
+            {currentData.bias === 'bullish' ? 'Bullish' : currentData.bias === 'bearish' ? 'Bearish' : 'Neutral'}
+          </span>
         </div>
-        <div className="rounded-lg bg-white/5 border border-white/10 p-2 text-center">
-          <p className="text-[10px] uppercase tracking-widest text-white/45">Gross Flow</p>
-          <p className="text-sm font-semibold mt-1 text-white">{Math.round(grossPremium)}M</p>
-        </div>
-        <div className="rounded-lg bg-white/5 border border-white/10 p-2 text-center">
-          <p className="text-[10px] uppercase tracking-widest text-white/45">Net Momentum</p>
-          <p className={cn(
-            "text-sm font-semibold mt-1",
-            currentData.net_change >= 0 ? "text-[#00D9A5]" : "text-red-400"
-          )}>
-            {signedPct(currentData.net_change)}
-          </p>
-        </div>
-      </div>
 
-      {/* Options Interpretation - Bullet Points styled like Screening */}
-      <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-        <ul className="space-y-1.5 text-base text-white/90">
-          {flowBullets.map((line, idx) => (
-            <li key={idx} className="flex items-start gap-2">
-              <span className="text-[#00D9A5] mt-0.5">•</span>
-              <TypewriterText text={line} speed={20} delay={300 + idx * 800} />
-            </li>
-          ))}
-        </ul>
-      </div>
+        {/* Three Circles Layout: Call | Net Flow | Put - Responsive */}
+        <div className="flex items-end justify-center gap-2 sm:gap-4 lg:gap-6 mb-0 p-0 overflow-hidden" style={{ minHeight: '80px' }}>
+          {/* Left - Calls with Millions */}
+          <div className="flex flex-col items-center flex-shrink min-w-0">
+            <div className="relative w-[75px] h-[75px] sm:w-[90px] sm:h-[90px] lg:w-[105px] lg:h-[105px]">
+              {animationsReady && (
+                <MiniDonut
+                  value={currentData.call_ratio}
+                  size="100%"
+                  strokeWidth={6}
+                  color="#00D9A5"
+                  showValue={false}
+                />
+              )}
+              {animationsReady && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={cn(
+                    "text-[10px] sm:text-xs font-medium",
+                    currentData.call_change >= 0 ? "text-[#00D9A5]" : "text-red-400"
+                  )}>
+                    <CountUp value={currentData.call_change} prefix={currentData.call_change >= 0 ? '+' : ''} suffix="%" duration={1200} delay={300} />
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-[#00D9A5]"><CountUp value={currentData.call_million} suffix="M" duration={1500} delay={500} /></span>
+                </div>
+              )}
+            </div>
+            <p className="text-xs sm:text-sm text-white/60 mt-1 sm:mt-2 font-medium">Calls</p>
+          </div>
 
-      {/* Compact Disclaimer Summary - Matching Chart Style */}
+          {/* Center - Net Flow (larger, prominent) */}
+          <div className="flex flex-col items-center flex-shrink-0">
+            <div className="relative w-[95px] h-[95px] sm:w-[115px] sm:h-[115px] lg:w-[135px] lg:h-[135px]">
+              {animationsReady && (
+                <MiniDonut
+                  value={currentData.net_flow}
+                  size="100%"
+                  strokeWidth={8}
+                  color={currentData.bias === 'bearish' ? "#EF4444" : "#00D9A5"}
+                  showValue={false}
+                />
+              )}
+              {animationsReady && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={cn(
+                    "text-[10px] sm:text-xs font-medium",
+                    currentData.net_change >= 0 ? "text-[#00D9A5]" : "text-red-400"
+                  )}>
+                    <CountUp value={currentData.net_change} prefix={currentData.net_change >= 0 ? '+' : ''} suffix="%" duration={1200} delay={300} />
+                  </span>
+                  <span className={cn(
+                    "text-lg sm:text-xl lg:text-2xl font-bold",
+                    currentData.bias === 'bearish' ? "text-red-400" : "text-[#00D9A5]"
+                  )}>
+                    <CountUp value={currentData.net_million} prefix={currentData.net_million > 0 ? '+' : ''} suffix="M" duration={1800} delay={500} />
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="text-xs sm:text-sm text-white/60 mt-1 sm:mt-2 font-medium">Net Flow</p>
+          </div>
+
+          {/* Right - Puts with Millions */}
+          <div className="flex flex-col items-center flex-shrink min-w-0">
+            <div className="relative w-[75px] h-[75px] sm:w-[90px] sm:h-[90px] lg:w-[105px] lg:h-[105px]">
+              {animationsReady && (
+                <MiniDonut
+                  value={currentData.put_ratio}
+                  size="100%"
+                  strokeWidth={6}
+                  color="#EF4444"
+                  showValue={false}
+                />
+              )}
+              {animationsReady && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={cn(
+                    "text-[10px] sm:text-xs font-medium",
+                    currentData.put_change >= 0 ? "text-[#00D9A5]" : "text-red-400"
+                  )}>
+                    <CountUp value={currentData.put_change} prefix={currentData.put_change >= 0 ? '+' : ''} suffix="%" duration={1200} delay={300} />
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-red-400"><CountUp value={currentData.put_million} suffix="M" duration={1500} delay={500} /></span>
+                </div>
+              )}
+            </div>
+            <p className="text-xs sm:text-sm text-white/60 mt-1 sm:mt-2 font-medium">Puts</p>
+          </div>
+        </div>
+
+        {/* Summary Line */}
+        <p className="text-xs text-white/50 text-center mb-3 italic">
+          {currentData.bias === 'bullish'
+            ? 'Flussi istituzionali favorevoli al rialzo'
+            : currentData.bias === 'bearish'
+              ? 'Pressione ribassista sui derivati'
+              : 'Equilibrio tra opzioni call e put'}
+        </p>
+
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="rounded-lg bg-white/5 border border-white/10 p-2 text-center">
+            <p className="text-[10px] uppercase tracking-widest text-white/45">C/P Spread</p>
+            <p className={cn(
+              "text-sm font-semibold mt-1",
+              ratioSpread >= 0 ? "text-[#00D9A5]" : "text-red-400"
+            )}>
+              {ratioSpread >= 0 ? '+' : ''}{Math.round(ratioSpread)} pt
+            </p>
+          </div>
+          <div className="rounded-lg bg-white/5 border border-white/10 p-2 text-center">
+            <p className="text-[10px] uppercase tracking-widest text-white/45">Gross Flow</p>
+            <p className="text-sm font-semibold mt-1 text-white">{Math.round(grossPremium)}M</p>
+          </div>
+          <div className="rounded-lg bg-white/5 border border-white/10 p-2 text-center">
+            <p className="text-[10px] uppercase tracking-widest text-white/45">Net Momentum</p>
+            <p className={cn(
+              "text-sm font-semibold mt-1",
+              currentData.net_change >= 0 ? "text-[#00D9A5]" : "text-red-400"
+            )}>
+              {signedPct(currentData.net_change)}
+            </p>
+          </div>
+        </div>
+
+        {/* Options Interpretation - Bullet Points styled like Screening */}
+        <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+          <ul className="space-y-1.5 text-base text-white/90">
+            {flowBullets.slice(0, 3).map((line, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="text-[#00D9A5] mt-0.5">•</span>
+                <TypewriterText text={line} speed={20} delay={300 + idx * 800} />
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Compact Disclaimer Summary - Matching Chart Style */}
       </div>
 
     </TechCard>
@@ -3077,215 +3132,215 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
         "transition-all duration-200",
         showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
       )}>
-      <div className={cn("flex items-start justify-between px-1", compact ? "mb-2.5" : "mb-3")}>
-        <div className="flex flex-col items-start mt-[2px]">
-          <div className="inline-flex items-center gap-2">
-            <Gauge className="w-5 h-5 text-[#00D9A5]" />
-            <span className="font-medium text-base text-white/90">
-              GEX 0DTE
-            </span>
+        <div className={cn("flex items-start justify-between px-1", compact ? "mb-2.5" : "mb-3")}>
+          <div className="flex flex-col items-start mt-[2px]">
+            <div className="inline-flex items-center gap-2">
+              <Gauge className="w-5 h-5 text-[#00D9A5]" />
+              <span className="font-medium text-base text-white/90">
+                GEX 0DTE
+              </span>
+            </div>
+            <span className="mt-1.5 font-apple text-xl font-bold leading-none text-white">{selectedAsset}</span>
           </div>
-          <span className="mt-1.5 font-apple text-xl font-bold leading-none text-white">{selectedAsset}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className={cn(
-            "inline-flex items-center justify-center rounded-full border px-3 py-1.5 font-black uppercase tracking-[0.1em] leading-none whitespace-nowrap",
-            compact ? "text-[10px]" : "text-[10px]",
-            gexStats.totalNet >= 0
-              ? "text-[#00D9A5] border-[#00D9A5]/35 bg-[#001812]"
-              : "text-red-300 border-red-400/35 bg-[#22090F]"
-          )}>
-            {gexStats.regimeLabel}
-          </span>
-          <button
-            onClick={() => setShowInfo(!showInfo)}
-            className={cn(
-              "rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100",
-              compact ? "p-1.5" : "p-1.5"
-            )}
-          >
-            <Info className={cn("text-white", compact ? "w-4 h-4" : "w-3.5 h-3.5")} />
-          </button>
-
-          <div className="relative" onMouseLeave={() => setShowSelector(false)}>
+          <div className="flex items-center gap-1.5">
+            <span className={cn(
+              "inline-flex items-center justify-center rounded-full border px-3 py-1.5 font-black uppercase tracking-[0.1em] leading-none whitespace-nowrap",
+              compact ? "text-[10px]" : "text-[10px]",
+              gexStats.totalNet >= 0
+                ? "text-[#00D9A5] border-[#00D9A5]/35 bg-[#001812]"
+                : "text-red-300 border-red-400/35 bg-[#22090F]"
+            )}>
+              {gexStats.regimeLabel}
+            </span>
             <button
-              onClick={() => setShowSelector(!showSelector)}
+              onClick={() => setShowInfo(!showInfo)}
               className={cn(
-                "rounded-lg transition-colors border bg-slate-100 border-slate-200 hover:bg-slate-200 dark:bg-white/5 dark:border-white/20 dark:hover:bg-white/10",
+                "rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100",
                 compact ? "p-1.5" : "p-1.5"
               )}
             >
-              <Eye className={cn("text-slate-500 dark:text-white/60", compact ? "w-4 h-4" : "w-4 h-4")} />
+              <Info className={cn("text-white", compact ? "w-4 h-4" : "w-3.5 h-3.5")} />
             </button>
-            <AnimatePresence>
-              {showSelector && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200 rounded-lg shadow-xl min-w-[160px] dark:bg-black/90 dark:border-white/10"
-                >
-                  <div className="mb-2 px-1">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset</p>
-                  </div>
-                  <div className="space-y-1">
-                    {availableAssets.map(asset => (
-                      <button
-                        key={asset}
-                        onClick={() => handleAssetChange(asset)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors font-medium",
-                          selectedAsset === asset
-                            ? "bg-[#00D9A5]/10 text-[#00D9A5]"
-                            : "bg-transparent text-slate-500 hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/5"
-                        )}
-                      >
-                        <span>{asset}</span>
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
 
-      <div className={cn("grid grid-cols-[1fr_auto_1fr] items-center", compact ? "mb-2 text-[12px]" : "mb-2 text-[12px]")}>
-        <span className="inline-flex items-center gap-1.5 rounded-md border border-[#B574FF]/35 bg-[#B574FF]/10 px-2 py-1 font-semibold text-[#D9B9FF] justify-self-start">
-          Put Wall
-          <span className="font-black text-white">{formatStrikeLevel(gexStats.putWall?.strike)}</span>
-        </span>
-        <span className={cn(
-          "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-semibold justify-self-center translate-x-[6px]",
-          gexStats.totalNet >= 0
-            ? "border-[#00D9A5]/35 bg-[#00D9A5]/10 text-[#A7FFE7]"
-            : "border-red-400/35 bg-red-500/10 text-red-300"
-        )}>
-          Net GEX
-          <span className="font-black text-white">{formatSignedGammaExposure(gexStats.totalNet)}</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-md border border-[#E3C98A]/35 bg-[#E3C98A]/10 px-2 py-1 font-semibold text-[#F4DFB4] justify-self-end">
-          Call Wall
-          <span className="font-black text-white">{formatStrikeLevel(gexStats.callWall?.strike)}</span>
-        </span>
-      </div>
-
-      <div className={cn("rounded-xl bg-white/[0.03] border border-white/10 mx-auto", compact ? "p-2 max-w-full" : "p-2 max-w-full")}>
-        <div className={cn("space-y-1 overflow-y-auto scrollbar-thin pr-1", compact ? "max-h-[250px]" : "max-h-[220px]")}>
-          {normalizedProfile.map((row, idx) => {
-            const putWidth = Math.min((Math.abs(row.put || 0) / maxGamma) * 50, 50);
-            const callWidth = Math.min((Math.abs(row.call || 0) / maxGamma) * 50, 50);
-            const netValue = row.net;
-            const netWidth = Math.min((Math.abs(netValue) / maxGamma) * 50, 50);
-            const isNetPositive = netValue >= 0;
-
-            return (
-              <div key={`${row.strike}-${idx}`} className={cn("grid items-center gap-1.5", compact ? "grid-cols-[56px_1fr]" : "grid-cols-[60px_1fr]")}>
-                <span className={cn("text-right font-bold text-white/90", compact ? "text-[13px]" : "text-[13px]")}>
-                  {formatStrikeLevel(row.strike)}
-                </span>
-                <div className={cn("relative rounded-md bg-black/20 overflow-hidden", compact ? "h-[15px]" : "h-3")}>
-                  <div className="absolute inset-y-0 left-1/2 w-px bg-white/20" />
-
-                  {putWidth > 0 && (
-                    <div
-                      className={cn(
-                        "absolute right-1/2 top-1/2 -translate-y-1/2 rounded-l-sm bg-[#B574FF]/95",
-                        compact ? "h-[6px]" : "h-[6px]"
-                      )}
-                      style={{ width: `${putWidth}%` }}
-                    />
-                  )}
-
-                  {callWidth > 0 && (
-                    <div
-                      className={cn(
-                        "absolute left-1/2 top-1/2 -translate-y-1/2 rounded-r-sm bg-[#E3C98A]/95",
-                        compact ? "h-[6px]" : "h-[6px]"
-                      )}
-                      style={{ width: `${callWidth}%` }}
-                    />
-                  )}
-
-                  {netWidth > 0 && (
-                    <div
-                      className={cn(
-                        "absolute top-1/2 -translate-y-1/2 bg-[#FF4D7A]/95",
-                        compact ? "h-[4px]" : "h-[4px]",
-                        isNetPositive ? "left-1/2 rounded-r-sm" : "right-1/2 rounded-l-sm"
-                      )}
-                      style={{ width: `${netWidth}%` }}
-                    />
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className={cn("mt-1.5 grid items-center gap-1.5", compact ? "grid-cols-[56px_1fr]" : "grid-cols-[60px_1fr]")}>
-          <span />
-          <div className={cn("flex items-center justify-between text-white font-bold tabular-nums", compact ? "text-[13px]" : "text-[13px]")}>
-            <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">-{formatGammaScale(maxGamma)}</span>
-            <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">0</span>
-            <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">{formatGammaScale(maxGamma)}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className={cn("grid gap-2", compact ? "mt-2.5 mb-2.5 grid-cols-2" : "mt-3 mb-3 grid-cols-2")}>
-        {gexKpiCards.map((item) => (
-          <div key={item.key} className="rounded-md border border-white/10 bg-black/20 px-2.5 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] uppercase tracking-[0.08em] leading-none text-white/80 whitespace-nowrap font-semibold">
-                {item.label}
-              </p>
-              <p className={cn(
-                "font-bold leading-none whitespace-nowrap text-right",
-                compact ? "text-[16px]" : "text-[17px]",
-                item.valueClass
-              )}>
-                {item.value}
-              </p>
+            <div className="relative" onMouseLeave={() => setShowSelector(false)}>
+              <button
+                onClick={() => setShowSelector(!showSelector)}
+                className={cn(
+                  "rounded-lg transition-colors border bg-slate-100 border-slate-200 hover:bg-slate-200 dark:bg-white/5 dark:border-white/20 dark:hover:bg-white/10",
+                  compact ? "p-1.5" : "p-1.5"
+                )}
+              >
+                <Eye className={cn("text-slate-500 dark:text-white/60", compact ? "w-4 h-4" : "w-4 h-4")} />
+              </button>
+              <AnimatePresence>
+                {showSelector && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200 rounded-lg shadow-xl min-w-[160px] dark:bg-black/90 dark:border-white/10"
+                  >
+                    <div className="mb-2 px-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset</p>
+                    </div>
+                    <div className="space-y-1">
+                      {availableAssets.map(asset => (
+                        <button
+                          key={asset}
+                          onClick={() => handleAssetChange(asset)}
+                          className={cn(
+                            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors font-medium",
+                            selectedAsset === asset
+                              ? "bg-[#00D9A5]/10 text-[#00D9A5]"
+                              : "bg-transparent text-slate-500 hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/5"
+                          )}
+                        >
+                          <span>{asset}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
 
-      <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
-        <span className={cn("uppercase tracking-[0.1em] text-white/85 font-bold", compact ? "text-[12px]" : "text-[12px]")}>
-          Net GEX
-        </span>
-        <span className={cn(
-          "font-black tabular-nums drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]",
-          compact ? "text-[15px]" : "text-[15px]",
-          gexStats.totalNet >= 0 ? "text-[#00D9A5]" : "text-red-400"
-        )}>
-          {formatSignedGammaExposure(gexStats.totalNet)}
-        </span>
-      </div>
+        <div className={cn("grid grid-cols-[1fr_auto_1fr] items-center", compact ? "mb-2 text-[12px]" : "mb-2 text-[12px]")}>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-[#B574FF]/35 bg-[#B574FF]/10 px-2 py-1 font-semibold text-[#D9B9FF] justify-self-start">
+            Put Wall
+            <span className="font-black text-white">{formatStrikeLevel(gexStats.putWall?.strike)}</span>
+          </span>
+          <span className={cn(
+            "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-semibold justify-self-center translate-x-[6px]",
+            gexStats.totalNet >= 0
+              ? "border-[#00D9A5]/35 bg-[#00D9A5]/10 text-[#A7FFE7]"
+              : "border-red-400/35 bg-red-500/10 text-red-300"
+          )}>
+            Net GEX
+            <span className="font-black text-white">{formatSignedGammaExposure(gexStats.totalNet)}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-[#E3C98A]/35 bg-[#E3C98A]/10 px-2 py-1 font-semibold text-[#F4DFB4] justify-self-end">
+            Call Wall
+            <span className="font-black text-white">{formatStrikeLevel(gexStats.callWall?.strike)}</span>
+          </span>
+        </div>
 
-      <div className={cn("bg-white/10 rounded-full overflow-hidden flex items-center", compact ? "mb-2 h-2" : "mb-2 h-2")}>
-        <div
-          className={cn(
-            "h-1.5 rounded-full transition-all",
-            gexStats.totalNet >= 0 ? "bg-[#00D9A5]" : "bg-red-400"
-          )}
-          style={{ width: `${Math.max(netIntensity, 8)}%` }}
-        />
-      </div>
+        <div className={cn("rounded-xl bg-white/[0.03] border border-white/10 mx-auto", compact ? "p-2 max-w-full" : "p-2 max-w-full")}>
+          <div className={cn("space-y-1 overflow-y-auto scrollbar-thin pr-1", compact ? "max-h-[250px]" : "max-h-[220px]")}>
+            {normalizedProfile.map((row, idx) => {
+              const putWidth = Math.min((Math.abs(row.put || 0) / maxGamma) * 50, 50);
+              const callWidth = Math.min((Math.abs(row.call || 0) / maxGamma) * 50, 50);
+              const netValue = row.net;
+              const netWidth = Math.min((Math.abs(netValue) / maxGamma) * 50, 50);
+              const isNetPositive = netValue >= 0;
 
-      <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2.5" : "mt-2.5 p-3")}>
-        <ul className={cn("text-white/85 space-y-1.5", compact ? "text-sm" : "text-[12px]")}>
-          {gexActionPlan.map((line, idx) => (
-            <li key={idx} className="flex items-start gap-2">
-              <span className="text-[#00D9A5] mt-0.5">•</span>
-              <TypewriterText text={line} speed={18} delay={260 + idx * 480} />
-            </li>
+              return (
+                <div key={`${row.strike}-${idx}`} className={cn("grid items-center gap-1.5", compact ? "grid-cols-[56px_1fr]" : "grid-cols-[60px_1fr]")}>
+                  <span className={cn("text-right font-bold text-white/90", compact ? "text-[13px]" : "text-[13px]")}>
+                    {formatStrikeLevel(row.strike)}
+                  </span>
+                  <div className={cn("relative rounded-md bg-black/20 overflow-hidden", compact ? "h-[15px]" : "h-3")}>
+                    <div className="absolute inset-y-0 left-1/2 w-px bg-white/20" />
+
+                    {putWidth > 0 && (
+                      <div
+                        className={cn(
+                          "absolute right-1/2 top-1/2 -translate-y-1/2 rounded-l-sm bg-[#B574FF]/95",
+                          compact ? "h-[6px]" : "h-[6px]"
+                        )}
+                        style={{ width: `${putWidth}%` }}
+                      />
+                    )}
+
+                    {callWidth > 0 && (
+                      <div
+                        className={cn(
+                          "absolute left-1/2 top-1/2 -translate-y-1/2 rounded-r-sm bg-[#E3C98A]/95",
+                          compact ? "h-[6px]" : "h-[6px]"
+                        )}
+                        style={{ width: `${callWidth}%` }}
+                      />
+                    )}
+
+                    {netWidth > 0 && (
+                      <div
+                        className={cn(
+                          "absolute top-1/2 -translate-y-1/2 bg-[#FF4D7A]/95",
+                          compact ? "h-[4px]" : "h-[4px]",
+                          isNetPositive ? "left-1/2 rounded-r-sm" : "right-1/2 rounded-l-sm"
+                        )}
+                        style={{ width: `${netWidth}%` }}
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className={cn("mt-1.5 grid items-center gap-1.5", compact ? "grid-cols-[56px_1fr]" : "grid-cols-[60px_1fr]")}>
+            <span />
+            <div className={cn("flex items-center justify-between text-white font-bold tabular-nums", compact ? "text-[13px]" : "text-[13px]")}>
+              <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">-{formatGammaScale(maxGamma)}</span>
+              <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">0</span>
+              <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">{formatGammaScale(maxGamma)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className={cn("grid gap-2", compact ? "mt-2.5 mb-2.5 grid-cols-2" : "mt-3 mb-3 grid-cols-2")}>
+          {gexKpiCards.map((item) => (
+            <div key={item.key} className="rounded-md border border-white/10 bg-black/20 px-2.5 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] uppercase tracking-[0.08em] leading-none text-white/80 whitespace-nowrap font-semibold">
+                  {item.label}
+                </p>
+                <p className={cn(
+                  "font-bold leading-none whitespace-nowrap text-right",
+                  compact ? "text-[16px]" : "text-[17px]",
+                  item.valueClass
+                )}>
+                  {item.value}
+                </p>
+              </div>
+            </div>
           ))}
-        </ul>
-      </div>
+        </div>
+
+        <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
+          <span className={cn("uppercase tracking-[0.1em] text-white/85 font-bold", compact ? "text-[12px]" : "text-[12px]")}>
+            Net GEX
+          </span>
+          <span className={cn(
+            "font-black tabular-nums drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]",
+            compact ? "text-[15px]" : "text-[15px]",
+            gexStats.totalNet >= 0 ? "text-[#00D9A5]" : "text-red-400"
+          )}>
+            {formatSignedGammaExposure(gexStats.totalNet)}
+          </span>
+        </div>
+
+        <div className={cn("bg-white/10 rounded-full overflow-hidden flex items-center", compact ? "mb-2 h-2" : "mb-2 h-2")}>
+          <div
+            className={cn(
+              "h-1.5 rounded-full transition-all",
+              gexStats.totalNet >= 0 ? "bg-[#00D9A5]" : "bg-red-400"
+            )}
+            style={{ width: `${Math.max(netIntensity, 8)}%` }}
+          />
+        </div>
+
+        <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2.5" : "mt-2.5 p-3")}>
+          <ul className={cn("text-white/85 space-y-1.5", compact ? "text-sm" : "text-[12px]")}>
+            {gexActionPlan.slice(0, 3).map((line, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="text-[#00D9A5] mt-0.5">•</span>
+                <TypewriterText text={line} speed={18} delay={260 + idx * 480} />
+              </li>
+            ))}
+          </ul>
+        </div>
 
       </div>
     </TechCard>
@@ -3782,10 +3837,10 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
             <ul className="space-y-2 text-base text-white/85 leading-relaxed">
               {(newsSummaries?.three_hour
                 ? newsSummaries.three_hour
-                    .split('.')
-                    .map((line) => line.trim())
-                    .filter(Boolean)
-                    .slice(0, 4)
+                  .split('.')
+                  .map((line) => line.trim())
+                  .filter(Boolean)
+                  .slice(0, 4)
                 : ['Nessun riassunto disponibile al momento.']
               ).map((line, idx) => (
                 <li key={idx} className="flex items-start gap-2">
@@ -3798,6 +3853,98 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
         </TechCard>
       </div>
 
+    </div>
+  );
+};
+
+// Market Sessions Clock Widget
+const MarketSessionsClock = () => {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getSessionStatus = (tz, openHour, closeHour) => {
+    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false });
+    const parts = formatter.formatToParts(now);
+
+    // Safely extract hr/min defaulting to 0
+    const hrPart = parts.find(p => p.type === 'hour');
+    const minPart = parts.find(p => p.type === 'minute');
+    const hr = hrPart ? parseInt(hrPart.value, 10) : 0;
+    const min = minPart ? parseInt(minPart.value, 10) : 0;
+
+    const parsedHr = hr === 24 ? 0 : hr;
+    const currentHourFloat = parsedHr + min / 60;
+
+    const localTimeFormatted = `${parsedHr.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+
+    const dayFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' });
+    const dayName = dayFormatter.format(now);
+    const isWeekend = dayName === 'Sat' || dayName === 'Sun';
+
+    const isOpen = !isWeekend && currentHourFloat >= openHour && currentHourFloat < closeHour;
+
+    let countdownMsg = '';
+    let isOpeningSoon = false;
+    let isClosingSoon = false;
+
+    if (isWeekend) {
+      countdownMsg = 'Chiuso (Weekend)';
+    } else if (isOpen) {
+      const remaining = closeHour - currentHourFloat;
+      const h = Math.floor(remaining);
+      const m = Math.floor((remaining - h) * 60);
+      countdownMsg = `Chiusura ${h}h ${m}m`;
+      if (h === 0) isClosingSoon = true;
+    } else {
+      let remaining = openHour - currentHourFloat;
+      if (remaining < 0) remaining += 24;
+      const h = Math.floor(remaining);
+      const m = Math.floor((remaining - h) * 60);
+      countdownMsg = `Apertura ${h}h ${m}m`;
+      if (h === 0) isOpeningSoon = true;
+    }
+
+    return { localTime: localTimeFormatted, isOpen, countdownMsg, isOpeningSoon, isClosingSoon };
+  };
+
+  const sessionsConfig = [
+    { name: 'Sydney', tz: 'Australia/Sydney', open: 10, close: 16 },
+    { name: 'Tokyo', tz: 'Asia/Tokyo', open: 9, close: 15 },
+    { name: 'London', tz: 'Europe/London', open: 8, close: 16.5 },
+    { name: 'New York', tz: 'America/New_York', open: 9.5, close: 16 }
+  ];
+
+  const sessions = sessionsConfig.map(s => ({
+    name: s.name,
+    ...getSessionStatus(s.tz, s.open, s.close)
+  }));
+
+  return (
+    <div className="hidden xl:flex items-center justify-center flex-1 gap-2 xl:gap-8 px-4 overflow-hidden border-x border-slate-200 dark:border-white/10 mx-4 font-apple">
+      {sessions.map((s, i) => (
+        <React.Fragment key={i}>
+          <div className="flex flex-col items-center justify-center tracking-tight">
+            <div className="flex items-center gap-2">
+              <span className={cn("w-2 h-2 rounded-full", s.isOpen ? "bg-[#00D9A5] shadow-[0_0_8px_rgba(0,217,165,0.6)]" : "bg-white/20")} />
+              <span className="text-[18px] font-medium text-white/60">{s.name}</span>
+              <span className="text-[19px] font-semibold tabular-nums text-slate-800 dark:text-white/95">{s.localTime}</span>
+            </div>
+            <span className={cn(
+              "text-[13px] font-medium mt-0.5",
+              s.isOpen ? (s.isClosingSoon ? "text-yellow-400" : "text-[#00D9A5]/90") : (s.isOpeningSoon ? "text-yellow-400" : "text-white/50")
+            )}>
+              {s.countdownMsg}
+            </span>
+          </div>
+          {i < sessions.length - 1 && (
+            <div className="hidden sm:block w-px h-6 bg-slate-200 dark:bg-white/10" />
+          )}
+        </React.Fragment>
+      ))}
     </div>
   );
 };
@@ -3867,7 +4014,9 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
     'free': { border: 'border-slate-500/30', bg: 'bg-slate-500/10', text: 'text-slate-400', icon: Activity }
   };
 
-  const planName = subscription?.plan_name || 'Free Trader';
+  const planNameMap = { 'Essential': 'Standard', 'Plus': 'Pro', 'Pro': 'Elite' };
+  const rawPlanName = subscription?.plan_name || 'Free Trader';
+  const planName = planNameMap[rawPlanName] || rawPlanName;
   const planSlug = subscription?.plan_slug || 'free';
   const slugBase = planSlug.split('-')[0].toLowerCase();
   const style = planColors[slugBase] || planColors.free;
@@ -3959,6 +4108,9 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
             )} />
           </button>
         </div>
+
+        {/* Center: Live Market Sessions */}
+        <MarketSessionsClock />
 
         {/* Right side: News + Subscription Plan Badge */}
         <div className="hidden sm:flex items-center gap-6">
@@ -4415,69 +4567,69 @@ export default function DashboardPage() {
 
       {/* Main Grid: Center + GEX + Right Sidebar */}
       <div className="xl:overflow-x-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-4 lg:mr-2 lg:items-start xl:min-w-[1500px]">
-        {/* CENTER: Charts + COT + Market Breadth */}
-        <div className="lg:col-span-8 space-y-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-start lg:gap-4">
-            <AssetChartPanel
-              assets={assetsList}
-              favoriteCharts={favoriteCharts}
-              onFavoriteChange={setFavoriteCharts}
-              animationsReady={headerHidden}
-              onSyncAsset={handleSyncAsset}
-              className="lg:w-[48%]"
-            />
-            <div className="lg:w-[36%]">
-              <GammaExposurePanel
-                selectedAsset={optionsSelectedAsset}
-                onAssetChange={setOptionsSelectedAsset}
-                compact
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-start lg:gap-4">
-            <div className="lg:w-[48%]">
-              <COTPanel cotData={cotDataToUse} favoriteCOT={favoriteCOT} onFavoriteCOTChange={setFavoriteCOT} animationsReady={headerHidden} />
-            </div>
-            <div className="lg:w-[36%]">
-              <OptionsPanel
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-4 lg:mr-2 lg:items-start xl:min-w-[1500px]">
+          {/* CENTER: Charts + COT + Market Breadth */}
+          <div className="lg:col-span-8 flex flex-col gap-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-start lg:gap-4">
+              <AssetChartPanel
+                assets={assetsList}
+                favoriteCharts={favoriteCharts}
+                onFavoriteChange={setFavoriteCharts}
                 animationsReady={headerHidden}
-                selectedAsset={optionsSelectedAsset}
-                onAssetChange={setOptionsSelectedAsset}
-                className="lg:mt-0"
+                onSyncAsset={handleSyncAsset}
+                className="lg:w-[calc(44%+1px)]"
               />
+              <div className="lg:w-[calc(40%+1px)] lg:-ml-[4px]">
+                <GammaExposurePanel
+                  selectedAsset={optionsSelectedAsset}
+                  onAssetChange={setOptionsSelectedAsset}
+                  compact
+                />
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* GEX Column (left of News) */}
-        <div className="lg:col-span-2 self-start space-y-4 lg:w-[134%] lg:-ml-[32%] lg:pr-0 lg:mr-[2px] xl:w-[148%] xl:-ml-[62%] xl:pr-2 xl:mr-[10px]">
-          <div className="relative">
-            <div className="space-y-4">
-              <FearGreedPanel
-                analyses={analysesData}
-                vix={vix || { current: 17.62, change: -0.96 }}
-                regime={regime || 'risk-on'}
-                compact
-              />
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                <MarketBreadthPanel breadthData={marketBreadth} className="lg:w-full lg:mt-[1px]" />
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-start lg:gap-4">
+              <div className="lg:w-[44%]">
+                <COTPanel cotData={cotDataToUse} favoriteCOT={favoriteCOT} onFavoriteCOTChange={setFavoriteCOT} animationsReady={headerHidden} />
+              </div>
+              <div className="lg:w-[calc(40%+3px)] lg:-ml-[3px]">
+                <OptionsPanel
+                  animationsReady={headerHidden}
+                  selectedAsset={optionsSelectedAsset}
+                  onAssetChange={setOptionsSelectedAsset}
+                  className="lg:mt-0"
+                />
               </div>
             </div>
           </div>
-        </div>
 
-        {/* RIGHT SIDEBAR: News + Activity + Strategies */}
-        <div className="lg:col-span-2 lg:pl-0">
-          <ActivitySidebar
-            news={newsBriefing?.events}
-            newsSummaries={newsBriefing?.summaries}
-            strategiesProjections={strategyProjections}
-            strategiesCatalog={strategiesCatalog}
-          />
+          {/* GEX Column (left of News) */}
+          <div className="lg:col-span-2 self-start space-y-4 lg:w-[134%] lg:-ml-[32%] lg:pr-0 lg:mr-[2px] xl:w-[148%] xl:-ml-[62%] xl:pr-2 xl:mr-[10px]">
+            <div className="relative">
+              <div className="space-y-4">
+                <FearGreedPanel
+                  analyses={analysesData}
+                  vix={vix || { current: 17.62, change: -0.96 }}
+                  regime={regime || 'risk-on'}
+                  compact
+                />
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                  <MarketBreadthPanel breadthData={marketBreadth} className="lg:w-full lg:mt-[1px]" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT SIDEBAR: News + Activity + Strategies */}
+          <div className="lg:col-span-2 lg:pl-0">
+            <ActivitySidebar
+              news={newsBriefing?.events}
+              newsSummaries={newsBriefing?.summaries}
+              strategiesProjections={strategyProjections}
+              strategiesCatalog={strategiesCatalog}
+            />
+          </div>
         </div>
-      </div>
       </div>
     </div>
   );

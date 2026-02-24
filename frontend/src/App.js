@@ -39,6 +39,7 @@ const PricingPage = lazy(() => import('./components/pages/PricingPage'));
 const CheckoutSuccessPage = lazy(() => import('./components/pages/CheckoutSuccessPage'));
 const IntroPreviewPage = lazy(() => import('./components/pages/IntroPreviewPage'));
 const MobilePreviewPage = lazy(() => import('./components/pages/MobilePreviewPage'));
+const BacktestPage = lazy(() => import('./components/pages/BacktestPage'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -163,6 +164,7 @@ function AppRoutes() {
           <Route path="journal" element={<JournalPage />} />
           <Route path="ai" element={<AIPage />} />
           <Route path="ascension" element={<AscensionPage />} />
+          <Route path="backtest" element={<BacktestPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 
