@@ -1,0 +1,4 @@
+{"ts_utc":"2026-03-01T00:44:21.276091+00:00","stream":"collection_errors","payload":{"job":"global_pulse","error":"'MarketDataService' object has no attribute 'get_correlation_nexus'"}}
+{"ts_utc":"2026-03-01T01:44:22.963620+00:00","stream":"collection_errors","payload":{"job":"global_pulse","error":"'MarketDataService' object has no attribute 'get_correlation_nexus'"}}
+{"ts_utc":"2026-03-01T02:44:21.681380+00:00","stream":"collection_errors","payload":{"job":"global_pulse","error":"'MarketDataService' object has no attribute 'get_correlation_nexus'"}}
+{"ts_utc":"2026-03-01T02:48:31.439129+00:00","stream":"collection_errors","payload":{"job":"global_pulse","error":"cannot import name 'calculate_multi_source_score' from 'multi_source_engine' (/Users/denny/Documents/New project/backend/multi_source_engine.py)"}}

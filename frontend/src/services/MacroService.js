@@ -1,6 +1,9 @@
 // Macro Data Service — Updated 11 Feb 2026
 // Real market data snapshot. Simulated random walk for live updates.
 
+const BACKEND_URL_RAW = (process.env.REACT_APP_BACKEND_URL || '').trim().replace(/\/$/, '');
+const IS_LOCAL_HOST = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const SAFE_BACKEND_URL = !IS_LOCAL_HOST && /localhost|127\.0\.0\.1/.test(BACKEND_URL_RAW) ? '' : BACKEND_URL_RAW;
 let cache = {
     indices: {
         SPX: { price: 6941.47, change: -0.01, name: 'S&P 500' },
@@ -51,7 +54,7 @@ export const MacroService = {
 
         inFlightRequest = (async () => {
             try {
-                const FETCH_URL = `${process.env.REACT_APP_BACKEND_URL || ''}/api/market/prices`;
+                const FETCH_URL = `${SAFE_BACKEND_URL}/api/market/prices`;
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
                 let response;

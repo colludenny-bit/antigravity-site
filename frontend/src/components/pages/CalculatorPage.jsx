@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Slider } from '../ui/slider';
 import { cn } from '../../lib/utils';
-import { 
+import {
   Calculator, DollarSign, Percent, Target, AlertTriangle,
-  Building, TrendingUp, Shield, Zap, Download, BarChart3
+  Building, TrendingUp, Shield, Zap, Download, BarChart3, Save
 } from 'lucide-react';
+import api from '../../services/api';
 
 // Broker/Prop Firm Data
 const BROKERS = {
@@ -49,7 +50,7 @@ const ResultCard = ({ label, value, subValue, icon: Icon, color = 'primary' }) =
     red: 'text-red-400',
     yellow: 'text-yellow-400'
   };
-  
+
   return (
     <div className="p-4 bg-white/5 rounded-xl">
       <div className="flex items-center gap-2 mb-2">
@@ -63,19 +64,48 @@ const ResultCard = ({ label, value, subValue, icon: Icon, color = 'primary' }) =
 };
 
 export default function CalculatorPage() {
-  const [brokerType, setBrokerType] = useState('personal');
-  const [selectedBroker, setSelectedBroker] = useState('ic_markets');
-  const [asset, setAsset] = useState('EURUSD');
-  const [accountSize, setAccountSize] = useState(10000);
-  const [riskPercent, setRiskPercent] = useState(1);
-  const [stopLossPips, setStopLossPips] = useState(20);
+  const [brokerType, setBrokerType] = useState(() => localStorage.getItem('calc_brokerType') || 'personal');
+  const [selectedBroker, setSelectedBroker] = useState(() => localStorage.getItem('calc_selectedBroker') || 'ic_markets');
+  const [asset, setAsset] = useState(() => localStorage.getItem('calc_asset') || 'EURUSD');
+  const [accountSize, setAccountSize] = useState(() => Number(localStorage.getItem('calc_accountSize')) || 10000);
+  const [riskPercent, setRiskPercent] = useState(() => Number(localStorage.getItem('calc_riskPercent')) || 1);
+  const [stopLossPips, setStopLossPips] = useState(() => Number(localStorage.getItem('calc_stopLossPips')) || 20);
   const [entryPrice, setEntryPrice] = useState('');
   const [stopPrice, setStopPrice] = useState('');
   const [results, setResults] = useState(null);
+  const [isSaved, setIsSaved] = useState(false);
+
+  const handleSaveSettings = () => {
+    localStorage.setItem('calc_brokerType', brokerType);
+    localStorage.setItem('calc_selectedBroker', selectedBroker);
+    localStorage.setItem('calc_asset', asset);
+    localStorage.setItem('calc_accountSize', accountSize);
+    localStorage.setItem('calc_riskPercent', riskPercent);
+    localStorage.setItem('calc_stopLossPips', stopLossPips);
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
+  };
 
   const brokerList = brokerType === 'personal' ? BROKERS.personal : BROKERS.prop;
   const broker = brokerList.find(b => b.id === selectedBroker) || brokerList[0];
   const assetData = ASSETS[asset];
+
+  // Cloud Preferences Sync
+  useEffect(() => {
+    const loadPrefs = async () => {
+      try {
+        const res = await api.get('/user/preferences');
+        if (res.data && res.data.sync_enabled) {
+          if (res.data.selected_asset && ASSETS[res.data.selected_asset]) {
+            setAsset(res.data.selected_asset);
+          }
+        }
+      } catch (err) {
+        console.warn('Sync failed in CalculatorPage');
+      }
+    };
+    loadPrefs();
+  }, []);
 
   // Calculate position
   useEffect(() => {
@@ -83,28 +113,28 @@ export default function CalculatorPage() {
     const pipValue = assetData.pipValue;
     const lotSize = riskAmount / (stopLossPips * pipValue);
     const lots = Math.floor(lotSize * 100) / 100; // Round to 0.01
-    
+
     // Commission per lot (round trip)
     const commission = broker.commission * 2 * lots;
-    
+
     // Spread cost
     const spreadCost = (broker.spread * pipValue * lots);
-    
+
     // Total cost
     const totalCost = commission + spreadCost;
-    
+
     // Effective risk
     const effectiveRisk = riskAmount + totalCost;
     const effectiveRiskPercent = (effectiveRisk / accountSize) * 100;
-    
+
     // For prop firms
     const maxDDAmount = brokerType === 'prop' ? accountSize * (broker.max_dd / 100) : null;
     const dailyDDAmount = brokerType === 'prop' ? accountSize * (broker.daily_dd / 100) : null;
     const tradesBeforeDD = brokerType === 'prop' ? Math.floor(dailyDDAmount / effectiveRisk) : null;
-    
+
     // Profit potential (1:2 RR example)
     const potentialProfit = riskAmount * 2;
-    const netProfit = brokerType === 'prop' 
+    const netProfit = brokerType === 'prop'
       ? potentialProfit * (broker.profit_split / 100) - totalCost
       : potentialProfit - totalCost;
 
@@ -232,7 +262,7 @@ export default function CalculatorPage() {
             </div>
 
             {/* Stop Loss */}
-            <div className="space-y-2">
+            <div className="space-y-2 mb-2">
               <Label>Stop Loss (pips)</Label>
               <Input
                 type="number"
@@ -240,6 +270,15 @@ export default function CalculatorPage() {
                 onChange={(e) => setStopLossPips(Number(e.target.value))}
               />
             </div>
+
+            <Button
+              className={cn("w-full mt-4 flex items-center gap-2 font-bold transition-all", isSaved ? "bg-[#00D9A5]/20 text-[#00D9A5] border border-[#00D9A5]/50 hover:bg-[#00D9A5]/30" : "text-slate-900")}
+              variant={isSaved ? "outline" : "default"}
+              onClick={handleSaveSettings}
+            >
+              <Save className="w-4 h-4" />
+              {isSaved ? "Impostazioni Salvate" : "Salva di Default"}
+            </Button>
           </CardContent>
         </Card>
 
@@ -265,27 +304,27 @@ export default function CalculatorPage() {
 
                 {/* Grid Results */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <ResultCard 
+                  <ResultCard
                     icon={DollarSign}
                     label="Rischio $"
                     value={`$${results.riskAmount}`}
                     color="primary"
                   />
-                  <ResultCard 
+                  <ResultCard
                     icon={Percent}
                     label="Rischio Effettivo"
                     value={`${results.effectiveRiskPercent}%`}
                     subValue={`Inclusi costi`}
                     color={parseFloat(results.effectiveRiskPercent) > riskPercent * 1.2 ? 'yellow' : 'primary'}
                   />
-                  <ResultCard 
+                  <ResultCard
                     icon={Target}
                     label="Profit Potenziale"
                     value={`$${results.netProfit}`}
                     subValue="2:1 R:R netto"
                     color="green"
                   />
-                  <ResultCard 
+                  <ResultCard
                     icon={Shield}
                     label="Margine Richiesto"
                     value={`$${results.marginRequired}`}
@@ -344,7 +383,7 @@ export default function CalculatorPage() {
                     <Zap className="w-4 h-4" /> Karion AI Summary
                   </h4>
                   <p className="text-sm text-muted-foreground">
-                    Con {results.lots} lotti su {assetData.name} e SL a {stopLossPips} pips, 
+                    Con {results.lots} lotti su {assetData.name} e SL a {stopLossPips} pips,
                     il rischio effettivo è {results.effectiveRiskPercent}% (${results.effectiveRisk}).
                     {brokerType === 'prop' && ` Su ${broker.name} puoi permetterti max ${results.tradesBeforeDD} trade perdenti consecutivi prima del daily DD.`}
                     {parseFloat(results.effectiveRiskPercent) > 2 && ' Considera di ridurre il rischio.'}

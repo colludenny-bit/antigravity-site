@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Manrope:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Apple system typography */
 
 @tailwind base;
 @tailwind components;
@@ -460,13 +460,18 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
 }
 
 @layer base {
+  :root {
+    --font-apple: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', sans-serif;
+    --font-apple-mono: 'SF Mono', ui-monospace, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--font-apple);
     font-size: 15px;
     letter-spacing: -0.01em;
     zoom: 1;
@@ -478,37 +483,37 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
   h4,
   h5,
   h6 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-apple);
     letter-spacing: -0.02em;
   }
 
   code,
   pre {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-apple-mono);
   }
 
   /* Dashboard Text Layer - Premium Styling */
   .dashboard-text {
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-apple);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   .dashboard-number {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-apple-mono);
     font-weight: 500;
     letter-spacing: -0.02em;
     font-feature-settings: 'tnum' on, 'lnum' on;
   }
 
   .dashboard-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: var(--font-apple);
     font-weight: 600;
     letter-spacing: -0.02em;
   }
 
   .dashboard-label {
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-apple);
     font-size: 13px;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.6);
@@ -517,21 +522,21 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
   }
 
   .dashboard-value {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-apple-mono);
     font-size: 18px;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.95);
   }
 
   .dashboard-value-lg {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-apple-mono);
     font-size: 24px;
     font-weight: 600;
     color: #00D9A5;
   }
 
   .dashboard-value-xl {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-apple-mono);
     font-size: 32px;
     font-weight: 700;
     color: #00D9A5;
@@ -540,7 +545,7 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
 
   /* Apple-style font for clean UI */
   .font-apple {
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    font-family: var(--font-apple);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -712,6 +717,15 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
   background-image: none !important;
 }
 
+.dashboard-shell-fallback {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(0, 217, 165, 0.11) 0%, rgba(0, 217, 165, 0) 42%),
+    radial-gradient(circle at 78% 2%, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 34%),
+    linear-gradient(180deg, #07090b 0%, #040506 58%, #000000 100%);
+}
+
 .dashboard-shell-video {
   position: absolute;
   inset: 0;
@@ -721,7 +735,12 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
   object-position: center;
   opacity: 0;
   filter: saturate(1.1) contrast(1.04) brightness(0.9);
+  transition: opacity 220ms ease-out;
   will-change: opacity;
+}
+
+.dashboard-shell-video.is-ready {
+  opacity: var(--dashboard-video-opacity, 0.72);
 }
 
 .dashboard-shell-video-overlay {
@@ -753,7 +772,10 @@ aside[data-testid="sidebar-desktop"] {
   left: 28px !important;
   backdrop-filter: blur(14px) saturate(1.08) !important;
   -webkit-backdrop-filter: blur(14px) saturate(1.08) !important;
-  border: 1.85px solid rgba(255, 255, 255, 0.2) !important;
+  border-top: 2px solid rgba(255, 255, 255, 0.38) !important;
+  border-left: 2px solid rgba(255, 255, 255, 0.38) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: 22px !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
@@ -1362,7 +1384,7 @@ html:not(.dark) .engine-card-glow {
   font-size: 24px;
   font-weight: 600;
   color: #00D9A5;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-apple-mono);
 }
 
 /* Tech Badge - Small status badge */
@@ -2449,4 +2471,34 @@ html:not(.dark) .bg-card[class*="rounded-xl"]::after {
   border-radius: 0 0 12px 12px;
   pointer-events: none;
   z-index: -1;
+}
+
+.icon-research { color: #8A2BE2; filter: drop-shadow(0 0 8px rgba(138,43,226,0.3)); }
+
+/* Research page: force Apple typography on every text element */
+.research-apple-scope,
+.research-apple-scope *,
+.research-apple-scope *::before,
+.research-apple-scope *::after {
+  font-family: var(--font-apple) !important;
+}
+
+.research-apple-scope {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.research-apple-scope .text-xs {
+  font-size: 0.9rem !important;
+  line-height: 1.3rem !important;
+}
+
+.research-apple-scope .text-sm {
+  font-size: 1rem !important;
+  line-height: 1.45rem !important;
+}
+
+.research-apple-scope .text-base {
+  font-size: 1.06rem !important;
+  line-height: 1.52rem !important;
 }

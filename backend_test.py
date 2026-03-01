@@ -11,10 +11,13 @@ from datetime import datetime
 import time
 
 class TradingDashboardTester:
-    def __init__(self, base_url="https://trade-os-1.preview.emergentagent.com/api"):
+    def __init__(self, base_url="http://localhost:8000/api"):
         self.base_url = base_url
         self.token = None
         self.user_id = None
+        suffix = int(time.time() * 1000)
+        self.test_email = f"test_{suffix}@trading.com"
+        self.test_password = "Password123!"
         self.tests_run = 0
         self.tests_passed = 0
         self.failed_tests = []
@@ -66,8 +69,8 @@ class TradingDashboardTester:
     def test_user_registration(self):
         """Test user registration"""
         test_user = {
-            "email": "test@trading.com",
-            "password": "test123",
+            "email": self.test_email,
+            "password": self.test_password,
             "name": "Test Trader"
         }
         
@@ -83,8 +86,8 @@ class TradingDashboardTester:
     def test_user_login(self):
         """Test user login (fallback if registration fails)"""
         login_data = {
-            "email": "test@trading.com",
-            "password": "test123"
+            "email": self.test_email,
+            "password": self.test_password
         }
         
         success, data, status = self.make_request('POST', 'auth/login', login_data, expected_status=200)

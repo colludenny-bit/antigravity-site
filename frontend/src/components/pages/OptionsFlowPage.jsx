@@ -12,7 +12,10 @@ import {
   DollarSign, Percent, AlertTriangle, Eye
 } from 'lucide-react';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const BACKEND_URL_RAW = (process.env.REACT_APP_BACKEND_URL || '').trim().replace(/\/$/, '');
+const IS_LOCAL_HOST = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const SAFE_BACKEND_URL = !IS_LOCAL_HOST && /localhost|127\.0\.0\.1/.test(BACKEND_URL_RAW) ? '' : BACKEND_URL_RAW;
+const API = `${(SAFE_BACKEND_URL).replace(/\/$/, "")}/api`;
 
 // Simulated Options Flow Data
 const generateOptionsFlow = (symbol) => {

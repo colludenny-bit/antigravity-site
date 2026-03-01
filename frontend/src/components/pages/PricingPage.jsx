@@ -1,15 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { toast } from 'sonner';
 import {
     ArrowRight, Check, X, Sparkles, Shield, Zap, Crown,
     BarChart3, Brain, Globe, LineChart, Target, Calculator,
-    BookOpen, Newspaper, PieChart, Activity, ChevronRight, Loader2
+    BookOpen, Newspaper, PieChart, Activity, ChevronRight, Loader2,
+    Menu, Settings, Users, Moon, Sun, LogOut
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { cn } from '../../lib/utils';
+import { useTheme } from '../../contexts/ThemeContext';
 import kairongBull from '../../assets/kairon-bull.png';
+import { BullLogo } from '../ui/BullLogo';
 
 /* ═══════════════════════════════════════════════════════════════════
    PRICING PLANS DATA
@@ -21,7 +26,7 @@ const plans = [
         price: '14.99',
         period: '/mo',
         icon: Shield,
-        color: '#3B82F6',
+        color: '#404040',
         badge: null,
         annualDiscount: 0.15,
         description: 'Le basi per iniziare a operare con dati professionali.',
@@ -48,7 +53,7 @@ const plans = [
         price: '29.99',
         period: '/mo',
         icon: Zap,
-        color: '#00D9A5',
+        color: '#CFD8E3',
         badge: 'Most Popular',
         annualDiscount: 0.20,
         description: 'Strumenti avanzati per trader che vogliono il vantaggio.',
@@ -165,6 +170,116 @@ if (typeof document !== 'undefined' && !document.getElementById(ledStyleId)) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   USER MENU (Injected to fix import)
+   ═══════════════════════════════════════════════════════════════════ */
+const UserMenu = ({ user, subscription, logout, theme, toggleTheme }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef(null);
+    const { t, i18n } = useTranslation();
+
+    const planName = subscription?.plan?.name || 'ESSENTIAL';
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const languages = [
+        { code: 'it', name: 'Italiano' },
+        { code: 'en', name: 'English' }
+    ];
+
+    const currentLang = languages.find(l => l.code === i18n?.language) || languages[0];
+
+    return (
+        <div className="relative" ref={menuRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-3 p-1 rounded-full hover:bg-white/[0.05] transition-colors"
+                title="Menu Utente"
+            >
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-bold text-sm">
+                    {user?.name?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex flex-col items-start mr-2">
+                    <span className="text-white flex items-center gap-2">
+                        <Menu className="w-4 h-4 text-white/40" />
+                    </span>
+                </div>
+            </button>
+
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-72 bg-[#121517] border border-white/[0.08] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden z-[60]">
+                    {/* Header */}
+                    <div className="p-4 border-b border-white/[0.05] flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-bold text-lg">
+                            {user?.name?.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <Link to="/app/profile" className="font-bold text-white hover:text-white/60 transition-colors block truncate">
+                                {user?.name}
+                            </Link>
+                            <span className="bg-white/10 text-white/60 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest mt-0.5 inline-block">
+                                {planName}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-2">
+                        <Link to="/app/settings" className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors">
+                            <Settings className="w-4 h-4" /> Impostazioni e fatturazione
+                        </Link>
+                    </div>
+
+                    <div className="py-2 border-t border-white/[0.05]">
+                        <button onClick={() => { }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors">
+                            <BookOpen className="w-4 h-4" /> Centro di supporto
+                        </button>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="py-2 border-t border-white/[0.05]">
+                        <div className="flex items-center justify-between px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors">
+                            <div className="flex items-center gap-3">
+                                {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />} Tema scuro
+                            </div>
+                            <button
+                                onClick={toggleTheme}
+                                className={cn(
+                                    "w-9 h-5 rounded-full transition-colors relative",
+                                    theme === 'dark' ? "bg-white/40" : "bg-white/10"
+                                )}
+                            >
+                                <div className={cn(
+                                    "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+                                    theme === 'dark' ? "translate-x-4" : "translate-x-0"
+                                )} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Exit */}
+                    <div className="py-2 border-t border-white/[0.05]">
+                        <button
+                            onClick={logout}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:bg-white/[0.05] transition-colors"
+                        >
+                            <LogOut className="w-4 h-4" /> Esci
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+/* ═══════════════════════════════════════════════════════════════════
    PRICING CARD
    ═══════════════════════════════════════════════════════════════════ */
 const PricingCard = ({ plan, index, annual, onCheckout }) => {
@@ -187,7 +302,7 @@ const PricingCard = ({ plan, index, annual, onCheckout }) => {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: index * 0.15 }}
-            className={`relative rounded-2xl transition-all duration-500 ${isPopular ? 'scale-[1.03] z-10' : ''
+            className={`relative rounded-[32px] transition-all duration-500 ${isPopular ? 'scale-[1.03] z-10' : ''
                 }`}
             style={{
                 boxShadow: isPopular
@@ -197,38 +312,41 @@ const PricingCard = ({ plan, index, annual, onCheckout }) => {
         >
             {/* ★ Animated LED border — rotating conic gradient */}
             <div
-                className="absolute inset-0 rounded-2xl overflow-hidden"
-                style={{ padding: '1px' }}
+                className="absolute inset-0 rounded-[32px] overflow-hidden"
+                style={{ padding: '4px' }}
             >
                 <div
-                    className="absolute"
+                    className="absolute blur-[3px]"
                     style={{
-                        top: '-50%',
-                        left: '-50%',
-                        width: '200%',
-                        height: '200%',
-                        background: `conic-gradient(from 0deg, transparent 0%, ${plan.color} 10%, transparent 20%, transparent 100%)`,
-                        animation: 'ledSpin 4s linear infinite',
+                        top: '-350%',
+                        left: '-350%',
+                        width: '800%',
+                        height: '800%',
+                        background: `conic-gradient(from 0deg, 
+                            transparent 0%, ${plan.color} 15%, transparent 30%, 
+                            transparent 50%, ${plan.color} 65%, transparent 80%, 
+                            transparent 100%)`,
+                        animation: 'ledSpin 15s linear infinite',
                     }}
                 />
             </div>
             {/* Static subtle border underneath for when LED is elsewhere */}
             <div
-                className="absolute inset-0 rounded-2xl pointer-events-none"
+                className="absolute inset-0 rounded-[32px] pointer-events-none"
                 style={{ border: '1px solid rgba(255,255,255,0.06)' }}
             />
             {/* Bloom glow for popular */}
             {isPopular && (
                 <div
-                    className="absolute top-0 left-0 right-0 h-[25px] pointer-events-none rounded-t-2xl z-10"
+                    className="absolute top-0 left-0 right-0 h-[25px] pointer-events-none rounded-t-[32px] z-10"
                     style={{
                         background: `radial-gradient(ellipse 50% 100% at 50% 0%, ${plan.color}30, transparent 70%)`,
                     }}
                 />
             )}
             {/* Card inner content */}
-            <div className={`relative rounded-2xl flex flex-col m-[1px] ${isPopular ? 'bg-[#0A0A0A]' : 'bg-[#060606]'
-                }`}>
+            <div className={`relative rounded-[32px] flex flex-col m-[1px] h-full ${isPopular ? 'bg-[#030303]/80 border-white/20 shadow-[0_20px_60px_rgba(0,0,0,0.9)]' : 'bg-[#050505]/60 border-white/10 shadow-[0_15px_50px_rgba(0,0,0,0.7)]'
+                } backdrop-blur-3xl`}>
                 <div className="p-8 flex-1 flex flex-col">
                     {/* Badge */}
                     {plan.badge && (
@@ -263,8 +381,15 @@ const PricingCard = ({ plan, index, annual, onCheckout }) => {
                     <div className="flex items-baseline gap-1 mb-8">
                         <span className="text-white/50 text-xl">€</span>
                         <span
-                            className="text-6xl font-black text-white tracking-tight"
-                            style={{ textShadow: isPopular ? `0 0 30px ${plan.color}30` : 'none' }}
+                            className={cn(
+                                "text-6xl font-black tracking-tight",
+                                plan.id === 'essential' ? "text-white/40" : "text-white"
+                            )}
+                            style={{
+                                textShadow: plan.id === 'pro'
+                                    ? `0 0 60px ${plan.color}`
+                                    : 'none'
+                            }}
                         >
                             {plan.price}
                         </span>
@@ -348,13 +473,13 @@ const FAQItem = ({ item, index }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.08 }}
-            className="border-b border-white/[0.06] last:border-0"
+            className="border-b border-white/5 last:border-0"
         >
             <button
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between py-5 text-left group"
+                className="w-full flex items-center justify-between py-6 text-left group"
             >
-                <span className="text-white font-semibold text-base group-hover:text-white transition-colors">
+                <span className="text-white/90 font-medium text-[17px] tracking-wide group-hover:text-white transition-colors">
                     {item.q}
                 </span>
                 <ChevronRight
@@ -368,7 +493,7 @@ const FAQItem = ({ item, index }) => {
                 transition={{ duration: 0.3 }}
                 className="overflow-hidden"
             >
-                <p className="text-white/50 text-[15px] pb-5 leading-relaxed">{item.a}</p>
+                <p className="text-white/60 text-[15px] pb-6 leading-relaxed tracking-wide">{item.a}</p>
             </motion.div>
         </motion.div>
     );
@@ -381,7 +506,20 @@ const PricingPage = () => {
     const [annual, setAnnual] = useState(false);
     const [couponCode, setCouponCode] = useState('');
     const [showCouponInput, setShowCouponInput] = useState(false);
-    const { user, checkoutPlan } = useAuth();
+
+    // Safely extract theme context without breaking if not provided here
+    // PricingPage might not be wrapped by a ThemeProvider that exports toggleTheme in all setups
+    let themeObj = { theme: 'dark', toggleTheme: () => { } };
+    try {
+        // We'll rely on the existing useAuth or other hooks if useTheme isn't explicitly defined safely here
+        // Since we import useTheme from ThemeContext, we call it
+        const themeCtx = useTheme();
+        if (themeCtx) {
+            themeObj = themeCtx;
+        }
+    } catch (e) { }
+
+    const { user, checkoutPlan, subscription, logout } = useAuth();
     const navigate = useNavigate();
 
     const handleCheckout = async (planId, isAnnual) => {
@@ -415,58 +553,84 @@ const PricingPage = () => {
                 <div className="absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full bg-[#1a0a3e] blur-[200px] opacity-20" />
             </div>
 
-            {/* Navbar */}
-            <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] bg-black/60 backdrop-blur-2xl">
-                <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
-                    <Link to="/" className="flex items-center gap-3">
-                        <img src={kairongBull} alt="Kairon" className="h-10 w-auto" />
+            {/* ═══ NAVBAR ═══ */}
+            <nav className="fixed top-0 inset-x-0 z-50 pt-[52px] sm:pt-6 pointer-events-none">
+                <div className="max-w-[1400px] mx-auto px-3 sm:px-6 flex items-center justify-between pointer-events-auto">
+                    <Link to="/" className="flex items-center gap-1.5 sm:gap-4 shrink-0">
+                        <BullLogo className="h-8 sm:h-12 w-auto" />
                         <div className="relative">
-                            <span className="text-xl font-black tracking-[0.15em] text-white uppercase" style={{ fontFamily: 'Georgia, serif' }}>KAIRON</span>
-                            <div className="absolute -bottom-1 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
-                            <div className="absolute -bottom-1 left-0 right-0 h-[6px] blur-[3px] opacity-60" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
+                            <span className="text-xs sm:text-xl font-black tracking-[0.15em] sm:tracking-[0.2em] text-white uppercase" style={{
+                                fontFamily: 'Georgia, serif',
+                                textShadow: '0 0 10px rgba(255,255,255,0.4), 0 0 20px rgba(208,160,48,0.4)'
+                            }}>KARION</span>
+                            <div className="absolute -bottom-1 left-0 right-0 h-[2px] hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #D0A030, transparent)' }} />
+                            <div className="absolute -bottom-1 left-0 right-0 h-[6px] blur-[3px] opacity-60 hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #D0A030, transparent)' }} />
                         </div>
                     </Link>
-                    <div className="flex items-center gap-4">
-                        <Link to="/auth?mode=login" className="text-sm font-medium text-white/40 hover:text-white transition-colors">
-                            Log in
-                        </Link>
-                        <Link to="/auth?mode=register">
-                            <motion.button
-                                whileHover={{ scale: 1.05, boxShadow: '0 0 25px rgba(0,217,165,0.5)' }}
-                                whileTap={{ scale: 0.95 }}
-                                className="px-5 py-2 rounded-lg bg-[#00D9A5] text-black font-bold text-sm transition-shadow duration-300 flex items-center gap-1.5"
-                            >
-                                Get Access <ArrowRight className="w-3.5 h-3.5" />
-                            </motion.button>
-                        </Link>
+                    <div className="hidden md:flex items-center gap-2 p-2 rounded-[32px] bg-[#0A0A0A]/70 border border-[#CFD8E3]/40 backdrop-blur-2xl shadow-[0_4px_30px_rgba(207,216,227,0.15)]">
+                        <a href="/#features" className="px-7 py-2.5 rounded-full text-[16px] xl:text-[17px] font-semibold tracking-tight text-white/80 hover:text-[#CFD8E3] hover:bg-white/10 transition-all duration-300 drop-shadow-sm">Features</a>
+                        <a href="/#showcase" className="px-7 py-2.5 rounded-full text-[16px] xl:text-[17px] font-semibold tracking-tight text-white/80 hover:text-[#CFD8E3] hover:bg-white/10 transition-all duration-300 drop-shadow-sm">Showcase</a>
+                        <a href="/#tools" className="px-7 py-2.5 rounded-full text-[16px] xl:text-[17px] font-semibold tracking-tight text-white/80 hover:text-[#CFD8E3] hover:bg-white/10 transition-all duration-300 drop-shadow-sm">Tools</a>
+                        <Link to="/pricing" className="px-7 py-2.5 rounded-full text-[16px] xl:text-[17px] font-semibold tracking-tight text-white/80 hover:text-[#CFD8E3] hover:bg-white/10 transition-all duration-300 drop-shadow-sm">Pricing</Link>
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                        {!user ? (
+                            <>
+                                <Link to="/auth?mode=login" className="hidden sm:inline text-base font-semibold tracking-tight text-white/60 hover:text-white transition-colors">
+                                    Log in
+                                </Link>
+                                <Link to="/auth?mode=register">
+                                    <motion.button
+                                        whileHover={{ scale: 1.05, boxShadow: '0 0 30px rgba(226,232,240,0.6)', borderColor: 'rgba(255,255,255,0.9)' }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-[#E2E8F0] to-[#CFD8E3] text-slate-900 border border-[#FFFFFF]/60 font-bold text-[11px] sm:text-base tracking-tight transition-all duration-300 flex items-center gap-1 sm:gap-2 shadow-[0_0_20px_rgba(226,232,240,0.3)]"
+                                    >
+                                        <span className="sm:hidden">Accedi</span><span className="hidden sm:inline">Get Access</span> <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    </motion.button>
+                                </Link>
+                            </>
+                        ) : (
+                            <UserMenu
+                                user={user}
+                                subscription={subscription}
+                                logout={logout}
+                                theme={themeObj.theme}
+                                toggleTheme={themeObj.toggleTheme}
+                            />
+                        )}
+                    </div>
+                </div>
+                {/* Mobile nav tabs */}
+                <div className="sm:hidden border-t border-white/[0.05]">
+                    <div className="max-w-[1400px] mx-auto px-3 py-2">
+                        <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+                            <a href="/#features" className="text-center px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white/75 hover:text-white hover:bg-white/[0.08] transition-all">Features</a>
+                            <a href="/#showcase" className="text-center px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white/75 hover:text-white hover:bg-white/[0.08] transition-all">Showcase</a>
+                            <a href="/#tools" className="text-center px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white/75 hover:text-white hover:bg-white/[0.08] transition-all">Tools</a>
+                            <Link to="/pricing" className="text-center px-2 py-1.5 rounded-lg text-[11px] font-semibold text-white/75 hover:text-white hover:bg-white/[0.08] transition-all">Pricing</Link>
+                        </div>
                     </div>
                 </div>
             </nav>
 
             {/* Hero */}
-            <section className="relative pt-[70px] pb-2 z-10">
+            <section className="relative pt-[140px] pb-2 z-10">
                 <div className="max-w-[1200px] mx-auto px-6 text-center">
                     <motion.div
                         initial={{ opacity: 0, y: 25 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.7 }}
                     >
-                        <span className="inline-block px-5 py-1.5 rounded-full bg-[#00D9A5]/8 border border-[#00D9A5]/15 text-[#00D9A5] text-[10px] font-bold uppercase tracking-[0.25em] mb-2">
-                            ✦ Pricing
-                        </span>
                         <h1
-                            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black mb-2 leading-[0.95] tracking-tighter text-white"
-                            style={{ textShadow: '0 0 40px rgba(255,255,255,0.12)' }}
+                            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium mb-2 leading-[0.95] tracking-tight text-white drop-shadow-2xl"
                         >
                             Plans for Every<br />
                             <span className="text-white">Stage.</span>
                         </h1>
-                        <p className="text-lg text-white/45 max-w-xl mx-auto mb-4">
-                            Scegli il piano che si adatta al tuo livello. Upgrade quando vuoi.
-                        </p>
+
 
                         {/* Monthly / Annual toggle */}
-                        <div className="flex items-center justify-center gap-4 mb-4">
+                        <div className="inline-flex items-center justify-center gap-4 mb-4 px-6 py-3 rounded-full bg-white/[0.03] border border-white/[0.08] backdrop-blur-xl shadow-2xl">
                             <span className={`text-sm font-semibold transition-colors ${!annual ? 'text-white' : 'text-white/30'}`}>
                                 Mensile
                             </span>
@@ -560,19 +724,19 @@ const PricingPage = () => {
 
             {/* FAQ Section */}
             <section className="relative z-10 py-24">
-                <div className="max-w-[700px] mx-auto px-6">
+                <div className="max-w-[800px] mx-auto px-6">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         className="text-center mb-12"
                     >
-                        <h2 className="text-3xl md:text-4xl font-black text-white mb-3 tracking-tight">
+                        <h2 className="text-3xl md:text-5xl font-medium tracking-tight text-white mb-4 drop-shadow-xl">
                             All You Need to Know
                         </h2>
-                        <p className="text-white/45 text-base">Domande frequenti sui piani e funzionalità.</p>
+                        <p className="text-white/50 text-lg">Domande frequenti sui piani e funzionalità.</p>
                     </motion.div>
-                    <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-6">
+                    <div className="rounded-[32px] bg-[#050505]/30 backdrop-blur-2xl border border-white/5 shadow-[0_10px_50px_rgba(0,0,0,0.8)] p-8 md:p-12">
                         {faqItems.map((item, i) => (
                             <FAQItem key={i} item={item} index={i} />
                         ))}
@@ -581,10 +745,16 @@ const PricingPage = () => {
             </section>
 
             {/* Footer mini */}
-            <footer className="py-10 border-t border-white/[0.04] bg-black relative z-10 text-center">
-                <div className="flex items-center justify-center gap-2.5 mb-3">
-                    <img src={kairongBull} alt="Kairon" className="h-7 w-auto" />
-                    <span className="text-lg font-black tracking-[0.15em] text-white uppercase" style={{ fontFamily: 'Georgia, serif' }}>KAIRON</span>
+            <footer className="py-10 border-t border-white/5 bg-black relative z-10 text-center">
+                <div className="flex items-center justify-center gap-3 mb-4">
+                    <BullLogo className="h-8 w-auto" />
+                    <div className="relative">
+                        <span className="text-lg font-black tracking-[0.2em] text-white uppercase" style={{
+                            fontFamily: 'Georgia, serif',
+                            textShadow: '0 0 10px rgba(255,255,255,0.4), 0 0 20px rgba(208,160,48,0.4)'
+                        }}>KARION</span>
+                        <div className="absolute -bottom-1 left-0 right-0 h-[1.5px]" style={{ background: 'linear-gradient(90deg, transparent, #D0A030, transparent)' }} />
+                    </div>
                 </div>
                 <p className="text-white/15 text-xs">© 2026 Kairon Trading OS. All rights reserved.</p>
             </footer>

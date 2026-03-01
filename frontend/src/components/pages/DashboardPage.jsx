@@ -2,14 +2,16 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMarket } from '../../contexts/MarketContext';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, Activity,
   Target, Shield, AlertTriangle, RefreshCw, Lightbulb, Clock,
   BarChart3, Eye, Minus, Users, ArrowUpRight, ArrowDownRight,
   Scale, Layers, Newspaper, ChevronDown, ChevronUp, ChevronRight, Gauge,
-  Zap, Calendar, ChevronLeft, Info, X, Crown
+  Zap, Calendar, ChevronLeft, Info, X, Crown, Sparkles
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { TechCard, TechCardHeader, TechBadge } from '../ui/TechCard';
@@ -22,6 +24,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { WeeklyBiasScale } from '../ui/WeeklyBiasScale';
 import { detailedStrategies } from '../../data/strategies';
 
+const BACKEND_URL_RAW = (process.env.REACT_APP_BACKEND_URL || '').trim().replace(/\/$/, '');
+const IS_LOCAL_HOST = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const SAFE_BACKEND_URL = !IS_LOCAL_HOST && /localhost|127\.0\.0\.1/.test(BACKEND_URL_RAW) ? '' : BACKEND_URL_RAW;
 const isMobileLiteMotion = () => {
   if (typeof window === 'undefined') return false;
   const isSmallScreen = window.matchMedia('(max-width: 1024px)').matches;
@@ -34,10 +39,11 @@ const TypewriterText = ({ text, speed = 25, delay = 0, className, children }) =>
   const [displayedChars, setDisplayedChars] = useState(0);
   const content = text || (typeof children === 'string' ? children : '');
   const liteMotion = isMobileLiteMotion();
+  const skipEntryMotion = liteMotion || hasPlayedDashboardEntryMotion;
 
   useEffect(() => {
     if (!content) return;
-    if (liteMotion) {
+    if (skipEntryMotion) {
       setDisplayedChars(content.length);
       return;
     }
@@ -52,7 +58,7 @@ const TypewriterText = ({ text, speed = 25, delay = 0, className, children }) =>
       return () => clearInterval(interval);
     }, delay);
     return () => clearTimeout(startTimer);
-  }, [content, speed, delay, liteMotion]);
+  }, [content, speed, delay, skipEntryMotion]);
 
   if (!content) return <span className={className}>{children}</span>;
 
@@ -72,9 +78,10 @@ const CountUp = ({ value, duration = 1500, delay = 0, prefix = '', suffix = '', 
   const numVal = typeof value === 'number' ? value : parseFloat(value) || 0;
   const isDecimal = String(numVal).includes('.') || String(value).includes('.');
   const liteMotion = isMobileLiteMotion();
+  const skipEntryMotion = liteMotion || hasPlayedDashboardEntryMotion;
 
   useEffect(() => {
-    if (liteMotion) {
+    if (skipEntryMotion) {
       setDisplay(isDecimal ? Math.round(numVal * 10) / 10 : Math.round(numVal));
       return;
     }
@@ -92,7 +99,7 @@ const CountUp = ({ value, duration = 1500, delay = 0, prefix = '', suffix = '', 
       requestAnimationFrame(animate);
     }, delay);
     return () => clearTimeout(startTimer);
-  }, [numVal, duration, delay, isDecimal, liteMotion]);
+  }, [numVal, duration, delay, isDecimal, skipEntryMotion]);
 
   return <span className={className}>{prefix}{display}{suffix}</span>;
 };
@@ -120,8 +127,11 @@ const STAT_BIAS = {
   SP500: { weekly_bias: 'BEARISH', monthly_bias: 'NEUTRAL' }
 };
 
-const API = `${process.env.REACT_APP_BACKEND_URL || ''}/api`;
+const API = `${SAFE_BACKEND_URL}/api`;
 let hasPlayedDashboardIntro = false;
+let hasPlayedDashboardEntryMotion = false;
+
+const dashboardInitial = (variant) => (hasPlayedDashboardEntryMotion ? false : variant);
 
 const DASHBOARD_FETCH_INTERVALS_MS = {
   core: 30 * 1000,
@@ -321,11 +331,11 @@ const formatStrikeLevel = (value) => {
 };
 
 const TRADINGVIEW_MINI_SYMBOL = {
-  XAUUSD: 'FOREXCOM:XAUUSD',
+  XAUUSD: 'OANDA:XAUUSD',
   NAS100: 'CAPITALCOM:US100',
   SP500: 'CAPITALCOM:US500',
   DOW: 'CAPITALCOM:US30',
-  EURUSD: 'FX:EURUSD',
+  EURUSD: 'OANDA:EURUSD',
   BTCUSD: 'BINANCE:BTCUSDT'
 };
 const TV_CANDLE_UP = '#22c55e';
@@ -370,6 +380,7 @@ const TradingViewMiniChart = ({ assetSymbol, title, interval = '15', interactive
   if (!src) return null;
   return (
     <iframe
+      key={assetSymbol}
       title={title || `tv-mini-${assetSymbol}`}
       src={src}
       style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
@@ -410,6 +421,41 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
   const isMobile = useIsMobile();
 
+  // Load Cloud Preferences on Mount
+  useEffect(() => {
+    const loadPrefs = async () => {
+      try {
+        const res = await api.get('/user/preferences');
+        if (res.data) {
+          if (res.data.selected_asset) setSelectedAsset(res.data.selected_asset);
+          if (res.data.sync_enabled !== undefined) setSyncEnabled(res.data.sync_enabled);
+          if (res.data.chart_line_color) setChartLineColor(res.data.chart_line_color);
+        }
+      } catch (err) {
+        console.warn('Preferences keep local-only (fallback)');
+      }
+    };
+    loadPrefs();
+  }, []);
+
+  // Sync Preferences to Cloud
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        await api.post('/user/preferences', {
+          selected_asset: selectedAsset,
+          sync_enabled: syncEnabled,
+          chart_line_color: chartLineColor,
+          theme: 'dark' // Fixed default for now
+        });
+      } catch (err) {
+        console.error('Failed to sync preferences');
+      }
+    }, 2000); // 2s debounce
+
+    return () => clearTimeout(timer);
+  }, [selectedAsset, syncEnabled, chartLineColor]);
+
   // Persist State Changes
   useEffect(() => {
     localStorage.setItem('dashboard_syncEnabled', syncEnabled);
@@ -435,6 +481,12 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   }, [selectedAsset, syncEnabled, onSyncAsset]);
 
   useEffect(() => {
+    if (selectedAsset && favoriteCharts[0] !== selectedAsset && typeof onFavoriteChange === 'function') {
+      onFavoriteChange([selectedAsset]);
+    }
+  }, [selectedAsset, favoriteCharts, onFavoriteChange]); // Keep favorites synced with selected asset
+
+  useEffect(() => {
     localStorage.setItem('dashboard_chartLineColor', chartLineColor);
   }, [chartLineColor]);
 
@@ -442,20 +494,10 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const visibleAssets = assets.filter(a => favoriteCharts.includes(a.symbol));
 
   const toggleFavorite = (symbol) => {
-    if (isMobile) {
-      // Mobile: allow only 1 favorite at a time — switch to this one
+    if (!favoriteCharts.includes(symbol)) {
       onFavoriteChange([symbol]);
       setMobileChartIndex(0);
-      return;
-    }
-    if (favoriteCharts.includes(symbol)) {
-      if (favoriteCharts.length > 2) {
-        onFavoriteChange(favoriteCharts.filter(s => s !== symbol));
-      }
-    } else {
-      if (favoriteCharts.length < 3) {
-        onFavoriteChange([...favoriteCharts, symbol]);
-      }
+      setSelectedAsset(symbol);
     }
   };
 
@@ -614,7 +656,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
       <AnimatePresence>
         {showInfo && (
           <motion.div
-            initial={{ opacity: 0, scale: 0, y: -20 }}
+            initial={dashboardInitial({ opacity: 0, scale: 0, y: -20 })}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0, y: -20 }}
             transition={{
@@ -710,32 +752,33 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                 <BarChart3 className="w-5 h-5 text-[#00D9A5]" />
               </div>
               <div className="text-left">
-                <h4 className={cn(
-                  "text-lg font-bold transition-colors select-none",
-                  viewMode === 'focus' ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-white/80"
-                )}>
-                  {viewMode === 'focus' ? 'Screening' : 'Screening'}
-                </h4>
+                <div className="flex items-center gap-2">
+                  <h4 className={cn(
+                    "text-lg font-bold transition-colors select-none",
+                    viewMode === 'focus' ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-white/80"
+                  )}>
+                    {viewMode === 'focus' ? 'Screening' : 'Screening'}
+                  </h4>
+                  {/* Info Button */}
+                  <button
+                    onClick={() => setShowInfo(!showInfo)}
+                    className="p-1 rounded-lg bg-black/10 dark:bg-white/[0.14] border border-black/10 dark:border-white/[0.28] backdrop-blur-[18px] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-black/20 dark:hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
+                  >
+                    <Info className="w-3 h-3 text-slate-800 dark:text-white" />
+                  </button>
+                </div>
                 <p className="text-xs text-slate-400 dark:text-white/40 leading-none mt-1">
                   Dettagli asset
                 </p>
               </div>
             </div>
-            {/* Info Button */}
-            <button
-              onClick={() => setShowInfo(!showInfo)}
-              className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
-            >
-              <Info className="w-3.5 h-3.5 text-white" />
-            </button>
           </div>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
             <div className="flex items-center gap-3">
-              {/* Outlook Giornaliero */}
+              {/* Bias Outlook Badge */}
               {viewMode === 'focus' && currentAsset && (
                 <div className="text-right">
-                  <p className="text-sm text-white uppercase font-black tracking-[0.15em] mb-1">Outlook Giornaliero</p>
                   <div className={cn(
                     "px-3 py-1.5 rounded-lg border text-xs font-bold shadow-lg uppercase tracking-widest",
                     getDailyOutlook(currentAsset).conclusionType === 'bullish' ? "bg-[#00D9A5]/10 text-[#00D9A5] border-[#00D9A5]/20" :
@@ -756,21 +799,20 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                     showSelector ? "bg-[#00D9A5]/10 border-[#00D9A5]/30 text-[#00D9A5]" : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:bg-white/5 dark:border-white/10 dark:text-white/40 dark:hover:text-white dark:hover:border-white/20"
                   )}
                 >
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartLineColor }} />
                   <Eye className="w-5 h-5" />
                 </button>
 
                 <AnimatePresence>
                   {showSelector && (
                     <motion.div
-                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      initial={dashboardInitial({ opacity: 0, y: -10, scale: 0.95 })}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -10, scale: 0.95 }}
                       className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200/50 rounded-xl shadow-2xl min-w-[220px] backdrop-blur-xl dark:bg-[#0B0F17]/95 dark:border-white/10"
                     >
                       {/* Asset Selection Section */}
                       <div className="mb-2 px-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset {isMobile ? '(1)' : `(${favoriteCharts.length}/3)`}</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset</span>
                       </div>
                       <div className="space-y-1 mb-4">
                         {assets.map((a) => (
@@ -789,27 +831,6 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                         ))}
                       </div>
 
-                      {/* Color Selection Section */}
-                      <div className="border-t border-white/5 pt-3 mb-4">
-                        <div className="mb-2 px-1">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Colore Grafico</span>
-                        </div>
-                        <div className="flex items-center justify-between px-2">
-                          {chartColors.map((color) => (
-                            <button
-                              key={color}
-                              onClick={() => setChartLineColor(color)}
-                              className={cn(
-                                "w-5 h-5 rounded-full border-2 transition-all hover:scale-110",
-                                chartLineColor === color ? "border-white shadow-[0_0_8px_rgba(255,255,255,0.5)] scale-110" : "border-transparent opacity-50 hover:opacity-100"
-                              )}
-                              style={{ backgroundColor: color }}
-                              title={color}
-                            />
-                          ))}
-                        </div>
-                      </div>
-
                       {/* Sync Tickers Switch */}
                       <div className="border-t border-white/5 pt-3">
                         <button
@@ -821,20 +842,15 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                             <span className={cn("font-medium", syncEnabled ? "text-[#00D9A5]" : "text-slate-500 dark:text-white/50")}>Sync Tickers</span>
                           </div>
                           <div className={cn(
-                            "w-8 h-4 rounded-full relative transition-colors",
+                            "w-8 h-4 rounded-full relative transition-colors duration-300",
                             syncEnabled ? "bg-[#00D9A5]" : "bg-slate-200 dark:bg-white/10"
                           )}>
                             <div className={cn(
-                              "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all shadow-sm",
-                              syncEnabled ? "left-4.5" : "left-0.5"
+                              "absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform duration-300 shadow-sm",
+                              syncEnabled ? "translate-x-4" : "translate-x-0"
                             )} />
                           </div>
                         </button>
-                        {syncEnabled && (
-                          <p className="text-[9px] text-[#00D9A5]/60 mt-1 px-3 leading-tight italic">
-                            Link charts, COT & Options
-                          </p>
-                        )}
                       </div>
                     </motion.div>
                   )}
@@ -848,7 +864,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
           {viewMode === 'grid' ? (
             <motion.div
               key="grid"
-              initial={{ opacity: 0, scale: 0.98 }}
+              initial={dashboardInitial({ opacity: 0, scale: 0.98 })}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               className="min-h-[364px] lg:min-h-[403px]"
@@ -909,17 +925,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                         </div>
                         <div className="h-28 -ml-2 relative z-10 overflow-hidden rounded-lg mb-2">
                           {animationsReady && (
-                            asset.symbol === 'XAUUSD' ? (
-                              <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-mobile-${asset.symbol}`} />
-                            ) : (
-                              <GlowingChart
-                                data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
-                                width={380}
-                                height={140}
-                                color={color}
-                                showPrice={false}
-                              />
-                            )
+                            <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-mobile-${asset.symbol}`} />
                           )}
                         </div>
                         <div className="relative z-10">
@@ -980,17 +986,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 
                         <div className="h-[55px] -ml-4 relative z-10 overflow-hidden rounded-lg mb-2">
                           {animationsReady && (
-                            asset.symbol === 'XAUUSD' ? (
-                              <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-grid-${asset.symbol}`} />
-                            ) : (
-                              <GlowingChart
-                                data={asset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]}
-                                width={400}
-                                height={110}
-                                color={color}
-                                showPrice={false}
-                              />
-                            )
+                            <TradingViewMiniChart assetSymbol={asset.symbol} title={`tv-grid-${asset.symbol}`} />
                           )}
                         </div>
 
@@ -1034,138 +1030,36 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
           ) : (
             <motion.div
               key="focus"
-              initial={{ opacity: 0, y: 10 }}
+              initial={dashboardInitial({ opacity: 0, y: 10 })}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -10 }}
               className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms] min-h-[364px] lg:min-h-[403px]"
             >
-              {currentAsset.symbol === 'XAUUSD' ? (
-                <div className="space-y-3">
-                  <div className="w-full aspect-[16/8] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
-                    {animationsReady ? (
-                      <TradingViewMiniChart
-                        assetSymbol={currentAsset.symbol}
-                        title={`tv-focus-${currentAsset.symbol}`}
-                        interval="15"
-                        interactive
-                      />
-                    ) : (
-                      <div className="w-full h-full rounded-lg bg-white/5 animate-pulse" />
-                    )}
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3">
-                    <ul className="space-y-1.5">
-                      {screeningFocusSummaryLines.map((line, i) => (
-                        <li key={`focus-summary-${i}`} className="flex items-start gap-2.5 text-sm font-semibold text-white/95 leading-relaxed tracking-tight">
-                          <div className="mt-2 w-1 h-1 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
-                          <TypewriterText text={line} speed={18} delay={400 + i * 320} />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+              <div className="space-y-3">
+                <div className="w-full aspect-[16/8] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
+                  {animationsReady ? (
+                    <TradingViewMiniChart
+                      assetSymbol={currentAsset.symbol}
+                      title={`tv-focus-${currentAsset.symbol}`}
+                      interval="15"
+                      interactive
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-lg bg-white/5 animate-pulse" />
+                  )}
                 </div>
-              ) : (
-                <>
-                  {/* Focus View Header - Compact */}
-                  <div className="flex flex-wrap items-center justify-between mb-5 gap-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-white mb-1 uppercase tracking-widest leading-none select-none">
-                        {currentAsset.symbol}
-                      </h3>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-4xl font-bold text-white tracking-tight">
-                          {formatAssetPrice(currentAsset.price, currentAsset.symbol)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <TechBadge variant={currentAsset.direction === 'Up' ? 'success' : 'warning'} className="px-3 py-1.5 font-bold uppercase tracking-[0.2em] leading-none flex flex-col items-center gap-0.5">
-                          <span className="text-xs">Confidenza</span>
-                          <span className="text-sm font-black">{currentAsset.confidence}%</span>
-                        </TechBadge>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Big Chart - Compatto */}
-                  <div className="h-[55px] mb-4 relative group overflow-hidden">
-                    {/* Hover Gradient - Neutral */}
-                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity dark:from-white/5" />
-                    <div className="w-full h-full flex items-center justify-center">
-                      {animationsReady && (
-                        <DetailChart
-                          data={(currentAsset.sparkData || [30, 45, 35, 60, 42, 70, 55, 65, 50, 75]).map((val, i) => ({
-                            date: `${10 + (i * 2)}:00`,
-                            value: val
-                          }))}
-                          height={100}
-                          color={chartLineColor}
-                          showgrid={false}
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Details Grid - Compact */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5 rounded-2xl border border-white/10 bg-[#13171C]/85 p-4">
-                    <div className="md:col-span-2">
-                      <h5 className="text-xs font-bold text-white uppercase tracking-[0.2em] mb-4">Analisi statistica</h5>
-                      <div className="space-y-4">
-                        <p className="text-base font-semibold text-white/95 leading-relaxed tracking-tight">
-                          {statisticalNarrative}
-                        </p>
-                        <p className="text-sm text-white/70 leading-relaxed tracking-tight">
-                          Contesto: {isIndex ? `${weekRule.description || '—'} • ${dayRule.note || '—'} • Bias mensile ${monthlyBias || '—'}` : `Seasonality ${seasonalityBias}`} • ATR {Math.round(atrProgress)}%
-                        </p>
-                        {/* Engine Drivers - Integrated */}
-                        {currentAsset.drivers?.length > 0 && (
-                          <div className="mt-8 pt-6 border-t border-white/5">
-                            <h5 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-3">Engine Drivers</h5>
-                            <div className="flex flex-wrap gap-2">
-                              {currentAsset.drivers.map((driver, i) => (
-                                <span
-                                  key={i}
-                                  className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-[10px] font-bold text-white/60 uppercase tracking-widest"
-                                >
-                                  {driver}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col justify-between">
-                      <div>
-                        <h5 className="text-sm font-bold text-white uppercase tracking-[0.2em] mb-4">Metriche Rapide</h5>
-                        <div className="space-y-4">
-                          <div>
-                            <p className="text-xs text-white uppercase font-black tracking-[0.2em] mb-2 leading-none">ATR Daily Range</p>
-                            <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                              <div
-                                style={{ width: `${atrProgress}%` }}
-                                className="h-full rounded-full bg-[#00D9A5] transition-all duration-700"
-                              />
-                            </div>
-                            <div className="mt-2 flex items-center justify-between text-xs text-white/70 font-bold">
-                              <span>Percorso: {formatPoints(dayMovePoints)} pts ({Math.round(atrProgress)}%)</span>
-                              <span>Rimanente: {formatPoints(atrRemaining)} pts ({Math.max(0, 100 - Math.round(atrProgress))}%)</span>
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <p className="text-xs text-white uppercase font-black tracking-[0.2em]">Statistical Bias</p>
-                            <p className="text-base font-bold text-[#00D9A5] leading-relaxed">{statisticalBiasSummary}</p>
-                          </div>
-                        </div>
-
-                        {/* Source Breakdown removed per request */}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
+                <div className="rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3">
+                  <ul className="space-y-1.5">
+                    {screeningFocusSummaryLines.map((line, i) => (
+                      <li key={`focus-summary-${i}`} className="flex items-start gap-2.5 text-sm font-semibold text-white/95 leading-relaxed tracking-tight">
+                        <div className="mt-2 w-1 h-1 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
+                        <TypewriterText text={line} speed={18} delay={400 + i * 320} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1394,7 +1288,7 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
       <AnimatePresence>
         {showInfo && (
           <motion.div
-            initial={{ opacity: 0, scale: 0, y: -20 }}
+            initial={dashboardInitial({ opacity: 0, scale: 0, y: -20 })}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0, y: -20 }}
             transition={{
@@ -1480,12 +1374,12 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
                 <button
                   type="button"
                   onClick={() => setShowInfo((prev) => !prev)}
-                  className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
+                  className="p-1 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
                   aria-label="Informazioni Market Breadth"
                   title="Informazioni Market Breadth"
                   aria-expanded={showInfo}
                 >
-                  <Info className="w-3.5 h-3.5 text-white" />
+                  <Info className="w-3 h-3 text-white" />
                 </button>
               </div>
             </div>
@@ -1507,7 +1401,7 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
               <AnimatePresence>
                 {showSelector && (
                   <motion.div
-                    initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                    initial={dashboardInitial({ opacity: 0, y: -6, scale: 0.96 })}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -4, scale: 0.98 }}
                     transition={{ duration: 0.16 }}
@@ -1942,7 +1836,7 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
       <AnimatePresence>
         {showInfo && (
           <motion.div
-            initial={{ opacity: 0, scale: 0, y: -20 }}
+            initial={dashboardInitial({ opacity: 0, scale: 0, y: -20 })}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0, y: -20 }}
             transition={{
@@ -2010,19 +1904,17 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
                 <span className="font-medium text-base text-white/90">
                   Fear &amp; Greed Index
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setShowInfo((prev) => !prev)}
+                  className="p-1 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
+                  aria-label="Informazioni Fear and Greed"
+                  title="Informazioni Fear and Greed"
+                  aria-expanded={showInfo}
+                >
+                  <Info className="w-3 h-3 text-white" />
+                </button>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowInfo((prev) => !prev)}
-                className="p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-all opacity-40 hover:opacity-100"
-                aria-label="Informazioni Fear and Greed"
-                title="Informazioni Fear and Greed"
-                aria-expanded={showInfo}
-              >
-                <Info className="w-3.5 h-3.5 text-white" />
-              </button>
             </div>
           </div>
           <span className={cn(
@@ -2339,9 +2231,9 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
           <div className="relative">
             <button
               onClick={() => setShowInfo(!showInfo)}
-              className="p-1.5 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
+              className="p-1 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
             >
-              <Info className="w-3.5 h-3.5 text-white" />
+              <Info className="w-3 h-3 text-white" />
             </button>
           </div>
         </div>
@@ -2350,7 +2242,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
         <AnimatePresence>
           {showInfo && (
             <motion.div
-              initial={{ opacity: 0, scale: 0, y: -20 }}
+              initial={dashboardInitial({ opacity: 0, scale: 0, y: -20 })}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0, y: -20 }}
               transition={{
@@ -2449,7 +2341,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
             <AnimatePresence>
               {showSelector && (
                 <motion.div
-                  initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                  initial={dashboardInitial({ opacity: 0, y: -5, scale: 0.95 })}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -5, scale: 0.95 }}
                   className="absolute right-0 top-full pt-1 z-50"
@@ -2633,7 +2525,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
       <AnimatePresence>
         {showInfo && (
           <motion.div
-            initial={{ opacity: 0, scale: 0, y: -20 }}
+            initial={dashboardInitial({ opacity: 0, scale: 0, y: -20 })}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0, y: -20 }}
             transition={{
@@ -2714,9 +2606,9 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
             {/* Info Button */}
             <button
               onClick={() => setShowInfo(!showInfo)}
-              className="p-1.5 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
+              className="p-1 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
             >
-              <Info className="w-3.5 h-3.5 text-white" />
+              <Info className="w-3 h-3 text-white" />
             </button>
           </div>
           {/* Eye Icon Selector */}
@@ -2731,7 +2623,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
             <AnimatePresence>
               {showSelector && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
+                  initial={dashboardInitial({ opacity: 0, y: -10 })}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200 rounded-lg shadow-xl min-w-[160px] dark:bg-black/90 dark:border-white/10"
@@ -3078,7 +2970,7 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
       <AnimatePresence>
         {showInfo && (
           <motion.div
-            initial={{ opacity: 0, scale: 0, y: -20 }}
+            initial={dashboardInitial({ opacity: 0, scale: 0, y: -20 })}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0, y: -20 }}
             transition={{
@@ -3139,6 +3031,12 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
               <span className="font-medium text-base text-white/90">
                 GEX 0DTE
               </span>
+              <button
+                onClick={() => setShowInfo(!showInfo)}
+                className="p-1 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
+              >
+                <Info className="w-3 h-3 text-white" />
+              </button>
             </div>
             <span className="mt-1.5 font-apple text-xl font-bold leading-none text-white">{selectedAsset}</span>
           </div>
@@ -3152,15 +3050,6 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
             )}>
               {gexStats.regimeLabel}
             </span>
-            <button
-              onClick={() => setShowInfo(!showInfo)}
-              className={cn(
-                "rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100",
-                compact ? "p-1.5" : "p-1.5"
-              )}
-            >
-              <Info className={cn("text-white", compact ? "w-4 h-4" : "w-3.5 h-3.5")} />
-            </button>
 
             <div className="relative" onMouseLeave={() => setShowSelector(false)}>
               <button
@@ -3175,7 +3064,7 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
               <AnimatePresence>
                 {showSelector && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
+                    initial={dashboardInitial({ opacity: 0, y: -10 })}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200 rounded-lg shadow-xl min-w-[160px] dark:bg-black/90 dark:border-white/10"
@@ -3449,7 +3338,7 @@ const StrategySelectorPanel = ({ projections = [], strategiesCatalog = [], expan
           <AnimatePresence>
             {showSelector && (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
+                initial={dashboardInitial({ opacity: 0, y: -10 })}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className="absolute right-0 top-full z-50 p-3 bg-white/95 border border-slate-200 rounded-lg shadow-xl min-w-[220px] dark:bg-black/95 dark:border-white/10"
@@ -3532,7 +3421,7 @@ const StrategySelectorPanel = ({ projections = [], strategiesCatalog = [], expan
                 <AnimatePresence>
                   {expandedNews === `sig-${i}` && (
                     <motion.div
-                      initial={{ height: 0, opacity: 0 }}
+                      initial={dashboardInitial({ height: 0, opacity: 0 })}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.4 }}
@@ -3810,7 +3699,7 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
                 <AnimatePresence>
                   {expandedNews === i && (
                     <motion.div
-                      initial={{ height: 0, opacity: 0 }}
+                      initial={dashboardInitial({ height: 0, opacity: 0 })}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.4 }}
@@ -3958,51 +3847,25 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
   const bearishCount = analyses ? Object.values(analyses).filter(a => a.direction === 'Down').length : 0;
   const overallBias = bullishCount > bearishCount ? 'BULLISH' : bearishCount > bullishCount ? 'BEARISH' : 'NEUTRAL';
 
-  // Details content for each metric
+  // Unified detail content
   const details = {
-    bias: {
-      title: 'Daily Bias',
-      description: `Sentiment complessivo del mercato basato sull'analisi di ${bullishCount + bearishCount} asset.`,
-      stats: [
-        { label: 'Bullish', value: bullishCount, color: 'text-[#00D9A5]' },
-        { label: 'Bearish', value: bearishCount, color: 'text-red-400' },
-        { label: 'Neutral', value: (analyses ? Object.keys(analyses).length : 0) - bullishCount - bearishCount, color: 'text-yellow-400' }
-      ],
-      interpretation: overallBias === 'BULLISH'
-        ? 'Mercato orientato al rialzo. Considera posizioni long su asset forti.'
-        : overallBias === 'BEARISH'
-          ? 'Mercato orientato al ribasso. Cautela su posizioni long, valuta short.'
-          : 'Mercato neutrale. Attendi conferme direzionali prima di operare.'
-    },
-    vix: {
-      title: 'VIX - Volatility Index',
-      description: `Indice di volatilità attuale: ${vix?.current || '-'}. Misura le aspettative di volatilità del mercato nei prossimi 30 giorni.`,
-      stats: [
-        { label: 'Current', value: vix?.current || '-', color: vix?.current > 22 ? 'text-red-400' : vix?.current > 18 ? 'text-yellow-400' : 'text-[#00D9A5]' },
-        { label: 'Change', value: `${vix?.change > 0 ? '+' : ''}${vix?.change || 0}%`, color: vix?.change > 0 ? 'text-red-400' : 'text-[#00D9A5]' },
-        { label: 'Status', value: vix?.current > 22 ? 'High' : vix?.current > 18 ? 'Normal' : 'Low', color: vix?.current > 22 ? 'text-red-400' : vix?.current > 18 ? 'text-yellow-400' : 'text-[#00D9A5]' }
-      ],
-      interpretation: !vix?.current
-        ? 'Caricamento dati...'
-        : vix.current > 22
-          ? 'Alta volatilità: mercato nervoso, aumenta il rischio. Riduci size posizioni.'
-          : vix.current > 18
-            ? 'Volatilità moderata: mercato in movimento, usa stop loss adeguati.'
-            : 'Bassa volatilità: mercato calmo, ideale per strategie range-bound.'
-    },
-    regime: {
-      title: 'Market Regime',
-      description: `Regime di mercato corrente: ${regime?.toUpperCase() || '-'}. Indica il comportamento generale degli investitori.`,
-      stats: [
-        { label: 'Mode', value: regime?.toUpperCase() || '-', color: regime === 'risk-on' ? 'text-[#00D9A5]' : regime === 'risk-off' ? 'text-red-400' : 'text-yellow-400' },
-        { label: 'Sentiment', value: regime === 'risk-on' ? 'Positive' : regime === 'risk-off' ? 'Defensive' : 'Mixed', color: 'text-white/70' },
-        { label: 'Action', value: regime === 'risk-on' ? 'Growth' : regime === 'risk-off' ? 'Safe Haven' : 'Neutral', color: 'text-white/70' }
-      ],
-      interpretation: regime === 'risk-on'
-        ? 'Risk-ON: Investitori favoriscono asset rischiosi (azioni, crypto). Sentiment positivo.'
-        : regime === 'risk-off'
-          ? 'Risk-OFF: Fuga verso beni rifugio (bonds, oro). Cautela e protezione capitali.'
-          : 'Neutrale: Mercato indeciso. Monitora per cambiamenti direzionali.'
+    overview: {
+      title: 'Macro Synthesis',
+      interpretation: (() => {
+        if (overallBias === 'BULLISH' && (regime === 'risk-on' || !regime) && vix?.current <= 18) {
+          return 'Ambiente "Goldilocks": trend rialzista solido con bassa volatilità e propensione al rischio confermata. Condizioni ideali per strategie trend-following ed accumulated positions.';
+        }
+        if (overallBias === 'BEARISH' && regime === 'risk-off' && vix?.current > 20) {
+          return 'Discesa recessiva / risk-off evidente confermato dal rialzo del VIX e bias orso massivo. Privilegiare liquidità o short su rimbalzo/rotture di supporto.';
+        }
+        if (overallBias === 'BULLISH' && vix?.current > 20) {
+          return 'Rialzo nervoso: trend rialzista ma accompagnato da alta volatilità (VIX elevato). Possibili spike intra-day aggressivi, operare con size ridotta e stop larghi.';
+        }
+        if (regime === 'risk-off' && overallBias !== 'BEARISH') {
+          return 'Settori in rotazione difensiva: il mercato inizia a favorire i beni rifugio, ma la struttura di prezzo non è ancora ribassista a livello primario. Probabile lateralità distributiva.';
+        }
+        return 'Contesto misto o neutrale: le forze macro-direzionali non sono del tutto allineate. Consigliabile trading intraday, scaling down e selezione iper-dettagliata dei setup ottimali della sessione.';
+      })()
     }
   };
 
@@ -4033,80 +3896,68 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
     >
       {/* Main Header Row */}
       <div className="dashboard-panel-glass-boost bias-panel-border glass-edge panel-left-edge fine-gray-border flex items-center justify-between p-2 sm:p-3 rounded-lg font-apple bg-white shadow-[0_20px_50px_rgb(0,0,0,0.1)] dark:bg-[#0F1115] dark:shadow-none">
-        {/* Left side: Bias + VIX + Regime */}
-        <div className="flex flex-nowrap items-center gap-1 sm:gap-3">
-          {/* Daily Bias */}
+        {/* Unified Market Overview Button with Absolute Overlay */}
+        <div className="flex flex-nowrap items-center gap-1 sm:gap-3 relative z-[150]">
           <button
-            onClick={() => toggleItem('bias')}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              toggleItem('overview');
+            }}
             className={cn(
-              "flex items-center gap-0.5 sm:gap-2 px-1 py-0.5 sm:px-2 sm:py-1 rounded-lg transition-all cursor-pointer",
-              expandedItem === 'bias' ? "bg-slate-100 ring-1 ring-slate-300 dark:bg-white/10 dark:ring-white/20 tab-border-highlight" : "hover:bg-slate-100 dark:hover:bg-white/5"
+              "flex items-center gap-2 sm:gap-4 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl transition-all cursor-pointer",
+              expandedItem === 'overview' ? "bg-slate-100 ring-1 ring-slate-300 dark:bg-white/10 dark:ring-[#00D9A5]/50 tab-border-highlight shadow-[0_0_15px_rgba(0,217,165,0.08)]" : "hover:bg-slate-100 dark:hover:bg-white/5"
             )}
           >
-            <Target className="w-2.5 h-2.5 sm:w-5 sm:h-5 text-[#00D9A5]" />
-            <span className="text-[8px] sm:text-base text-slate-500 dark:text-white/50">Bias:</span>
-            <span className={cn(
-              "text-[9px] sm:text-lg font-bold",
-              overallBias === 'BULLISH' ? "text-[#00D9A5]" : overallBias === 'BEARISH' ? "text-red-400" : "text-yellow-400"
-            )}>
-              {overallBias}
-            </span>
-            <span className="hidden sm:inline text-base text-slate-400 dark:text-white/40">
-              (<span className="text-[#00D9A5]">▲{bullishCount}</span> <span className="text-red-400">▼{bearishCount}</span>)
-            </span>
+            <div className="p-1 sm:p-1.5 bg-[#00D9A5]/10 rounded-lg">
+              <Activity className="w-3 h-3 sm:w-5 sm:h-5 text-[#00D9A5]" />
+            </div>
+            <div className="flex flex-col items-start gap-0.5 sm:gap-1.5">
+              <span className="text-[10px] sm:text-[13px] text-slate-500 dark:text-white/60 font-bold tracking-[0.18em] uppercase leading-none mt-0.5" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif' }}>Market Overview</span>
+              <div className="flex items-center gap-2 sm:gap-4 text-[12px] sm:text-base font-black leading-none mb-0.5" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif' }}>
+                <span className={overallBias === 'BULLISH' ? "text-[#00D9A5]" : overallBias === 'BEARISH' ? "text-red-400" : "text-yellow-400"}>{overallBias}</span>
+                <span className="text-white/20">•</span>
+                <span className={vix?.current > 22 ? "text-red-400" : vix?.current > 18 ? "text-yellow-400" : "text-[#00D9A5]"}>VIX {vix?.current || '-'}</span>
+                <span className="text-white/20">•</span>
+                <span className={regime === 'risk-off' ? "text-red-400" : regime === 'risk-on' ? "text-[#00D9A5]" : "text-yellow-400"}>{regime?.toUpperCase() || '-'}</span>
+              </div>
+            </div>
             <ChevronDown className={cn(
-              "w-3 h-3 sm:w-4 sm:h-4 text-slate-400 dark:text-white/40 transition-transform hidden sm:block",
-              expandedItem === 'bias' && "rotate-180"
+              "w-3 h-3 sm:w-4 sm:h-4 text-slate-400 dark:text-white/40 transition-transform ml-1 sm:ml-2",
+              expandedItem === 'overview' && "rotate-180 text-[#00D9A5]"
             )} />
           </button>
 
-          <div className="hidden sm:block w-px h-4 bg-slate-200 dark:bg-white/10" />
+          {/* Absolute Expanded Details Panel - Overlay style */}
+          <AnimatePresence>
+            {expandedItem && details[expandedItem] && (
+              <motion.div
+                initial={dashboardInitial({ opacity: 0, scale: 0, y: -20 })}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0, y: -20 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 350,
+                  damping: 25,
+                  mass: 0.6
+                }}
+                style={{ transformOrigin: 'top left', wheelChange: 'transform, opacity, filter' }}
+                className="absolute top-[calc(100%+12px)] left-0 z-[200] w-[320px] sm:w-[500px]"
+              >
+                <div className="relative p-7 bg-[#000000] border-2 border-[#00D9A5]/60 rounded-[24px] shadow-[0_40px_150px_rgba(0,0,0,1)] font-apple flex flex-col gap-4">
+                  <h4 className="text-[16px] sm:text-[18px] font-bold text-yellow-400 uppercase tracking-[0.2em] flex items-center gap-2 mb-1 font-apple" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif' }}>
+                    <Sparkles className="w-5 h-5" /> {details[expandedItem].title}
+                  </h4>
 
-          {/* VIX */}
-          <button
-            onClick={() => toggleItem('vix')}
-            className={cn(
-              "flex items-center gap-0.5 sm:gap-2 px-1 py-0.5 sm:px-2 sm:py-1 rounded-lg transition-all cursor-pointer",
-              expandedItem === 'vix' ? "bg-slate-100 ring-1 ring-slate-300 dark:bg-white/10 dark:ring-white/20" : "hover:bg-slate-100 dark:hover:bg-white/5"
+                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 shadow-inner">
+                    <p className="text-[17px] sm:text-[20px] text-white leading-relaxed font-bold font-apple">
+                      {details[expandedItem].interpretation}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
             )}
-          >
-            <Shield className="w-2.5 h-2.5 sm:w-5 sm:h-5 text-[#00D9A5]" />
-            <span className="text-[8px] sm:text-base text-slate-500 dark:text-white/50">VIX</span>
-            <span className={cn(
-              "text-[9px] sm:text-lg font-bold font-mono",
-              vix?.current > 22 ? "text-red-400" : vix?.current > 18 ? "text-yellow-400" : "text-[#00D9A5]"
-            )}>
-              {vix?.current || '-'}
-            </span>
-            <ChevronDown className={cn(
-              "w-3 h-3 sm:w-4 sm:h-4 text-slate-400 dark:text-white/40 transition-transform hidden sm:block",
-              expandedItem === 'vix' && "rotate-180"
-            )} />
-          </button>
-
-          <div className="hidden sm:block w-px h-4 bg-slate-200 dark:bg-white/10" />
-
-          {/* Regime */}
-          <button
-            onClick={() => toggleItem('regime')}
-            className={cn(
-              "flex items-center gap-0.5 sm:gap-2 px-1 py-0.5 sm:px-2 sm:py-1 rounded-lg transition-all cursor-pointer",
-              expandedItem === 'regime' ? "bg-slate-100 ring-1 ring-slate-300 dark:bg-white/10 dark:ring-white/20" : "hover:bg-slate-100 dark:hover:bg-white/5"
-            )}
-          >
-            <Activity className="w-2.5 h-2.5 sm:w-5 sm:h-5 text-[#00D9A5]" />
-            <span className="text-[8px] sm:text-base text-slate-500 dark:text-white/50">Regime:</span>
-            <span className={cn(
-              "text-[9px] sm:text-lg font-bold",
-              regime === 'risk-off' ? "text-red-400" : regime === 'risk-on' ? "text-[#00D9A5]" : "text-yellow-400"
-            )}>
-              {regime?.toUpperCase() || '-'}
-            </span>
-            <ChevronDown className={cn(
-              "w-3 h-3 sm:w-4 sm:h-4 text-slate-400 dark:text-white/40 transition-transform hidden sm:block",
-              expandedItem === 'regime' && "rotate-180"
-            )} />
-          </button>
+          </AnimatePresence>
         </div>
 
         {/* Center: Live Market Sessions */}
@@ -4123,7 +3974,7 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
           )}
 
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={dashboardInitial({ opacity: 0, scale: 0.9 })}
             animate={{ opacity: 1, scale: 1 }}
             className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all hover:brightness-110 cursor-default",
@@ -4136,53 +3987,7 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
         </div>
       </div>
 
-      {/* Expanded Details Panel - News-style summary */}
-      <AnimatePresence>
-        {expandedItem && details[expandedItem] && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="overflow-hidden"
-          >
-            <div className="p-3 bg-black/40 rounded-lg border border-[#00D9A5]/20">
-              {/* Compact Summary */}
-              <div className="flex items-start gap-3">
-                {/* Icon */}
-                <div className="p-2 bg-[#00D9A5]/10 rounded-lg">
-                  {expandedItem === 'bias' && <Target className="w-5 h-5 text-[#00D9A5]" />}
-                  {expandedItem === 'vix' && <Shield className="w-5 h-5 text-[#00D9A5]" />}
-                  {expandedItem === 'regime' && <Activity className="w-5 h-5 text-[#00D9A5]" />}
-                </div>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-base font-semibold text-[#00D9A5] mb-1">
-                    {details[expandedItem].title}
-                  </h4>
-
-                  {/* Inline Stats */}
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-2 text-sm sm:text-base">
-                    {details[expandedItem].stats.map((stat, i) => (
-                      <span key={i} className="flex items-center gap-1">
-                        <span className="text-white/40">{stat.label}:</span>
-                        <span className={cn("font-bold font-mono", stat.color)}>{stat.value}</span>
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Interpretation as summary */}
-                  <p className="text-base text-slate-700 leading-relaxed dark:text-white/90">
-                    <span className="text-[#00D9A5] font-bold">Prospettiva: </span>
-                    {details[expandedItem].interpretation}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -4203,18 +4008,24 @@ export default function DashboardPage() {
   const [strategiesCatalog, setStrategiesCatalog] = useState([]);
   const [newsBriefing, setNewsBriefing] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [favoriteCharts, setFavoriteCharts] = useState(['XAUUSD', 'NAS100', 'SP500']);
+  const [favoriteCharts, setFavoriteCharts] = useState(['XAUUSD']);
   const [favoriteCOT, setFavoriteCOT] = useState(['NAS100', 'SP500']);
   const [optionsSelectedAsset, setOptionsSelectedAsset] = useState('XAUUSD');
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const playIntro = !isSmallMobile && !hasPlayedDashboardIntro;
   const cotReleaseKeyRef = useRef(null);
+  const matrixSnapshotSignatureRef = useRef({});
 
   // Typewriter animation state
   const [introPhase, setIntroPhase] = useState(() => (playIntro ? 'typing' : 'done')); // 'typing' | 'visible' | 'done'
   const [typedChars, setTypedChars] = useState(0);
   const [headerHidden, setHeaderHidden] = useState(() => !playIntro);
   const biasBarRef = useRef(null);
+
+  useEffect(() => {
+    if (hasPlayedDashboardEntryMotion) return;
+    hasPlayedDashboardEntryMotion = true;
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -4313,6 +4124,122 @@ export default function DashboardPage() {
     const interval = setInterval(fetchMarketBreadth, DASHBOARD_FETCH_INTERVALS_MS.marketBreadth);
     return () => clearInterval(interval);
   }, [fetchMarketBreadth]);
+
+  // --- FORENSICS 2.0: MATRIX TELEMETRY (every 5m, multi-asset update-only) ---
+  useEffect(() => {
+    const normalizeBias = (raw, fallback = 'NEUTRAL') => {
+      const val = String(raw || fallback).toUpperCase();
+      if (val.includes('BULL')) return 'BULLISH';
+      if (val.includes('BEAR')) return 'BEARISH';
+      if (val.includes('RISK_ON')) return 'BULLISH';
+      if (val.includes('RISK_OFF')) return 'BEARISH';
+      return 'NEUTRAL';
+    };
+
+    const normalizeDirection = (raw) => {
+      const val = String(raw || '').toUpperCase();
+      if (val.includes('DOWN') || val.includes('BEAR')) return 'DOWN';
+      return 'UP';
+    };
+
+    const broadcastMatrixSnapshot = async () => {
+      const token = localStorage.getItem('token');
+      const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+      const vixLevel = Number(multiSourceData?.vix?.current ?? livePrices.VIX?.price ?? 15);
+      const marketRegime = String(multiSourceData?.regime || 'neutral').toLowerCase();
+      const riskBias = (vixLevel >= 24 || marketRegime === 'risk-off')
+        ? 'HIGH_RISK'
+        : (vixLevel <= 16 && marketRegime === 'risk-on')
+          ? 'LOW_RISK'
+          : 'MEDIUM_RISK';
+
+      const candidateSymbols = Array.from(new Set([
+        ...(engineData || []).map((a) => a.asset || a.symbol).filter(Boolean),
+        ...(favoriteCharts || [])
+      ]));
+      if (candidateSymbols.length === 0) return;
+
+      for (const symbol of candidateSymbols) {
+        const assetEngineData = (engineData || []).find((a) => (a.asset || a.symbol) === symbol) || {};
+        const breadthNode = marketBreadth?.indices?.[symbol];
+        const aboveMa50Pct = breadthNode?.above_ma50?.pct;
+        const aboveMa200Pct = breadthNode?.above_ma200?.pct;
+
+        let screeningBias = 'UNKNOWN';
+        if (typeof aboveMa50Pct === 'number' && typeof aboveMa200Pct === 'number') {
+          if (aboveMa50Pct >= 60 && aboveMa200Pct >= 55) screeningBias = 'BULLISH';
+          else if (aboveMa50Pct <= 40 && aboveMa200Pct <= 45) screeningBias = 'BEARISH';
+          else screeningBias = 'NEUTRAL';
+        } else if (breadthNode?.breadth_regime === 'broad-bullish') {
+          screeningBias = 'BULLISH';
+        } else if (breadthNode?.breadth_regime === 'broad-weakness') {
+          screeningBias = 'BEARISH';
+        } else if (breadthNode?.breadth_regime) {
+          screeningBias = 'NEUTRAL';
+        }
+
+        const cotBiasLive = cotSummary?.data?.[symbol]?.bias;
+        const cotBias = normalizeBias(cotBiasLive, STAT_BIAS[symbol]?.weekly_bias || 'NEUTRAL');
+        const optionsBias = normalizeBias(STATIC_OPTIONS_DATA[symbol]?.bias || 'NEUTRAL');
+        const newsBias = normalizeBias(newsBriefing?.sentiment || 'NEUTRAL');
+        const marketBias = normalizeBias(multiSourceData?.regime || 'NEUTRAL');
+        const technicalBias = normalizeBias(
+          assetEngineData.direction || assetEngineData.impulse || assetEngineData.bias || 'NEUTRAL'
+        );
+        const direction = normalizeDirection(assetEngineData.direction);
+        const entryPrice = parseFloat(assetEngineData.price);
+        if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+
+        const contextVector = {
+          cot_bias: cotBias,
+          crowding: assetEngineData.crowding,
+          squeeze_risk: assetEngineData.squeezeRisk,
+          confidence: assetEngineData.confidence,
+          volatility: vixLevel,
+          options_bias: optionsBias,
+          macro_sentiment: newsBias,
+          news_bias: newsBias,
+          market_regime: marketBias,
+          risk_bias: riskBias,
+          technical_bias: technicalBias,
+          screening_bias: screeningBias,
+          screening_regime: breadthNode?.breadth_regime || 'unknown',
+          screening_above_ma50_pct: typeof aboveMa50Pct === 'number' ? aboveMa50Pct : null,
+          screening_above_ma200_pct: typeof aboveMa200Pct === 'number' ? aboveMa200Pct : null,
+          time_elapsed_since_open: new Date().getHours()
+        };
+
+        const snapshotPayload = {
+          asset: symbol,
+          direction,
+          entry_price: entryPrice,
+          context: contextVector
+        };
+        const candidateSignature = JSON.stringify(snapshotPayload);
+        if (matrixSnapshotSignatureRef.current[symbol] === candidateSignature) {
+          continue;
+        }
+
+        try {
+          await axios.post(`${API}/research/matrix-snapshot`, snapshotPayload, { headers: authHeader });
+          matrixSnapshotSignatureRef.current[symbol] = candidateSignature;
+          console.log(`📡 [MATRIX] Snapshot ${symbol} | ${screeningBias} | ${riskBias}`);
+        } catch (err) {
+          console.warn(`Matrix Telemetry broadcast failed for ${symbol}`, err);
+        }
+      }
+    };
+
+    // Broadcast immediately if data exists, then every 5 minutes.
+    // Dedup logic prevents overlap/noisy duplicates.
+    if (engineData?.length > 0) {
+      broadcastMatrixSnapshot();
+    }
+    const interval = setInterval(broadcastMatrixSnapshot, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [engineData, favoriteCharts, newsBriefing, livePrices, marketBreadth, multiSourceData, cotSummary]);
+
+
 
   const { analyses, vix, regime, next_event } = multiSourceData || {};
 
@@ -4494,7 +4421,7 @@ export default function DashboardPage() {
   const cursorBlink = introPhase === 'typing' ? 'animate-pulse' : '';
 
   return (
-    <div className="dashboard-page max-sm:px-2" data-testid="dashboard-page" id="dashboard-main">
+    <div className="dashboard-page max-sm:px-2" data-testid="dashboard-page" id="dashboard-main" style={{ zoom: 1.05 }}>
       {/* Header - Typewriter Animation */}
       {!headerHidden && (
         <motion.div
@@ -4553,7 +4480,7 @@ export default function DashboardPage() {
       )}
 
       <div
-        className="mb-3 sm:mb-6 max-sm:sticky max-sm:z-20"
+        className="mb-3 sm:mb-6 max-sm:sticky relative z-[100]"
         ref={biasBarRef}
         style={{ scrollMarginTop: '16px', top: 'calc(env(safe-area-inset-top, 0px) + 6px)' }}
       >

@@ -8,8 +8,7 @@ import { MobileQuickDock } from './MobileQuickDock';
 import kairongLogo from '../../assets/kairon-logo.png';
 
 const DASHBOARD_BG_VIDEO = '/videos/efecto-recording-2026-02-22T15-08-17.mp4';
-const VIDEO_CROSSFADE_SECONDS = 1.35;
-const VIDEO_BASE_OPACITY = 0.82;
+const VIDEO_BASE_OPACITY = 0.72;
 
 const KarionLogo = ({ className = "", size = "default" }) => {
   const sizes = {
@@ -38,117 +37,36 @@ const KarionLogo = ({ className = "", size = "default" }) => {
 
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const dashboardVideoARef = useRef(null);
-  const dashboardVideoBRef = useRef(null);
-  const loopFadeLayerRef = useRef(null);
-  const activeVideoIndexRef = useRef(0);
-  const isCrossfadingRef = useRef(false);
-  const crossfadeStartTsRef = useRef(0);
+  const [dashboardVideoReady, setDashboardVideoReady] = useState(false);
+  const dashboardVideoRef = useRef(null);
+  const dashboardVideoTimeRef = useRef(0);
+  const dashboardVideoBootedRef = useRef(false);
   const location = useLocation();
   const isDashboardRoute = /^\/app\/?$/.test(location.pathname);
 
   useEffect(() => {
     if (!isDashboardRoute) return undefined;
 
-    const playSilently = (video) => {
-      if (!video) return;
-      const playback = video.play();
-      if (playback && typeof playback.catch === 'function') {
-        playback.catch(() => null);
-      }
-    };
-
-    const videoA = dashboardVideoARef.current;
-    const videoB = dashboardVideoBRef.current;
-    if (!videoA || !videoB) return undefined;
-
-    activeVideoIndexRef.current = 0;
-    isCrossfadingRef.current = false;
-    crossfadeStartTsRef.current = 0;
-
+    const video = dashboardVideoRef.current;
+    if (!video) return undefined;
+    if (!dashboardVideoBootedRef.current) {
+      setDashboardVideoReady(false);
+    }
     try {
-      videoA.currentTime = 0;
-      videoB.currentTime = 0;
-    } catch (error) {
-      // Ignore metadata timing race; playback proceeds once media is ready.
-    }
-    videoA.style.opacity = VIDEO_BASE_OPACITY.toFixed(3);
-    videoB.style.opacity = '0';
-    playSilently(videoA);
-    videoB.pause();
-
-    if (loopFadeLayerRef.current) {
-      loopFadeLayerRef.current.style.opacity = '0.03';
-    }
-
-    let rafId = 0;
-    const tick = (timestamp) => {
-      const activeVideo = activeVideoIndexRef.current === 0 ? videoA : videoB;
-      const nextVideo = activeVideoIndexRef.current === 0 ? videoB : videoA;
-      const fadeLayer = loopFadeLayerRef.current;
-
-      const duration = activeVideo.duration;
-      if (Number.isFinite(duration) && duration > 0) {
-        const remaining = duration - activeVideo.currentTime;
-
-        if (!isCrossfadingRef.current && remaining <= VIDEO_CROSSFADE_SECONDS) {
-          isCrossfadingRef.current = true;
-          crossfadeStartTsRef.current = timestamp;
-          try {
-            nextVideo.currentTime = 0;
-          } catch (error) {
-            // Ignore metadata timing race; next frame will retry naturally.
-          }
-          nextVideo.style.opacity = '0';
-          playSilently(nextVideo);
-        }
-
-        if (isCrossfadingRef.current) {
-          const elapsedSeconds = (timestamp - crossfadeStartTsRef.current) / 1000;
-          const raw = Math.min(1, Math.max(0, elapsedSeconds / VIDEO_CROSSFADE_SECONDS));
-          const eased = raw * raw * (3 - 2 * raw); // smoothstep
-
-          activeVideo.style.opacity = (VIDEO_BASE_OPACITY * (1 - eased)).toFixed(3);
-          nextVideo.style.opacity = (VIDEO_BASE_OPACITY * eased).toFixed(3);
-
-          if (fadeLayer) {
-            const edgeMask = 0.03 + Math.sin(Math.PI * raw) * 0.17;
-            fadeLayer.style.opacity = edgeMask.toFixed(3);
-          }
-
-          if (raw >= 1) {
-            activeVideo.pause();
-            try {
-              activeVideo.currentTime = 0;
-            } catch (error) {
-              // Ignore metadata timing race while swapping streams.
-            }
-            activeVideo.style.opacity = '0';
-            nextVideo.style.opacity = VIDEO_BASE_OPACITY.toFixed(3);
-
-            activeVideoIndexRef.current = activeVideoIndexRef.current === 0 ? 1 : 0;
-            isCrossfadingRef.current = false;
-            crossfadeStartTsRef.current = 0;
-
-            if (fadeLayer) {
-              fadeLayer.style.opacity = '0.03';
-            }
-          }
-        } else if (fadeLayer) {
-          fadeLayer.style.opacity = '0.03';
-        }
+      if (dashboardVideoBootedRef.current && Number.isFinite(dashboardVideoTimeRef.current) && dashboardVideoTimeRef.current > 0) {
+        video.currentTime = dashboardVideoTimeRef.current;
       }
-
-      rafId = window.requestAnimationFrame(tick);
-    };
-
-    rafId = window.requestAnimationFrame(tick);
+    } catch (error) {
+      // Ignore timing race.
+    }
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => null);
+    }
+    dashboardVideoBootedRef.current = true;
     return () => {
-      window.cancelAnimationFrame(rafId);
-      isCrossfadingRef.current = false;
-      crossfadeStartTsRef.current = 0;
-      videoA.pause();
-      videoB.pause();
+      dashboardVideoTimeRef.current = Number.isFinite(video.currentTime) ? video.currentTime : dashboardVideoTimeRef.current;
+      video.pause();
     };
   }, [isDashboardRoute]);
 
@@ -161,29 +79,21 @@ export const Layout = () => {
       <div className="fixed inset-0 pointer-events-none z-0" aria-hidden="true">
         {isDashboardRoute ? (
           <>
+            <div className="dashboard-shell-fallback" />
             <video
-              ref={dashboardVideoARef}
-              className="dashboard-shell-video"
+              ref={dashboardVideoRef}
+              className={`dashboard-shell-video ${dashboardVideoReady ? 'is-ready' : ''}`}
               src={DASHBOARD_BG_VIDEO}
+              style={{ '--dashboard-video-opacity': VIDEO_BASE_OPACITY }}
               autoPlay
+              loop
               muted
               playsInline
               preload="auto"
-            />
-            <video
-              ref={dashboardVideoBRef}
-              className="dashboard-shell-video"
-              src={DASHBOARD_BG_VIDEO}
-              muted
-              playsInline
-              preload="auto"
+              onLoadedData={() => setDashboardVideoReady(true)}
+              onCanPlay={() => setDashboardVideoReady(true)}
             />
             <div className="dashboard-shell-video-overlay" />
-            <div
-              ref={loopFadeLayerRef}
-              className="dashboard-shell-video-loop-fade"
-              style={{ opacity: 0.03 }}
-            />
           </>
         ) : (
           <div
@@ -228,16 +138,6 @@ export const Layout = () => {
           <Outlet />
         </div>
 
-        {/* Global Disclaimer Footer */}
-        <footer className="hidden lg:block px-8 py-3 border-t border-border/30 bg-background/80 backdrop-blur-sm">
-          <p className="text-xs text-muted-foreground/60 text-center max-w-4xl mx-auto">
-            ⚠️ <strong>Disclaimer:</strong> Karion Trading OS è uno strumento educativo e di analisi.
-            Il trading comporta rischi significativi e può portare alla perdita del capitale investito.
-            Le informazioni fornite non costituiscono consulenza finanziaria.
-            I risultati passati non garantiscono performance future.
-            Consulta un professionista prima di prendere decisioni di investimento.
-          </p>
-        </footer>
       </main>
 
 

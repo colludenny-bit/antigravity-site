@@ -101,26 +101,38 @@ const StrategyCard = ({ strategy, onExportToMonteCarlo }) => {
     navigate('/montecarlo');
   };
 
+  const isCustom = strategy.id.startsWith('custom-');
+
   return (
     <div className="glass-enhanced p-0 font-apple">
       <div className="p-4 pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary font-bold">
-              {strategy.shortName}
+              {strategy.shortName || 'S'}
             </span>
             <div>
               <h3 className="font-bold">{strategy.name}</h3>
               <p className="text-xs text-muted-foreground">
-                Asset: {strategy.assets.join(', ')}
+                Asset: {Array.isArray(strategy.assets) ? strategy.assets.join(', ') : (strategy.assets || '')}
               </p>
             </div>
           </div>
-          {strategy.isModulator && (
-            <span className="px-2 py-1 rounded-full bg-purple-500/20 text-purple-400 text-xs">
-              MODULATORE
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {isCustom && (
+              <button
+                onClick={() => strategy.onDelete && strategy.onDelete(strategy.id)}
+                className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all opacity-0 group-hover:opacity-100"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            {strategy.isModulator && (
+              <span className="px-2 py-1 rounded-full bg-purple-500/20 text-purple-400 text-xs">
+                MODULATORE
+              </span>
+            )}
+          </div>
         </div>
       </div>
       <div className="p-4 pt-0 space-y-4">
@@ -383,37 +395,71 @@ export default function StrategyPage() {
     triggers: ''
   });
 
-  const handleSaveStrategy = () => {
+  const [customStrategies, setCustomStrategies] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const fetchCustomStrategies = useCallback(async () => {
+    try {
+      const res = await api.get('/strategies');
+      setCustomStrategies(res.data || []);
+    } catch (err) {
+      console.warn('Fallback to legacy custom strategies');
+      setCustomStrategies(JSON.parse(localStorage.getItem('customStrategies') || '[]'));
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCustomStrategies();
+  }, [fetchCustomStrategies]);
+
+  const handleSaveStrategy = async () => {
     if (!newStrategy.name || !newStrategy.description) {
       toast.error('Compila nome e descrizione');
       return;
     }
 
-    const savedStrategies = JSON.parse(localStorage.getItem('customStrategies') || '[]');
-    savedStrategies.push({
-      ...newStrategy,
-      id: `custom-${Date.now()}`,
-      shortName: `C${savedStrategies.length + 1}`,
-      rules: newStrategy.rules.split('\n').filter(r => r.trim()),
-      triggers: newStrategy.triggers.split('\n').filter(t => t.trim()),
-      assets: newStrategy.assets.split(',').map(a => a.trim()),
-      riskReward: (newStrategy.winRate / 100 * newStrategy.avgWinR) / ((1 - newStrategy.winRate / 100) * newStrategy.avgLossR)
-    });
-    localStorage.setItem('customStrategies', JSON.stringify(savedStrategies));
+    setIsSaving(true);
+    try {
+      const payload = {
+        ...newStrategy,
+        shortName: `C${customStrategies.length + 1}`,
+        rules: newStrategy.rules.split('\n').filter(r => r.trim()),
+        triggers: newStrategy.triggers.split('\n').filter(t => t.trim()),
+        assets: newStrategy.assets.split(',').map(a => a.trim()),
+      };
 
-    toast.success('Strategia salvata!');
-    setNewStrategy({
-      name: '',
-      assets: '',
-      description: '',
-      winRate: 55,
-      avgWinR: 1.2,
-      avgLossR: 1.0,
-      maxDD: 10,
-      rules: '',
-      triggers: ''
-    });
-    setActiveTab('strategies');
+      await api.post('/strategy', payload);
+      toast.success('Strategia salvata nel cloud!');
+
+      setNewStrategy({
+        name: '',
+        assets: '',
+        description: '',
+        winRate: 55,
+        avgWinR: 1.2,
+        avgLossR: 1.0,
+        maxDD: 10,
+        rules: '',
+        triggers: ''
+      });
+      fetchCustomStrategies();
+      setActiveTab('strategies');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Errore durante il salvataggio');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteStrategy = async (id) => {
+    if (!window.confirm('Sei sicuro di voler eliminare questa strategia?')) return;
+    try {
+      await api.delete(`/strategy/${id}`);
+      toast.success('Strategia eliminata');
+      fetchCustomStrategies();
+    } catch (err) {
+      toast.error('Errore durante l\'eliminazione');
+    }
   };
 
   const handleExportAndRun = (strategy) => {
@@ -427,10 +473,11 @@ export default function StrategyPage() {
     navigate('/montecarlo');
   };
 
-  const customStrategies = JSON.parse(localStorage.getItem('customStrategies') || '[]');
   const allStrategies = [...detailedStrategies, ...customStrategies.map(s => ({
     ...s,
-    probabilityFactors: ['Definiti dall\'utente']
+    id: s.id || `custom-${Date.now()}`, // Ensure ID for mapping
+    probabilityFactors: s.probabilityFactors || ['Definiti dall\'utente'],
+    onDelete: handleDeleteStrategy
   }))];
   const selectableStrategies = allStrategies.filter((s) => !s.isModulator).map((s) => s.name);
   const fileInputRef = useRef(null);

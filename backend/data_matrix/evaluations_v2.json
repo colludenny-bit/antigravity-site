@@ -1,0 +1,142 @@
+[
+  {
+    "id": "38460d53-0279-44be-8d9d-96000274de9b",
+    "prediction_id": "seed",
+    "timeframe": "t_5m",
+    "asset": "NAS100",
+    "context": {
+      "cot_bias": "BULLISH",
+      "options_bias": "bullish",
+      "macro_sentiment": "risk_on"
+    },
+    "mfe_pips": 18.0,
+    "mae_pips": 6.0,
+    "hit": true,
+    "evaluated_at": "2026-02-28T01:42:01.590499+00:00"
+  },
+  {
+    "id": "59532f9c-1a19-48b0-acf3-ed033990b462",
+    "prediction_id": "seed",
+    "timeframe": "t_15m",
+    "asset": "NAS100",
+    "context": {
+      "cot_bias": "BULLISH",
+      "options_bias": "bullish",
+      "macro_sentiment": "risk_on"
+    },
+    "mfe_pips": 31.0,
+    "mae_pips": 12.0,
+    "hit": true,
+    "evaluated_at": "2026-02-28T01:42:01.591206+00:00"
+  },
+  {
+    "id": "2efe9cb8-1525-4ba0-95be-5b1d354ab6f5",
+    "prediction_id": "seed",
+    "timeframe": "t_5m",
+    "asset": "SP500",
+    "context": {
+      "cot_bias": "BEARISH",
+      "options_bias": "bearish",
+      "macro_sentiment": "risk_off"
+    },
+    "mfe_pips": 9.0,
+    "mae_pips": 11.0,
+    "hit": false,
+    "evaluated_at": "2026-02-28T01:42:01.591512+00:00"
+  },
+  {
+    "id": "36999608-c0b4-45d8-8321-9c254233bc8b",
+    "prediction_id": "seed",
+    "timeframe": "t_30m",
+    "asset": "SP500",
+    "context": {
+      "cot_bias": "BEARISH",
+      "options_bias": "bearish",
+      "macro_sentiment": "risk_off"
+    },
+    "mfe_pips": 22.0,
+    "mae_pips": 8.0,
+    "hit": true,
+    "evaluated_at": "2026-02-28T01:42:01.591813+00:00"
+  },
+  {
+    "id": "8c7cad12-0e49-431c-90f3-5897c86c2925",
+    "prediction_id": "test-a1",
+    "timeframe": "t_5m",
+    "asset": "NAS100",
+    "context": {
+      "cot_bias": "BULLISH",
+      "options_bias": "bullish",
+      "macro_sentiment": "risk_on",
+      "screening_bias": "BULLISH"
+    },
+    "mfe_pips": 21,
+    "mae_pips": 7,
+    "hit": true,
+    "evaluated_at": "2026-02-28T02:11:08.439318+00:00"
+  },
+  {
+    "id": "6b90b157-25ab-49ad-a92b-e01fec5a5eee",
+    "prediction_id": "test-a2",
+    "timeframe": "t_5m",
+    "asset": "NAS100",
+    "context": {
+      "cot_bias": "BULLISH",
+      "options_bias": "bullish",
+      "macro_sentiment": "risk_on",
+      "screening_bias": "BULLISH"
+    },
+    "mfe_pips": 16,
+    "mae_pips": 8,
+    "hit": true,
+    "evaluated_at": "2026-02-28T02:11:08.440490+00:00"
+  },
+  {
+    "id": "98a4e4c8-d93c-4e1c-b385-cb7937f724b7",
+    "prediction_id": "test-a3",
+    "timeframe": "t_5m",
+    "asset": "NAS100",
+    "context": {
+      "cot_bias": "BULLISH",
+      "options_bias": "bearish",
+      "macro_sentiment": "risk_on",
+      "screening_bias": "BULLISH"
+    },
+    "mfe_pips": 10,
+    "mae_pips": 14,
+    "hit": false,
+    "evaluated_at": "2026-02-28T02:11:08.440752+00:00"
+  },
+  {
+    "id": "fc62433b-14f1-4666-979a-e269bf492629",
+    "prediction_id": "test-b1",
+    "timeframe": "t_15m",
+    "asset": "SP500",
+    "context": {
+      "cot_bias": "BEARISH",
+      "options_bias": "bearish",
+      "macro_sentiment": "risk_off",
+      "screening_bias": "BEARISH"
+    },
+    "mfe_pips": 18,
+    "mae_pips": 9,
+    "hit": true,
+    "evaluated_at": "2026-02-28T02:11:08.441447+00:00"
+  },
+  {
+    "id": "452b4d1b-580f-470c-bd8e-bb948aa19c58",
+    "prediction_id": "test-b2",
+    "timeframe": "t_15m",
+    "asset": "SP500",
+    "context": {
+      "cot_bias": "BEARISH",
+      "options_bias": "bullish",
+      "macro_sentiment": "risk_off",
+      "screening_bias": "BEARISH"
+    },
+    "mfe_pips": 9,
+    "mae_pips": 13,
+    "hit": false,
+    "evaluated_at": "2026-02-28T02:11:08.441914+00:00"
+  }
+]

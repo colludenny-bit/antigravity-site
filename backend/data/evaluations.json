@@ -1,0 +1,170 @@
+[
+  {
+    "prediction_id": "mock-1",
+    "asset": "NAS100",
+    "direction": "UP",
+    "entry_price": 20000.0,
+    "prediction_time": "2026-02-24T08:05:11.642715+00:00",
+    "hit": true,
+    "timestamp": "2026-02-26T00:05:14.489308+00:00"
+  },
+  {
+    "prediction_id": "mock-2",
+    "asset": "SP500",
+    "direction": "DOWN",
+    "entry_price": 5800.0,
+    "prediction_time": "2026-02-24T12:05:11.642715+00:00",
+    "hit": false,
+    "timestamp": "2026-02-26T00:05:15.513140+00:00"
+  },
+  {
+    "prediction_id": "mock-3",
+    "asset": "XAUUSD",
+    "direction": "UP",
+    "entry_price": 2500.0,
+    "prediction_time": "2026-02-24T15:05:11.642715+00:00",
+    "hit": true,
+    "timestamp": "2026-02-26T00:05:16.548632+00:00"
+  },
+  {
+    "prediction_id": "mock-4",
+    "asset": "EURUSD",
+    "direction": "DOWN",
+    "entry_price": 1.05,
+    "prediction_time": "2026-02-24T18:05:11.642715+00:00",
+    "hit": false,
+    "timestamp": "2026-02-26T00:05:17.614920+00:00"
+  },
+  {
+    "prediction_id": "mock-5",
+    "asset": "NAS100",
+    "direction": "DOWN",
+    "entry_price": 20500.0,
+    "prediction_time": "2026-02-24T15:05:11.642715+00:00",
+    "hit": false,
+    "timestamp": "2026-02-26T00:05:18.650409+00:00"
+  },
+  {
+    "prediction_id": "mock-6",
+    "asset": "SP500",
+    "direction": "UP",
+    "entry_price": 5700.0,
+    "prediction_time": "2026-02-24T08:05:11.642715+00:00",
+    "hit": true,
+    "timestamp": "2026-02-26T00:05:19.676580+00:00"
+  },
+  {
+    "prediction_id": "mock-7",
+    "asset": "XAUUSD",
+    "direction": "DOWN",
+    "entry_price": 2600.0,
+    "prediction_time": "2026-02-24T12:05:11.642715+00:00",
+    "hit": false,
+    "timestamp": "2026-02-26T00:05:20.781354+00:00"
+  },
+  {
+    "prediction_id": "mock-8",
+    "asset": "EURUSD",
+    "direction": "UP",
+    "entry_price": 1.08,
+    "prediction_time": "2026-02-24T18:05:11.642715+00:00",
+    "hit": true,
+    "timestamp": "2026-02-26T00:05:21.939075+00:00"
+  },
+  {
+    "asset": "NAS100",
+    "hit": true,
+    "prediction_time": "2026-02-28T07:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.959185+00:00"
+  },
+  {
+    "asset": "NAS100",
+    "hit": true,
+    "prediction_time": "2026-02-28T11:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.962703+00:00"
+  },
+  {
+    "asset": "NAS100",
+    "hit": false,
+    "prediction_time": "2026-02-28T14:30:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.963083+00:00"
+  },
+  {
+    "asset": "NAS100",
+    "hit": true,
+    "prediction_time": "2026-02-28T17:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.963402+00:00"
+  },
+  {
+    "asset": "SP500",
+    "hit": true,
+    "prediction_time": "2026-02-28T07:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.963697+00:00"
+  },
+  {
+    "asset": "SP500",
+    "hit": false,
+    "prediction_time": "2026-02-28T11:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.964171+00:00"
+  },
+  {
+    "asset": "SP500",
+    "hit": true,
+    "prediction_time": "2026-02-28T14:30:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.964558+00:00"
+  },
+  {
+    "asset": "SP500",
+    "hit": true,
+    "prediction_time": "2026-02-28T17:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.964878+00:00"
+  },
+  {
+    "asset": "XAUUSD",
+    "hit": false,
+    "prediction_time": "2026-02-28T07:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.965229+00:00"
+  },
+  {
+    "asset": "XAUUSD",
+    "hit": true,
+    "prediction_time": "2026-02-28T11:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.965594+00:00"
+  },
+  {
+    "asset": "XAUUSD",
+    "hit": true,
+    "prediction_time": "2026-02-28T14:30:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.966136+00:00"
+  },
+  {
+    "asset": "XAUUSD",
+    "hit": true,
+    "prediction_time": "2026-02-28T17:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.966778+00:00"
+  },
+  {
+    "asset": "EURUSD",
+    "hit": true,
+    "prediction_time": "2026-02-28T07:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.967172+00:00"
+  },
+  {
+    "asset": "EURUSD",
+    "hit": true,
+    "prediction_time": "2026-02-28T11:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.967597+00:00"
+  },
+  {
+    "asset": "EURUSD",
+    "hit": true,
+    "prediction_time": "2026-02-28T14:30:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.970519+00:00"
+  },
+  {
+    "asset": "EURUSD",
+    "hit": false,
+    "prediction_time": "2026-02-28T17:00:00+00:00",
+    "timestamp": "2026-02-28T01:42:00.971234+00:00"
+  }
+]

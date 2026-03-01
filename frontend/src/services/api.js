@@ -1,13 +1,16 @@
 import axios from 'axios';
 
-// Detect environment
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL_RAW = (process.env.REACT_APP_BACKEND_URL || '').trim().replace(/\/$/, '');
+const IS_LOCAL_HOST =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const BACKEND_URL =
+    !IS_LOCAL_HOST && /localhost|127\.0\.0\.1/.test(BACKEND_URL_RAW) ? '' : BACKEND_URL_RAW;
 
 // Create safe base URL
-// On production Vercel, we might want relative path '/api' to use rewrites,
-// but for localhost debugging we explicitly want http://localhost:8000/api
-const baseURL = IS_PRODUCTION ? '/api' : `${BACKEND_URL.replace(/\/$/, '')}/api`;
+const baseURL = BACKEND_URL
+    ? `${BACKEND_URL}/api`
+    : '/api';
 
 const api = axios.create({
     baseURL,

@@ -12,6 +12,9 @@ import kairongBull from '../../assets/kairon-bull.png';
 import { cn } from '../../lib/utils';
 import { useTranslation } from 'react-i18next';
 import { BullLogo } from '../ui/BullLogo';
+import { ShaderAnimation as ShaderLines } from '../ui/ShaderLines';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 /* ═══════════════════════════════════════════════════════════════════
    ANIMATED COUNTER HOOK
@@ -78,41 +81,27 @@ const StatItem = ({ value, prefix = '+', suffix, label, delay }) => {
     );
 };
 
-/* ═══════════════════════════════════════════════════════════════════
-   GLOW CARD — feature grid card
-   ═══════════════════════════════════════════════════════════════════ */
-const GlowCard = ({ icon: Icon, title, description, delay, color = '#00D9A5' }) => (
+const GlowCard = ({ icon: Icon, title, description, delay, color = '#F0F0F0' }) => (
     <motion.div
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.5, delay }}
-        whileHover={{ y: -6, scale: 1.02 }}
-        className="group relative p-7 rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-hidden cursor-default transition-all duration-500"
-        style={{ '--glow-color': color }}
+        whileHover={{ y: -6 }}
+        className="group relative p-8 rounded-xl bg-[#0f172a]/80 backdrop-blur-sm border border-slate-800 overflow-hidden cursor-default transition-all duration-300"
     >
-        {/* Hover glow overlay */}
-        <div
-            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl pointer-events-none"
-            style={{
-                background: `radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), ${color}10, transparent 40%)`,
-                boxShadow: `inset 0 0 0 1px ${color}25`,
-            }}
-        />
-        <div
-            className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-            style={{ boxShadow: `0 0 40px ${color}12, 0 0 80px ${color}06` }}
-        />
         <div className="relative z-10">
             <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110"
-                style={{ background: `${color}12` }}
+                className="w-14 h-14 rounded-lg flex items-center justify-center mb-6 transition-transform duration-300 group-hover:scale-105"
+                style={{ background: `${color}15`, border: `1px solid ${color}30` }}
             >
-                <Icon className="w-6 h-6" style={{ color }} />
+                <Icon className="w-7 h-7" style={{ color }} />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2 font-apple">{title}</h3>
-            <p className="text-sm text-white/35 leading-relaxed">{description}</p>
+            <h3 className="text-xl font-bold text-slate-100 mb-3 font-inter">{title}</h3>
+            <p className="text-base text-slate-400 leading-relaxed">{description}</p>
         </div>
+        {/* Subtle bottom border accent on hover */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" style={{ backgroundColor: color }} />
     </motion.div>
 );
 
@@ -120,7 +109,7 @@ const GlowCard = ({ icon: Icon, title, description, delay, color = '#00D9A5' }) 
    BROWSER FRAME — wraps screenshots in a realistic browser chrome
    starBorder: adds animated LED light on top edge, bright center fading to sides
    ═══════════════════════════════════════════════════════════════════ */
-const BrowserFrame = ({ children, className = '', glow = true, glowColor = '#00D9A5', starBorder = false }) => (
+const BrowserFrame = ({ children, className = '', glow = true, glowColor = '#F0F0F0', starBorder = false }) => (
     <div className={`relative ${className}`}>
         {glow && (
             <>
@@ -196,45 +185,14 @@ const BrowserFrame = ({ children, className = '', glow = true, glowColor = '#00D
 );
 
 const MacbookHero = ({ screenshot }) => (
-    <div className="relative w-full">
-        <div className="absolute inset-x-0 -top-8 h-24 bg-gradient-to-r from-transparent via-[#00D9A5]/20 to-transparent blur-2xl pointer-events-none" />
-        <div className="relative mx-auto max-w-5xl perspective-[2200px]">
-            <motion.div
-                initial={{ opacity: 0, rotateX: -78, y: 36 }}
-                animate={{ opacity: 1, rotateX: -8, y: 0 }}
-                transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.25 }}
-                className="relative origin-bottom mx-auto w-[94%] rounded-t-[22px] border border-white/20 bg-gradient-to-b from-[#22262b] to-[#0b0e11] p-3 shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
-                style={{ transformStyle: 'preserve-3d' }}
-            >
-                <div className="relative overflow-hidden rounded-[14px] border border-white/10 bg-black aspect-[16/10]">
-                    <motion.img
-                        src={screenshot}
-                        alt="Karion Dashboard Preview"
-                        className="w-full h-full object-cover"
-                        initial={{ scale: 1.07, opacity: 0.82 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ duration: 1.1, delay: 0.5, ease: 'easeOut' }}
-                    />
-                    <motion.div
-                        className="absolute inset-0 pointer-events-none"
-                        animate={{ opacity: [0.08, 0.22, 0.08] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                        style={{
-                            background: 'radial-gradient(ellipse at 75% 12%, rgba(0,217,165,0.2), transparent 55%)',
-                        }}
-                    />
-                </div>
-            </motion.div>
-
-            <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.6 }}
-                className="relative -mt-1 mx-auto h-6 w-full rounded-b-[24px] border border-white/15 bg-gradient-to-b from-[#c8c9cc] via-[#a0a2a7] to-[#7d7f84] shadow-[0_14px_38px_rgba(0,0,0,0.5)]"
-            >
-                <div className="absolute left-1/2 top-[3px] -translate-x-1/2 w-20 h-1.5 rounded-full bg-black/25" />
-            </motion.div>
+    <div className="relative w-full max-w-6xl mx-auto rounded-xl overflow-hidden shadow-2xl border border-slate-800 bg-[#0f172a]">
+        {/* Simple clean window header */}
+        <div className="h-8 bg-slate-900 border-b border-slate-800 flex items-center px-4 gap-2">
+            <div className="w-3 h-3 rounded-full bg-slate-700" />
+            <div className="w-3 h-3 rounded-full bg-slate-700" />
+            <div className="w-3 h-3 rounded-full bg-slate-700" />
         </div>
+        <img src={screenshot} alt="Platform Preview" className="w-full h-auto object-cover" />
     </div>
 );
 
@@ -246,7 +204,7 @@ const featureTabs = [
         id: 'cot',
         label: 'COT Analysis',
         icon: BarChart3,
-        color: '#00D9A5',
+        color: '#F0F0F0',
         title: 'Institutional COT Intelligence',
         description: 'Decode where the smart money is positioning. Weekly bias, net positioning, and Z-Score analysis visualized with institutional-grade precision.',
         screenshot: '/screenshots/cot.png',
@@ -260,7 +218,7 @@ const featureTabs = [
         id: 'options',
         label: 'Options Flow',
         icon: Zap,
-        color: '#A855F7',
+        color: '#D0A030',
         title: 'Real-Time Options Intelligence',
         description: 'Track gamma exposure and institutional options activity in real-time. Understand market positioning before price reacts.',
         screenshot: '/screenshots/options.png',
@@ -274,7 +232,7 @@ const featureTabs = [
         id: 'macro',
         label: 'Macro Economy',
         icon: Globe,
-        color: '#F59E0B',
+        color: '#F0F0F0',
         title: 'Global Macro Dashboard',
         description: 'Central bank rates, inflation data, and seasonality patterns — all correlated with your portfolio positions.',
         screenshot: '/screenshots/macro.png',
@@ -288,7 +246,7 @@ const featureTabs = [
         id: 'risk',
         label: 'Risk Management',
         icon: Shield,
-        color: '#EF4444',
+        color: '#D0A030',
         title: 'Institutional Risk Controls',
         description: 'Position sizing, Monte Carlo simulation, and real-time drawdown tracking. Manage risk like a hedge fund.',
         screenshot: '/screenshots/dashboard.png',
@@ -302,7 +260,7 @@ const featureTabs = [
         id: 'ai',
         label: 'AI Assistant',
         icon: Brain,
-        color: '#EC4899',
+        color: '#F0F0F0',
         title: 'AI-Powered Trading Copilot',
         description: 'Your intelligent assistant that analyzes markets, generates trade ideas, and provides real-time bias assessment across all data sources.',
         screenshot: '/screenshots/dashboard.png',
@@ -316,7 +274,7 @@ const featureTabs = [
         id: 'charts',
         label: 'Charts',
         icon: LineChart,
-        color: '#06B6D4',
+        color: '#D0A030',
         title: 'Advanced Charting Suite',
         description: 'Multi-timeframe analysis with integrated indicators, drawing tools, and institutional zones — all within your trading OS.',
         screenshot: '/screenshots/dashboard.png',
@@ -396,19 +354,17 @@ const FeaturePanel = ({ tab }) => {
    GRID FEATURES DATA
    ═══════════════════════════════════════════════════════════════════ */
 const gridFeatures = [
-    { icon: BookOpen, title: 'Trade Journal', description: 'Log, review, and learn from every trade with detailed analytics and AI-powered insights.', color: '#00D9A5' },
-    { icon: PieChart, title: 'Advanced Statistics', description: 'Comprehensive performance metrics, win rate analysis, and expectancy calculations.', color: '#3B82F6' },
-    { icon: Target, title: 'Monte Carlo Sim', description: 'Stress-test your strategy with thousands of simulated outcomes and probability analysis.', color: '#A855F7' },
-    { icon: Brain, title: 'Trading Psychology', description: 'Track emotional patterns, build discipline, and master your mindset with guided tools.', color: '#EC4899' },
-    { icon: Calculator, title: 'Smart Calculator', description: 'Position sizing, pip value, margin, and risk-reward — all in one professional calculator.', color: '#F59E0B' },
-    { icon: Newspaper, title: 'Real-Time News', description: 'Market-moving news feed with impact filtering and AI-powered sentiment analysis.', color: '#06B6D4' },
+    { icon: BookOpen, title: 'Trade Journal', description: 'Log, review, and learn from every trade with detailed analytics and AI-powered insights.', color: '#F0F0F0' },
+    { icon: PieChart, title: 'Advanced Statistics', description: 'Comprehensive performance metrics, win rate analysis, and expectancy calculations.', color: '#D0A030' },
+    { icon: Target, title: 'Monte Carlo Sim', description: 'Stress-test your strategy with thousands of simulated outcomes and probability analysis.', color: '#F0F0F0' },
+    { icon: Brain, title: 'Trading Psychology', description: 'Track emotional patterns, build discipline, and master your mindset with guided tools.', color: '#D0A030' },
+    { icon: Calculator, title: 'Smart Calculator', description: 'Position sizing, pip value, margin, and risk-reward — all in one professional calculator.', color: '#F0F0F0' },
+    { icon: Newspaper, title: 'Real-Time News', description: 'Market-moving news feed with impact filtering and AI-powered sentiment analysis.', color: '#D0A030' },
 ];
 
 /* ═══════════════════════════════════════════════════════════════════
    MAIN LANDING PAGE
    ═══════════════════════════════════════════════════════════════════ */
-import { useAuth } from '../../contexts/AuthContext';
-import { useTheme } from '../../contexts/ThemeContext';
 
 /* ═══ USER MENU COMPONENT (TradingView Style) ═══ */
 const UserMenu = ({ user, subscription, logout, theme, toggleTheme }) => {
@@ -552,67 +508,50 @@ export const LandingPage = () => {
     const activeFeature = featureTabs.find(t => t.id === activeTab);
 
     return (
-        <div className="min-h-screen bg-black text-white font-apple overflow-x-hidden selection:bg-[#00D9A5]/30" style={{ touchAction: 'pan-y' }}>
+        <div className="min-h-screen bg-black text-slate-100 font-inter overflow-x-hidden selection:bg-[#D0A030]/30" style={{ touchAction: 'pan-y' }}>
 
-            {/* ═══ BACKGROUND EFFECTS — grid + grain + gradient blobs ═══ */}
-            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                {/* Subtle grid pattern */}
-                <div
-                    className="absolute inset-0 opacity-[0.03]"
-                    style={{
-                        backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-                        backgroundSize: '60px 60px',
-                    }}
-                />
-                {/* Grain/noise overlay */}
-                <div
-                    className="absolute inset-0 opacity-[0.015]"
-                    style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
-                        backgroundSize: '128px 128px',
-                    }}
-                />
-                {/* Gradient blobs — deep blue/purple like deepcharts */}
-                <div className="absolute top-0 left-0 w-[800px] h-[800px] rounded-full bg-[#1a0a3e] blur-[200px] opacity-30" />
-                <div className="absolute top-[30%] right-0 w-[600px] h-[600px] rounded-full bg-[#0a1a3e] blur-[180px] opacity-20" />
-                <div className="absolute bottom-0 left-[30%] w-[700px] h-[700px] rounded-full bg-[#0e1e3a] blur-[200px] opacity-15" />
+            {/* ═══ CLEAN FTMO-STYLE BACKGROUND ═══ */}
+            <div className="fixed inset-0 z-0 pointer-events-none">
+                <div className="absolute inset-0 bg-black" />
+                <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#D0A030]/5 rounded-full blur-[150px]" />
+                <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-[#F0F0F0]/5 rounded-full blur-[150px]" />
             </div>
 
             {/* ═══ NAVBAR ═══ */}
             {/* NAVBAR — mobile classes (below sm:640px) add Dynamic Island padding + compact layout. Desktop unchanged via sm: overrides */}
-            <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] bg-black/60 backdrop-blur-2xl pt-[52px] sm:pt-0">
-                <div className="max-w-[1400px] mx-auto px-3 sm:px-6 h-12 sm:h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                        <BullLogo className="h-6 sm:h-10 w-auto" />
+            <nav className="fixed top-0 inset-x-0 z-50 pt-[52px] sm:pt-6 pointer-events-none">
+                <div className="max-w-[1400px] mx-auto px-3 sm:px-6 flex items-center justify-between pointer-events-auto">
+                    <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
+                        <BullLogo className="h-8 sm:h-12 w-auto" />
                         <div className="relative">
                             <span className="text-xs sm:text-xl font-black tracking-[0.15em] sm:tracking-[0.2em] text-white uppercase" style={{
                                 fontFamily: 'Georgia, serif',
-                                textShadow: '0 0 10px rgba(255,255,255,0.4), 0 0 20px rgba(0,217,165,0.3)'
+                                textShadow: '0 0 10px rgba(255,255,255,0.4), 0 0 20px rgba(208,160,48,0.4)'
                             }}>KARION</span>
                             {/* Luminescent underline glow — hidden on mobile, shown on sm+ (desktop) */}
-                            <div className="absolute -bottom-1 left-0 right-0 h-[2px] hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
-                            <div className="absolute -bottom-1 left-0 right-0 h-[6px] blur-[3px] opacity-60 hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #00D9A5, transparent)' }} />
+                            <div className="absolute -bottom-1 left-0 right-0 h-[2px] hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #D0A030, transparent)' }} />
+                            <div className="absolute -bottom-1 left-0 right-0 h-[6px] blur-[3px] opacity-60 hidden sm:block" style={{ background: 'linear-gradient(90deg, transparent, #D0A030, transparent)' }} />
                         </div>
                     </div>
-                    <div className="hidden md:flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl">
-                        <a href="#features" className="px-5 py-2 rounded-xl text-sm font-semibold text-white/70 hover:text-white hover:bg-white/[0.08] transition-all duration-200">Features</a>
-                        <a href="#showcase" className="px-5 py-2 rounded-xl text-sm font-semibold text-white/70 hover:text-white hover:bg-white/[0.08] transition-all duration-200">Showcase</a>
-                        <a href="#tools" className="px-5 py-2 rounded-xl text-sm font-semibold text-white/70 hover:text-white hover:bg-white/[0.08] transition-all duration-200">Tools</a>
-                        <Link to="/pricing" className="px-5 py-2 rounded-xl text-sm font-semibold text-white/70 hover:text-white hover:bg-white/[0.08] transition-all duration-200">Pricing</Link>
+                    <div className="hidden md:flex items-center gap-2 p-2 rounded-[32px] bg-[#0A0A0A]/70 border border-[#CFD8E3]/40 backdrop-blur-2xl shadow-[0_4px_30px_rgba(207,216,227,0.15)]">
+                        <a href="#features" className="px-7 py-2.5 rounded-full text-[16px] xl:text-[17px] font-semibold tracking-tight text-white/80 hover:text-[#CFD8E3] hover:bg-white/10 transition-all duration-300 drop-shadow-sm">Features</a>
+                        <a href="#showcase" className="px-7 py-2.5 rounded-full text-[16px] xl:text-[17px] font-semibold tracking-tight text-white/80 hover:text-[#CFD8E3] hover:bg-white/10 transition-all duration-300 drop-shadow-sm">Showcase</a>
+                        <a href="#tools" className="px-7 py-2.5 rounded-full text-[16px] xl:text-[17px] font-semibold tracking-tight text-white/80 hover:text-[#CFD8E3] hover:bg-white/10 transition-all duration-300 drop-shadow-sm">Tools</a>
+                        <Link to="/pricing" className="px-7 py-2.5 rounded-full text-[16px] xl:text-[17px] font-semibold tracking-tight text-white/80 hover:text-[#CFD8E3] hover:bg-white/10 transition-all duration-300 drop-shadow-sm">Pricing</Link>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                         {!user ? (
                             <>
-                                <Link to="/auth?mode=login" className="hidden sm:inline text-sm font-medium text-white/40 hover:text-white transition-colors">
+                                <Link to="/auth?mode=login" className="hidden sm:inline text-base font-semibold tracking-tight text-white/60 hover:text-white transition-colors">
                                     Log in
                                 </Link>
                                 <Link to="/auth?mode=register">
                                     <motion.button
-                                        whileHover={{ scale: 1.05, boxShadow: '0 0 25px rgba(0,217,165,0.5)' }}
+                                        whileHover={{ scale: 1.05, boxShadow: '0 0 30px rgba(226,232,240,0.6)', borderColor: 'rgba(255,255,255,0.9)' }}
                                         whileTap={{ scale: 0.95 }}
-                                        className="px-2.5 sm:px-5 py-1 sm:py-2 rounded-md sm:rounded-lg bg-[#00D9A5] text-black font-bold text-[10px] sm:text-sm transition-shadow duration-300 flex items-center gap-1 sm:gap-1.5"
+                                        className="px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-[#E2E8F0] to-[#CFD8E3] text-slate-900 border border-[#FFFFFF]/60 font-bold text-[11px] sm:text-base tracking-tight transition-all duration-300 flex items-center gap-1 sm:gap-2 shadow-[0_0_20px_rgba(226,232,240,0.3)]"
                                     >
-                                        <span className="sm:hidden">Accedi</span><span className="hidden sm:inline">Get Access</span> <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                        <span className="sm:hidden">Accedi</span><span className="hidden sm:inline">Get Access</span> <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                     </motion.button>
                                 </Link>
                             </>
@@ -641,68 +580,34 @@ export const LandingPage = () => {
             </nav>
 
             {/* ═══ HERO SECTION ═══ */}
-            <section className="relative pt-36 pb-8 overflow-hidden z-20">
-                {/* Hero horizontal light streak like deepcharts */}
-                <div className="absolute top-[55%] left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#4F46E5]/40 to-transparent pointer-events-none" />
+            <section className="relative min-h-[100vh] flex flex-col justify-center pt-24 pb-12 overflow-hidden z-20">
+                <ShaderLines />
 
-                <div className="max-w-[1200px] mx-auto px-6 text-center">
+                {/* Elegant dark contrast backdrop for text emphasis */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[45%] w-[100vw] md:w-[800px] h-[500px] md:h-[400px] bg-black/80 blur-[100px] rounded-full pointer-events-none z-[5]" />
+
+                <div className="max-w-[1200px] mx-auto px-6 text-center relative z-10">
                     <motion.div initial={{ opacity: 0, y: 25 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
-                        <motion.span
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.1 }}
-                            className="inline-block px-5 py-2 rounded-full bg-[#00D9A5]/8 border border-[#00D9A5]/15 text-[#00D9A5] text-xs font-bold uppercase tracking-[0.25em] mb-8"
-                        >
-                            ✦ The Ultimate Trading OS
-                        </motion.span>
-                        <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black mb-6 leading-[0.9] tracking-tighter text-white" style={{ textShadow: '0 0 40px rgba(255,255,255,0.15), 0 0 80px rgba(255,255,255,0.05)' }}>
-                            Uncover The{' '}
-                            <span className="text-white">
-                                Smart Money
+                        <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-medium mb-6 leading-[0.95] tracking-tight text-white drop-shadow-2xl">
+                            Decifra le Orme{' '}
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50 font-medium pl-1 pr-2">
+                                Invisibili
                             </span>
                             <br />
-                            <span className="text-white">Footprint.</span>
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F5E6D3] to-[#E8D8C8] font-bold drop-shadow-[0_0_15px_rgba(245,230,211,0.4)]">del Mercato.</span>
                         </h1>
-                        <p className="text-lg md:text-xl text-white/30 max-w-2xl mx-auto mb-12 leading-relaxed font-medium">
-                            COT Analysis, Options Flow, Macro Data, AI Copilot — unified in one
-                            operating system built for professional traders.
-                        </p>
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
-                            {user ? (
-                                <Link to="/app">
-                                    <motion.button
-                                        whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(0,217,165,0.5)' }}
-                                        whileTap={{ scale: 0.97 }}
-                                        className="px-12 py-4 rounded-lg bg-[#00D9A5] text-black font-bold text-lg shadow-[0_0_30px_rgba(0,217,165,0.25)] flex items-center justify-center min-w-[300px]"
-                                    >
-                                        Accedi alla Dashboard
-                                    </motion.button>
-                                </Link>
-                            ) : (
-                                <Link to="/auth?mode=register">
-                                    <motion.button
-                                        whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(0,217,165,0.5)' }}
-                                        whileTap={{ scale: 0.97 }}
-                                        className="px-10 py-4 rounded-lg bg-[#00D9A5] text-black font-bold text-lg shadow-[0_0_30px_rgba(0,217,165,0.25)] flex items-center gap-2 group"
-                                    >
-                                        Access Now <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                    </motion.button>
-                                </Link>
-                            )}
-                        </div>
-                    </motion.div>
-
-                    {/* Hero Dashboard Screenshot — real image in browser frame */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 60, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ duration: 1, delay: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-                        className="mt-16 max-w-5xl mx-auto"
-                    >
-                        <MacbookHero screenshot="/screenshots/hero-dashboard.png" />
                     </motion.div>
                 </div>
             </section>
+
+            {/* ═══ DEEP RESEARCH SUBTITLE (Overlapping glass pill) ═══ */}
+            <div className="relative z-[60] w-full flex justify-center -mt-28 sm:-mt-40 px-6">
+                <div className="max-w-[950px] w-full rounded-[32px] bg-[#050505]/30 backdrop-blur-2xl border border-white/5 px-8 py-5 md:px-12 md:py-6 shadow-[0_10px_50px_rgba(0,0,0,0.8)]">
+                    <p className="text-[15px] md:text-[18px] text-white/85 leading-relaxed tracking-wide font-medium text-center">
+                        Deep Research 3.0 è l’unico sistema quantitativo semplice da utilizzare che processa e sintetizza il lato tecnico e macroeconomico del mercato per offrirti una nuova esperienza operativa, oltre il semplice “seguire” i mercati; in parallelo, il motore quantitativo si auto‑ottimizza attraverso integrazione dati e validazione retroattiva continua.
+                    </p>
+                </div>
+            </div>
 
             {/* ═══ STATS BAR — DeepCharts-style big numbers ═══ */}
             <RevealSection className="py-24 relative z-10" id="features">
@@ -716,22 +621,18 @@ export const LandingPage = () => {
                 </div>
             </RevealSection>
 
-            {/* ═══ FEATURE SHOWCASE (Interactive Tabs) — DeepCharts-style ═══ */}
-            <RevealSection className="py-24 relative z-10" id="showcase">
+            {/* ═══ FEATURE SHOWCASE (Interactive Tabs) — FTMO Style ═══ */}
+            <RevealSection className="py-24 relative z-10 bg-white/[0.02]" id="showcase">
                 <div className="max-w-[1300px] mx-auto px-6">
-                    <div className="text-center mb-16">
-                        {/* Badge like deepcharts */}
-                        <span className="inline-block px-4 py-1.5 rounded-lg bg-[#00D9A5]/8 border border-[#00D9A5]/15 text-[#00D9A5] text-[11px] font-bold uppercase tracking-[0.2em] mb-6">
-                            Karion <span className="text-white/40 ml-1">Behind The Data</span>
+                    <div className="mb-16">
+                        <span className="inline-block px-4 py-1.5 rounded bg-[#F0F0F0]/10 text-[#F0F0F0] text-xs font-semibold uppercase tracking-wider mb-6">
+                            Behind The Data
                         </span>
-                        <h2 className="text-4xl md:text-6xl font-black mb-4 tracking-tight">
-                            Meet, Your{' '}
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60">
-                                Pro Trader Arsenal
-                            </span>
+                        <h2 className="text-4xl md:text-5xl font-bold mb-4 text-slate-100">
+                            Meet Your Professional Arsenal
                         </h2>
-                        <p className="text-white/25 text-lg max-w-xl mx-auto">
-                            Follow the Smart Money with our data tools and boost your edge and your profits
+                        <p className="text-slate-400 text-lg max-w-2xl">
+                            Follow the Smart Money with our data tools and boost your edge and your profits. Built for traders who demand precision.
                         </p>
                     </div>
 
@@ -808,7 +709,7 @@ export const LandingPage = () => {
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">
                             Everything You Need to{' '}
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F59E0B] to-[#EC4899]">Win</span>
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-200 via-[#D0A030] to-[#E0B040] drop-shadow-[0_0_15px_rgba(208,160,48,0.5)]">Win</span>
                         </h2>
                         <p className="text-white/25 text-lg max-w-xl mx-auto">
                             Professional tools normally reserved for hedge funds — now at your fingertips.
@@ -824,8 +725,8 @@ export const LandingPage = () => {
 
             {/* ═══ CTA SECTION ═══ */}
             <RevealSection className="py-32 relative text-center z-10">
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#00D9A5]/[0.02] to-transparent pointer-events-none" />
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-[#00D9A5]/[0.04] blur-[150px] pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#D0A030]/[0.02] to-transparent pointer-events-none" />
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-[#D0A030]/[0.05] blur-[150px] pointer-events-none" />
                 <div className="max-w-3xl mx-auto px-6 relative z-10">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -836,7 +737,7 @@ export const LandingPage = () => {
                         <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">
                             Ready to Level Up
                             <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D9A5] to-[#4F46E5]">
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E0B040] to-[#D0A030]">
                                 Your Trading Game?
                             </span>
                         </h2>
@@ -845,9 +746,9 @@ export const LandingPage = () => {
                         </p>
                         <Link to="/auth?mode=register">
                             <motion.button
-                                whileHover={{ scale: 1.06, boxShadow: '0 0 60px rgba(0,217,165,0.5)' }}
+                                whileHover={{ scale: 1.06, boxShadow: '0 0 60px rgba(226,232,240,0.5)' }}
                                 whileTap={{ scale: 0.95 }}
-                                className="px-12 py-5 rounded-lg bg-[#00D9A5] text-black font-bold text-xl shadow-[0_0_40px_rgba(0,217,165,0.2)] transition-shadow"
+                                className="px-12 py-5 rounded-lg bg-gradient-to-r from-[#E2E8F0] to-[#CFD8E3] text-slate-900 font-bold text-xl shadow-[0_0_40px_rgba(226,232,240,0.3)] border border-[#FFFFFF]/50 transition-shadow"
                             >
                                 Start Your Journey Now
                             </motion.button>
@@ -864,7 +765,7 @@ export const LandingPage = () => {
                             <img src={kairongBull} alt="Kairon" className="h-9 w-auto" />
                             <span className="text-xl font-black tracking-[0.2em] text-white uppercase" style={{
                                 fontFamily: 'Georgia, serif',
-                                textShadow: '0 0-10px rgba(255,255,255,0.4), 0 0 20px rgba(0,217,165,0.3)'
+                                textShadow: '0 0 10px rgba(255,255,255,0.4), 0 0 20px rgba(208,160,48,0.3)'
                             }}>KARION</span>
                         </div>
                         <p className="text-white/20 text-sm max-w-xs mx-auto md:mx-0 leading-relaxed">
@@ -872,20 +773,21 @@ export const LandingPage = () => {
                         </p>
                     </div>
                     <div>
-                        <h4 className="font-bold text-white/60 mb-4 text-sm uppercase tracking-wider">Product</h4>
-                        <ul className="space-y-2.5 text-sm text-white/25">
-                            <li><a href="#features" className="hover:text-[#00D9A5] transition-colors">Features</a></li>
-                            <li><a href="#showcase" className="hover:text-[#00D9A5] transition-colors">Showcase</a></li>
-                            <li><a href="#tools" className="hover:text-[#00D9A5] transition-colors">Tools</a></li>
+                        <h4 className="text-white font-bold mb-4 font-inter tracking-wide uppercase text-sm">Product</h4>
+                        <ul className="space-y-2.5 text-sm text-white/50">
+                            <li><a href="#features" className="hover:text-[#C0C0C0] transition-colors">Features</a></li>
+                            <li><a href="#showcase" className="hover:text-[#C0C0C0] transition-colors">Showcase</a></li>
+                            <li><a href="#tools" className="hover:text-[#C0C0C0] transition-colors">Tools</a></li>
+                            <li><Link to="/pricing" className="hover:text-[#C0C0C0] transition-colors">Pricing</Link></li>
                         </ul>
                     </div>
                     <div>
-                        <h4 className="font-bold text-white/60 mb-4 text-sm uppercase tracking-wider">Company</h4>
-                        <ul className="space-y-2.5 text-sm text-white/25">
-                            <li><a href="#" className="hover:text-[#00D9A5] transition-colors">About</a></li>
-                            <li><a href="#" className="hover:text-[#00D9A5] transition-colors">Contact</a></li>
-                            <li><a href="#" className="hover:text-[#00D9A5] transition-colors">Terms</a></li>
-                            <li><a href="#" className="hover:text-[#00D9A5] transition-colors">Privacy</a></li>
+                        <h4 className="text-white font-bold mb-4 font-inter tracking-wide uppercase text-sm">Company</h4>
+                        <ul className="space-y-2.5 text-sm text-white/50">
+                            <li><a href="#" className="hover:text-[#C0C0C0] transition-colors">About</a></li>
+                            <li><a href="#" className="hover:text-[#C0C0C0] transition-colors">Contact</a></li>
+                            <li><a href="#" className="hover:text-[#C0C0C0] transition-colors">Terms</a></li>
+                            <li><a href="#" className="hover:text-[#C0C0C0] transition-colors">Privacy</a></li>
                         </ul>
                     </div>
                 </div>

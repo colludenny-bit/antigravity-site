@@ -47,6 +47,17 @@ class MultiSourceEngine:
         print(f"🚀 Running Multi-Source Analysis at {datetime.now()}")
         cards = []
         
+        # Load dynamic weights from DB if available (Phase 4 Meta-Learning)
+        try:
+            from server import db, DEMO_MODE
+            if not DEMO_MODE:
+                latest_weights = await db.dynamic_weights.find_one(sort=[("timestamp", -1)])
+                if latest_weights and "weights" in latest_weights:
+                    self.weights = latest_weights["weights"]
+                    print("🧠 Loaded Dynamic Weights from Meta-Learning Engine.")
+        except Exception as e:
+            print(f"⚠️ Failed to load dynamic weights, using defaults: {e}")
+
         # 1. Get Global Context
         vix_data = self.market.get_vix_data()
         macro_env = self.macro.get_macro_environment()
@@ -309,3 +320,107 @@ class MultiSourceEngine:
             hourly_vol_avg=market_data.get("hourly_vol_avg"),
             timestamp=datetime.now().isoformat()
         )
+
+
+def calculate_multi_source_score(symbol: str, vix_data: dict, prices: dict) -> dict:
+    """
+    Lightweight synchronous scorer used by Global Pulse bootstrap.
+    Keeps the contract expected by server.py while avoiding async calls.
+    """
+    symbol = str(symbol or "").upper()
+    market = MarketDataService()
+    macro = MacroDataService()
+    cot = COTService()
+
+    px_row = (prices or {}).get(symbol, {}) or {}
+    market_row = market.get_latest_data(symbol) or {}
+    macro_env = macro.get_macro_environment() or {}
+    cot_row = cot.get_cot_bias(symbol) or {}
+
+    price = px_row.get("price")
+    if price is None:
+        price = market_row.get("price", 0.0)
+    try:
+        price = float(price or 0.0)
+    except Exception:
+        price = 0.0
+
+    change = px_row.get("change", market_row.get("change", 0.0))
+    try:
+        change = float(change or 0.0)
+    except Exception:
+        change = 0.0
+
+    vix_level = float((vix_data or {}).get("level", 20.0) or 20.0)
+    dxy = float((macro_env or {}).get("dxy", 102.0) or 102.0)
+    cot_pos = str(cot_row.get("net_position", "NEUTRAL")).upper()
+
+    score = 0.0
+    drivers = []
+
+    # Volatility pressure
+    if symbol in {"NAS100", "SP500"}:
+        if vix_level >= 25:
+            score -= 0.8
+            drivers.append({"name": "VIX stress regime"})
+        elif vix_level <= 17:
+            score += 0.55
+            drivers.append({"name": "VIX low-vol support"})
+    elif symbol == "XAUUSD":
+        if vix_level >= 22:
+            score += 0.45
+            drivers.append({"name": "Risk-off safe haven"})
+    elif symbol == "EURUSD":
+        if dxy >= 104:
+            score -= 0.55
+            drivers.append({"name": "Strong USD pressure"})
+        elif dxy <= 101:
+            score += 0.45
+            drivers.append({"name": "Soft USD backdrop"})
+
+    # COT positioning
+    if cot_pos == "LONG":
+        score += 0.35
+        drivers.append({"name": "COT long positioning"})
+    elif cot_pos == "SHORT":
+        score -= 0.35
+        drivers.append({"name": "COT short positioning"})
+
+    # Intraday change drift (small weight)
+    drift = max(-1.0, min(1.0, change / 2.0))
+    score += drift * 0.2
+    if abs(drift) > 0.25:
+        drivers.append({"name": "Intraday momentum drift"})
+
+    direction = "Neutral"
+    if score >= 0.25:
+        direction = "Up"
+    elif score <= -0.25:
+        direction = "Down"
+
+    confidence = max(50.0, min(95.0, 50.0 + (abs(score) * 38.0)))
+    impulse = "Inverte"
+    if direction == "Up":
+        impulse = "Prosegue" if score >= 0.5 else "Diminuisce"
+    elif direction == "Down":
+        impulse = "Prosegue" if score <= -0.5 else "Diminuisce"
+
+    atr = float(market_row.get("atr", max(price * 0.01, 1.0)) or max(price * 0.01, 1.0))
+    invalidation = price - (1.5 * atr) if direction == "Up" else price + (1.5 * atr) if direction == "Down" else price
+
+    if not drivers:
+        drivers = [{"name": "Balanced mixed signals"}]
+
+    return {
+        "asset": symbol,
+        "direction": direction,
+        "confidence": round(confidence, 1),
+        "impulse": impulse,
+        "drivers": drivers[:4],
+        "scores": {
+            "vix_macro": round(float(score), 4),
+            "dxy": round(float(dxy), 3),
+        },
+        "invalidation": round(float(invalidation), 4),
+        "price": round(float(price), 4) if price else 0.0,
+    }

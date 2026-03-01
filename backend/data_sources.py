@@ -2,6 +2,8 @@ import yfinance as yf
 from tradingview_ta import TA_Handler, Interval, Exchange
 import pandas as pd
 import logging
+import random
+import time
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -209,6 +211,62 @@ class MarketDataService:
             logger.error(f"VIX fetch error: {e}")
             
         return {"level": 20.0, "change_1h": 0.0, "change_24h": 0.0}
+
+    def get_correlation_nexus(self, nas_series, spx_series, xau_series) -> dict:
+        """
+        Correlation nexus used by Global Pulse.
+        Returns rolling-return correlations and simple regime diagnostics.
+        """
+        try:
+            nas = pd.Series(nas_series).dropna().astype(float)
+            spx = pd.Series(spx_series).dropna().astype(float)
+            xau = pd.Series(xau_series).dropna().astype(float)
+
+            frame = pd.concat(
+                {
+                    "nas": nas.pct_change(),
+                    "spx": spx.pct_change(),
+                    "xau": xau.pct_change(),
+                },
+                axis=1,
+            ).dropna()
+
+            if frame.empty:
+                return {
+                    "spx_nas": 0.0,
+                    "nas_xau": 0.0,
+                    "spx_xau": 0.0,
+                    "equity_sync_regime": "neutral",
+                    "hedge_regime": "neutral",
+                    "diversification_score": 50.0,
+                }
+
+            spx_nas = float(frame["spx"].corr(frame["nas"]))
+            nas_xau = float(frame["nas"].corr(frame["xau"]))
+            spx_xau = float(frame["spx"].corr(frame["xau"]))
+
+            equity_sync_regime = "high_sync" if spx_nas >= 0.8 else "normal_sync" if spx_nas >= 0.55 else "decoupling"
+            hedge_regime = "weak_hedge" if nas_xau > -0.2 else "balanced_hedge" if nas_xau > -0.45 else "strong_hedge"
+            diversification_score = max(0.0, min(100.0, (1.0 - abs(nas_xau)) * 100.0))
+
+            return {
+                "spx_nas": round(spx_nas, 4),
+                "nas_xau": round(nas_xau, 4),
+                "spx_xau": round(spx_xau, 4),
+                "equity_sync_regime": equity_sync_regime,
+                "hedge_regime": hedge_regime,
+                "diversification_score": round(diversification_score, 2),
+            }
+        except Exception as exc:
+            logger.warning(f"Correlation nexus fallback used: {exc}")
+            return {
+                "spx_nas": 0.0,
+                "nas_xau": 0.0,
+                "spx_xau": 0.0,
+                "equity_sync_regime": "neutral",
+                "hedge_regime": "neutral",
+                "diversification_score": 50.0,
+            }
 
 class MacroDataService:
     def get_macro_environment(self) -> dict:

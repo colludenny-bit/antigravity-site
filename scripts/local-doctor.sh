@@ -28,8 +28,10 @@ fi
 # Find the python process running server.py
 BACKEND_PID=$(lsof -t -i :$BACKEND_PORT)
 if [ -n "$BACKEND_PID" ]; then
-    MAX_RETRIES=3
-    CMD=$(ps -p $BACKEND_PID -o comm= 2>/dev/null || ps -p $BACKEND_PID | tail -n 1)
+    CMD=$(ps -p $BACKEND_PID -o command= 2>/dev/null)
+    if [ -z "$CMD" ]; then
+      CMD=$(ps -p $BACKEND_PID | tail -n 1)
+    fi
     if [[ "$CMD" == *"$EXPECTED_BACKEND_PATH"* ]]; then
         echo "✅ Backend running from correct path: $EXPECTED_BACKEND_PATH"
     else

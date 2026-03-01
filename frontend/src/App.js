@@ -19,7 +19,6 @@ const AuthPage = lazy(() => import('./components/pages/AuthPage'));
 const DashboardPage = lazy(() => import('./components/pages/DashboardPage'));
 const ProfilePage = lazy(() => import('./components/pages/ProfilePage'));
 const StrategyPage = lazy(() => import('./components/pages/StrategyPage'));
-const ChartsPage = lazy(() => import('./components/pages/ChartsPage'));
 const PsychologyPage = lazy(() => import('./components/pages/PsychologyPage'));
 const JournalPage = lazy(() => import('./components/pages/JournalPage'));
 const AIPage = lazy(() => import('./components/pages/AIPage'));
@@ -40,6 +39,7 @@ const CheckoutSuccessPage = lazy(() => import('./components/pages/CheckoutSucces
 const IntroPreviewPage = lazy(() => import('./components/pages/IntroPreviewPage'));
 const MobilePreviewPage = lazy(() => import('./components/pages/MobilePreviewPage'));
 const BacktestPage = lazy(() => import('./components/pages/BacktestPage'));
+const ResearchPage = lazy(() => import('./components/pages/ResearchPage'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -149,7 +149,6 @@ function AppRoutes() {
           <Route path="profile" element={<ProfilePage />} />
           <Route path="report" element={<ReportPage />} />
           <Route path="strategy" element={<StrategyPage />} />
-          <Route path="charts" element={<ChartsPage />} />
           <Route path="news" element={<NewsPage />} />
           <Route path="macro" element={<MacroEconomyPage />} />
           <Route path="risk" element={<RiskPage />} />
@@ -166,6 +165,7 @@ function AppRoutes() {
           <Route path="ascension" element={<AscensionPage />} />
           <Route path="backtest" element={<BacktestPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="research" element={<ResearchPage />} />
         </Route>
 
         {/* Catch all - Redirect to Landing */}
@@ -190,6 +190,15 @@ function App() {
     // Preload the most common first routes while lock overlay is visible.
     import('./components/pages/AuthPage');
     import('./components/pages/LandingPage');
+  }, []);
+
+  useEffect(() => {
+    // Warm critical in-app routes to reduce first-click latency in sidebar navigation.
+    import('./components/pages/DashboardPage');
+    import('./components/pages/ResearchPage');
+    import('./components/pages/BacktestPage');
+    import('./components/pages/CryptoPage');
+    import('./components/pages/StrategyPage');
   }, []);
 
   return (

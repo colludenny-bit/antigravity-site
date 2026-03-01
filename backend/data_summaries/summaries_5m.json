@@ -1,0 +1,1106 @@
+[
+  {
+    "id": "sum-20260228013831",
+    "ts_utc": "2026-02-28T01:38:31.478362+00:00",
+    "ts_rome": "2026-02-28T02:38:31.478362+01:00",
+    "rome_day": "2026-02-28",
+    "rome_slot": "02:38",
+    "synthetic_bias": "A",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 70.0,
+        "impulse": "PROSEGUE",
+        "drivers": [
+          "vix"
+        ],
+        "price": 20000.0
+      },
+      {
+        "asset": "SP500",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 24964.75,
+        "low": 24943.25,
+        "close": 24952.75,
+        "volume": 818.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6877.5,
+        "low": 6873.5,
+        "close": 6875.25,
+        "volume": 2079.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 5297.5,
+        "high": 5298.5,
+        "low": 5294.7001953125,
+        "close": 5296.39990234375,
+        "volume": 323.0
+      },
+      "EURUSD": {
+        "ts_utc": "2026-02-27T22:25:00+00:00",
+        "open": 1.1817537546157837,
+        "high": 1.1817537546157837,
+        "low": 1.1817537546157837,
+        "close": 1.1817537546157837,
+        "volume": 0.0
+      }
+    },
+    "summary_signature": "a04ef4a3ef3e0f46b38b1d65b5c5d859347cca3309b42696a6377c1ce65a6cb8"
+  },
+  {
+    "id": "sum-20260228013834",
+    "ts_utc": "2026-02-28T01:38:34.461580+00:00",
+    "ts_rome": "2026-02-28T02:38:34.461580+01:00",
+    "rome_day": "2026-02-28",
+    "rome_slot": "02:38",
+    "synthetic_bias": "B",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 70.0,
+        "impulse": "PROSEGUE",
+        "drivers": [
+          "vix"
+        ],
+        "price": 20000.0
+      },
+      {
+        "asset": "SP500",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 24964.75,
+        "low": 24943.25,
+        "close": 24952.75,
+        "volume": 818.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6877.5,
+        "low": 6873.5,
+        "close": 6875.25,
+        "volume": 2079.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 5297.5,
+        "high": 5298.5,
+        "low": 5294.7001953125,
+        "close": 5296.39990234375,
+        "volume": 323.0
+      },
+      "EURUSD": {
+        "ts_utc": "2026-02-27T22:25:00+00:00",
+        "open": 1.1817537546157837,
+        "high": 1.1817537546157837,
+        "low": 1.1817537546157837,
+        "close": 1.1817537546157837,
+        "volume": 0.0
+      }
+    },
+    "summary_signature": "cb35ea482f05bffeb999c4bbdc879379560273ee4448ce1b1137c396a55c59ff"
+  },
+  {
+    "id": "sum-20260228014148",
+    "ts_utc": "2026-02-28T01:41:48.811952+00:00",
+    "ts_rome": "2026-02-28T02:41:48.811952+01:00",
+    "rome_day": "2026-02-28",
+    "rome_slot": "02:41",
+    "synthetic_bias": "Risk-on controlled, momentum moderato",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 72.0,
+        "impulse": "PROSEGUE",
+        "drivers": [
+          "VIX soft",
+          "Breadth"
+        ],
+        "price": 20650.0
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 67.0,
+        "impulse": "PROSEGUE",
+        "drivers": [
+          "Macro neutral"
+        ],
+        "price": 5230.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "DOWN",
+        "confidence": 59.0,
+        "impulse": "DIMINUISCE",
+        "drivers": [
+          "Real yields"
+        ],
+        "price": 2188.0
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "LATERALIZZA",
+        "drivers": [
+          "DXY range"
+        ],
+        "price": 1.082
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 24964.75,
+        "low": 24943.25,
+        "close": 24952.75,
+        "volume": 818.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6877.5,
+        "low": 6873.5,
+        "close": 6875.25,
+        "volume": 2079.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 5297.5,
+        "high": 5298.5,
+        "low": 5294.7001953125,
+        "close": 5296.39990234375,
+        "volume": 323.0
+      },
+      "EURUSD": {
+        "ts_utc": "2026-02-27T22:25:00+00:00",
+        "open": 1.1817537546157837,
+        "high": 1.1817537546157837,
+        "low": 1.1817537546157837,
+        "close": 1.1817537546157837,
+        "volume": 0.0
+      }
+    },
+    "summary_signature": "f62db273e30b8abaf48b711c2651119d8099f2e8fd8575e2ae9ed1af227bc36a"
+  },
+  {
+    "id": "sum-20260228014153",
+    "ts_utc": "2026-02-28T01:41:53.374092+00:00",
+    "ts_rome": "2026-02-28T02:41:53.374092+01:00",
+    "rome_day": "2026-02-28",
+    "rome_slot": "02:41",
+    "synthetic_bias": "Shift to defensive tone, volatility in aumento",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "DOWN",
+        "confidence": 64.0,
+        "impulse": "DIMINUISCE",
+        "drivers": [
+          "VIX uptick"
+        ],
+        "price": 20610.0
+      },
+      {
+        "asset": "SP500",
+        "direction": "DOWN",
+        "confidence": 60.0,
+        "impulse": "DIMINUISCE",
+        "drivers": [
+          "Rates"
+        ],
+        "price": 5212.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 62.0,
+        "impulse": "PROSEGUE",
+        "drivers": [
+          "Hedge demand"
+        ],
+        "price": 2196.0
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "DOWN",
+        "confidence": 58.0,
+        "impulse": "DIMINUISCE",
+        "drivers": [
+          "USD bid"
+        ],
+        "price": 1.079
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 24964.75,
+        "low": 24943.25,
+        "close": 24952.75,
+        "volume": 818.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6877.5,
+        "low": 6873.5,
+        "close": 6875.25,
+        "volume": 2079.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 5297.5,
+        "high": 5298.5,
+        "low": 5294.7001953125,
+        "close": 5296.39990234375,
+        "volume": 323.0
+      },
+      "EURUSD": {
+        "ts_utc": "2026-02-27T22:25:00+00:00",
+        "open": 1.1817537546157837,
+        "high": 1.1817537546157837,
+        "low": 1.1817537546157837,
+        "close": 1.1817537546157837,
+        "volume": 0.0
+      }
+    },
+    "summary_signature": "ad5588779b7add8bd9f0d55300fa2cb46caafc540866b929b70516f10f3d77ed"
+  },
+  {
+    "id": "sum-20260228014530",
+    "ts_utc": "2026-02-28T01:45:30.311541+00:00",
+    "ts_rome": "2026-02-28T02:45:30.311541+01:00",
+    "rome_day": "2026-02-28",
+    "rome_slot": "02:45",
+    "synthetic_bias": "",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      },
+      {
+        "asset": "SP500",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "NEUTRAL",
+        "confidence": 50.0,
+        "impulse": "UNKNOWN",
+        "drivers": [],
+        "price": null
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6877.5,
+        "low": 6873.5,
+        "close": 6875.25,
+        "volume": 2079.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6877.5,
+        "low": 6873.5,
+        "close": 6875.25,
+        "volume": 2079.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 5297.5,
+        "high": 5298.5,
+        "low": 5294.7001953125,
+        "close": 5296.39990234375,
+        "volume": 323.0
+      },
+      "EURUSD": {
+        "ts_utc": "2026-02-27T22:25:00+00:00",
+        "open": 1.1817537546157837,
+        "high": 1.1817537546157837,
+        "low": 1.1817537546157837,
+        "close": 1.1817537546157837,
+        "volume": 0.0
+      }
+    },
+    "summary_signature": "1b7cce2b61e55cd85a74f1a330d2ffbfeeaf48c8107d5e827e19a7898830e64f"
+  },
+  {
+    "id": "sum-20260301025713",
+    "ts_utc": "2026-03-01T02:57:13.173139+00:00",
+    "ts_rome": "2026-03-01T03:57:13.173139+01:00",
+    "rome_day": "2026-03-01",
+    "rome_slot": "03:57",
+    "synthetic_bias": "Quant-only Pulse: Gemini non configurato. Vol regime 19.860000610351562 | corr SPX/NAS 0.9477.",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 62.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 25004.75
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 61.6,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 6889.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 67.3,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning",
+          "Intraday momentum drift"
+        ],
+        "price": 5230.5
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "NEUTRAL",
+        "confidence": 53.4,
+        "impulse": "Inverte",
+        "drivers": [
+          "Soft USD backdrop",
+          "COT short positioning"
+        ],
+        "price": 1.1803
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6877.5,
+        "low": 6873.5,
+        "close": 6875.25,
+        "volume": 2079.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6877.5,
+        "low": 6873.5,
+        "close": 6875.25,
+        "volume": 2079.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 5297.5,
+        "high": 5298.5,
+        "low": 5247.89990234375,
+        "close": 5247.89990234375,
+        "volume": 323.0
+      },
+      "EURUSD": {
+        "ts_utc": "2026-02-27T22:25:00+00:00",
+        "open": 1.1817537546157837,
+        "high": 1.1817537546157837,
+        "low": 1.1817537546157837,
+        "close": 1.1817537546157837,
+        "volume": 0.0
+      }
+    },
+    "summary_signature": "625eea6f6cfda11ef4350a7727ae2eb548ad09f1180d853c99ef2227fee4d6a2"
+  },
+  {
+    "id": "sum-20260301050942",
+    "ts_utc": "2026-03-01T05:09:42.578560+00:00",
+    "ts_rome": "2026-03-01T06:09:42.578560+01:00",
+    "rome_day": "2026-03-01",
+    "rome_slot": "06:09",
+    "synthetic_bias": "Quant-only Pulse: Gemini non configurato. Vol regime 19.860000610351562 | corr SPX/NAS 0.9532.",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 62.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 25004.75
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 61.6,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 6889.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 68.5,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning",
+          "Intraday momentum drift"
+        ],
+        "price": 5247.9
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "DOWN",
+        "confidence": 63.7,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT short positioning"
+        ],
+        "price": 1.1803
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 25004.75,
+        "low": 24943.25,
+        "close": 25004.75,
+        "volume": 818.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      },
+      "EURUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 5297.5,
+        "high": 5298.5,
+        "low": 5247.89990234375,
+        "close": 5247.89990234375,
+        "volume": 323.0
+      }
+    },
+    "summary_signature": "495c0c404978515890da16dd85af9e45fd6783fc8029e468156355d994338bc9"
+  },
+  {
+    "id": "sum-20260301181452",
+    "ts_utc": "2026-03-01T18:14:52.727308+00:00",
+    "ts_rome": "2026-03-01T19:14:52.727308+01:00",
+    "rome_day": "2026-03-01",
+    "rome_slot": "19:14",
+    "synthetic_bias": "Quant-only Pulse: Gemini non configurato. Vol regime 19.860000610351562 | corr SPX/NAS 0.9532.",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 62.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 25004.75
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 61.6,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 6889.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 68.5,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning",
+          "Intraday momentum drift"
+        ],
+        "price": 5247.9
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "DOWN",
+        "confidence": 63.4,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT short positioning"
+        ],
+        "price": 1.1801
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 25004.75,
+        "low": 24943.25,
+        "close": 25004.75,
+        "volume": 818.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      },
+      "XAUUSD": {},
+      "EURUSD": {}
+    },
+    "summary_signature": "e09bce533a011b5847a96300905736ab87458f7c434faa59dc5998571d2d1c28"
+  },
+  {
+    "id": "sum-20260301184452",
+    "ts_utc": "2026-03-01T18:44:52.776463+00:00",
+    "ts_rome": "2026-03-01T19:44:52.776463+01:00",
+    "rome_day": "2026-03-01",
+    "rome_slot": "19:44",
+    "synthetic_bias": "Quant-only Pulse: Gemini non configurato. Vol regime 19.860000610351562 | corr SPX/NAS 0.9532.",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 62.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 25004.75
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 61.6,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 6889.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 68.5,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning",
+          "Intraday momentum drift"
+        ],
+        "price": 5247.9
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "DOWN",
+        "confidence": 63.1,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT short positioning"
+        ],
+        "price": 1.1811
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 25004.75,
+        "low": 24943.25,
+        "close": 25004.75,
+        "volume": 818.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      },
+      "XAUUSD": {},
+      "EURUSD": {}
+    },
+    "summary_signature": "7a3a3d059a5b7be677369b4e6126ee97eceda677530272726a247d7ea15052ef"
+  },
+  {
+    "id": "sum-20260301213431",
+    "ts_utc": "2026-03-01T21:34:31.216021+00:00",
+    "ts_rome": "2026-03-01T22:34:31.216021+01:00",
+    "rome_day": "2026-03-01",
+    "rome_slot": "22:34",
+    "synthetic_bias": "Quant-only Pulse: Gemini non configurato. Vol regime 19.860000610351562 | corr SPX/NAS 0.9532.",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 62.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 25004.75
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 61.6,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 6889.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 68.5,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning",
+          "Intraday momentum drift"
+        ],
+        "price": 5247.9
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "DOWN",
+        "confidence": 63.3,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT short positioning"
+        ],
+        "price": 1.1804
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 25004.75,
+        "low": 24943.25,
+        "close": 25004.75,
+        "volume": 818.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      },
+      "EURUSD": {}
+    },
+    "summary_signature": "f9718b5702c7c52e909c427459c4ef06ef83a049f31bbbc586494d3c9cbcf18d"
+  },
+  {
+    "id": "sum-20260301214410",
+    "ts_utc": "2026-03-01T21:44:10.647414+00:00",
+    "ts_rome": "2026-03-01T22:44:10.647414+01:00",
+    "rome_day": "2026-03-01",
+    "rome_slot": "22:44",
+    "synthetic_bias": "Quant-only Pulse: Gemini non configurato. Vol regime 19.860000610351562 | corr SPX/NAS 0.9532.",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 62.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 25004.75
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 61.6,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 6889.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 68.5,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning",
+          "Intraday momentum drift"
+        ],
+        "price": 5247.9
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "DOWN",
+        "confidence": 62.4,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT short positioning"
+        ],
+        "price": 1.1831
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      },
+      "SP500": {},
+      "XAUUSD": {},
+      "EURUSD": {}
+    },
+    "summary_signature": "eef0f092a51910a23da8eae0e34985db307cb84f8da620c771c76168b650e261"
+  },
+  {
+    "id": "sum-20260301220837",
+    "ts_utc": "2026-03-01T22:08:37.827307+00:00",
+    "ts_rome": "2026-03-01T23:08:37.827307+01:00",
+    "rome_day": "2026-03-01",
+    "rome_slot": "23:08",
+    "synthetic_bias": "Quant-only Pulse: Gemini non configurato. Vol regime 19.860000610351562 | corr SPX/NAS 0.9532.",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 62.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 25004.75
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 61.6,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 6889.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 68.5,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning",
+          "Intraday momentum drift"
+        ],
+        "price": 5247.9
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "DOWN",
+        "confidence": 64.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT short positioning"
+        ],
+        "price": 1.1774
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 25004.75,
+        "low": 24943.25,
+        "close": 25004.75,
+        "volume": 818.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 25004.75,
+        "low": 24943.25,
+        "close": 25004.75,
+        "volume": 818.0
+      },
+      "EURUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      }
+    },
+    "summary_signature": "04bb40b0494cebd072d9cbc892409d4f3c452603ce53d9d15817ca771eaf3094"
+  },
+  {
+    "id": "sum-20260301221046",
+    "ts_utc": "2026-03-01T22:10:46.565029+00:00",
+    "ts_rome": "2026-03-01T23:10:46.565029+01:00",
+    "rome_day": "2026-03-01",
+    "rome_slot": "23:10",
+    "synthetic_bias": "Quant-only Pulse: Gemini non configurato. Vol regime 19.860000610351562 | corr SPX/NAS 0.9532.",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 62.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 25004.75
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 61.6,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 6889.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 68.5,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning",
+          "Intraday momentum drift"
+        ],
+        "price": 5247.9
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "DOWN",
+        "confidence": 64.3,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT short positioning"
+        ],
+        "price": 1.1772
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 25004.75,
+        "low": 24943.25,
+        "close": 25004.75,
+        "volume": 818.0
+      },
+      "SP500": {},
+      "XAUUSD": {},
+      "EURUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      }
+    },
+    "summary_signature": "e8ab8c8da429269038587595d71bf4623a258953886aee78fe8193cf9d0537b3"
+  },
+  {
+    "id": "sum-20260301221223",
+    "ts_utc": "2026-03-01T22:12:23.397707+00:00",
+    "ts_rome": "2026-03-01T23:12:23.397707+01:00",
+    "rome_day": "2026-03-01",
+    "rome_slot": "23:12",
+    "synthetic_bias": "Quant-only Pulse: Gemini non configurato. Vol regime 19.860000610351562 | corr SPX/NAS 0.9532.",
+    "assets": [
+      {
+        "asset": "NAS100",
+        "direction": "UP",
+        "confidence": 62.2,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 25004.75
+      },
+      {
+        "asset": "SP500",
+        "direction": "UP",
+        "confidence": 61.6,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning"
+        ],
+        "price": 6889.0
+      },
+      {
+        "asset": "XAUUSD",
+        "direction": "UP",
+        "confidence": 68.5,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT long positioning",
+          "Intraday momentum drift"
+        ],
+        "price": 5247.9
+      },
+      {
+        "asset": "EURUSD",
+        "direction": "DOWN",
+        "confidence": 64.4,
+        "impulse": "Diminuisce",
+        "drivers": [
+          "COT short positioning"
+        ],
+        "price": 1.177
+      }
+    ],
+    "market_5m": {
+      "NAS100": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 25004.75,
+        "low": 24943.25,
+        "close": 25004.75,
+        "volume": 818.0
+      },
+      "SP500": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 24945.0,
+        "high": 25004.75,
+        "low": 24943.25,
+        "close": 25004.75,
+        "volume": 818.0
+      },
+      "XAUUSD": {
+        "ts_utc": "2026-02-27T21:55:00+00:00",
+        "open": 6875.0,
+        "high": 6889.0,
+        "low": 6873.5,
+        "close": 6889.0,
+        "volume": 2079.0
+      },
+      "EURUSD": {}
+    },
+    "summary_signature": "03a3f30e23277c16869606a416bb7b3343aecd76714dcd9423e7a903b316643d"
+  }
+]

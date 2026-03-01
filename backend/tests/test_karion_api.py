@@ -5,12 +5,33 @@ Tests for multi-source analysis, COT data, VIX, and authentication
 import pytest
 import requests
 import os
+import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000').rstrip('/')
+REQUEST_TIMEOUT = float(os.environ.get("TEST_HTTP_TIMEOUT", "15"))
 
-# Test credentials
-TEST_EMAIL = "test@test.com"
-TEST_PASSWORD = "password123"
+# Test credentials (generated to keep suite idempotent across reruns)
+TEST_EMAIL = os.environ.get("TEST_EMAIL", f"test_{int(time.time() * 1000)}@example.com")
+TEST_PASSWORD = os.environ.get("TEST_PASSWORD", "Password123!")
+TEST_NAME = os.environ.get("TEST_NAME", "API Test User")
+
+
+def http_get(url, timeout=REQUEST_TIMEOUT, **kwargs):
+    return requests.get(url, timeout=timeout, **kwargs)
+
+
+def http_post(url, timeout=REQUEST_TIMEOUT, **kwargs):
+    return requests.post(url, timeout=timeout, **kwargs)
+
+
+def ensure_test_user():
+    """Create test user if missing; ignore duplicate registration."""
+    response = http_post(
+        f"{BASE_URL}/api/auth/register",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD, "name": TEST_NAME},
+    )
+    if response.status_code not in (200, 400):
+        pytest.fail(f"Unable to provision test user. Status: {response.status_code}")
 
 
 class TestHealthAndRoot:
@@ -18,7 +39,7 @@ class TestHealthAndRoot:
     
     def test_api_root(self):
         """Test API root endpoint"""
-        response = requests.get(f"{BASE_URL}/api/")
+        response = http_get(f"{BASE_URL}/api/")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "online"
@@ -30,7 +51,8 @@ class TestAuthentication:
     
     def test_login_success(self):
         """Test successful login with valid credentials"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
+        ensure_test_user()
+        response = http_post(f"{BASE_URL}/api/auth/login", json={
             "email": TEST_EMAIL,
             "password": TEST_PASSWORD
         })
@@ -43,7 +65,7 @@ class TestAuthentication:
     
     def test_login_invalid_credentials(self):
         """Test login with invalid credentials"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
+        response = http_post(f"{BASE_URL}/api/auth/login", json={
             "email": "wrong@email.com",
             "password": "wrongpassword"
         })
@@ -55,7 +77,7 @@ class TestMultiSourceAnalysis:
     
     def test_multi_source_endpoint(self):
         """Test /api/analysis/multi-source returns all 4 assets"""
-        response = requests.get(f"{BASE_URL}/api/analysis/multi-source")
+        response = http_get(f"{BASE_URL}/api/analysis/multi-source")
         assert response.status_code == 200
         data = response.json()
         
@@ -88,7 +110,7 @@ class TestMultiSourceAnalysis:
     
     def test_vix_data_in_multi_source(self):
         """Test VIX data is included in multi-source response"""
-        response = requests.get(f"{BASE_URL}/api/analysis/multi-source")
+        response = http_get(f"{BASE_URL}/api/analysis/multi-source")
         assert response.status_code == 200
         data = response.json()
         
@@ -106,7 +128,7 @@ class TestCOTData:
     
     def test_cot_data_endpoint(self):
         """Test /api/cot/data returns all 4 assets"""
-        response = requests.get(f"{BASE_URL}/api/cot/data")
+        response = http_get(f"{BASE_URL}/api/cot/data")
         assert response.status_code == 200
         data = response.json()
         
@@ -136,7 +158,7 @@ class TestCOTData:
     
     def test_cot_categories_structure(self):
         """Test COT categories have correct structure"""
-        response = requests.get(f"{BASE_URL}/api/cot/data")
+        response = http_get(f"{BASE_URL}/api/cot/data")
         assert response.status_code == 200
         data = response.json()
         
@@ -167,7 +189,7 @@ class TestCOTData:
     
     def test_cot_single_symbol(self):
         """Test /api/cot/{symbol} endpoint"""
-        response = requests.get(f"{BASE_URL}/api/cot/SP500")
+        response = http_get(f"{BASE_URL}/api/cot/SP500")
         assert response.status_code == 200
         data = response.json()
         assert data["symbol"] == "SP500"
@@ -180,7 +202,7 @@ class TestVIXEndpoint:
     
     def test_vix_endpoint(self):
         """Test /api/market/vix returns real VIX data"""
-        response = requests.get(f"{BASE_URL}/api/market/vix")
+        response = http_get(f"{BASE_URL}/api/market/vix")
         assert response.status_code == 200
         data = response.json()
         
@@ -203,7 +225,7 @@ class TestMarketPrices:
     
     def test_market_prices_endpoint(self):
         """Test /api/market/prices returns all assets"""
-        response = requests.get(f"{BASE_URL}/api/market/prices")
+        response = http_get(f"{BASE_URL}/api/market/prices")
         assert response.status_code == 200
         data = response.json()
         
@@ -222,7 +244,7 @@ class TestRiskAnalysis:
     
     def test_risk_analysis_endpoint(self):
         """Test /api/risk/analysis returns comprehensive risk data"""
-        response = requests.get(f"{BASE_URL}/api/risk/analysis")
+        response = http_get(f"{BASE_URL}/api/risk/analysis")
         assert response.status_code == 200
         data = response.json()
         
@@ -241,7 +263,7 @@ class TestPhilosophyQuote:
     
     def test_philosophy_quote(self):
         """Test /api/philosophy/quote returns a quote"""
-        response = requests.get(f"{BASE_URL}/api/philosophy/quote")
+        response = http_get(f"{BASE_URL}/api/philosophy/quote")
         assert response.status_code == 200
         data = response.json()
         
@@ -256,7 +278,8 @@ class TestAuthenticatedEndpoints:
     @pytest.fixture
     def auth_token(self):
         """Get authentication token"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
+        ensure_test_user()
+        response = http_post(f"{BASE_URL}/api/auth/login", json={
             "email": TEST_EMAIL,
             "password": TEST_PASSWORD
         })
@@ -267,7 +290,7 @@ class TestAuthenticatedEndpoints:
     def test_get_me(self, auth_token):
         """Test /api/auth/me returns current user"""
         headers = {"Authorization": f"Bearer {auth_token}"}
-        response = requests.get(f"{BASE_URL}/api/auth/me", headers=headers)
+        response = http_get(f"{BASE_URL}/api/auth/me", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert data["email"] == TEST_EMAIL
@@ -275,7 +298,7 @@ class TestAuthenticatedEndpoints:
     def test_psychology_stats(self, auth_token):
         """Test /api/psychology/stats endpoint"""
         headers = {"Authorization": f"Bearer {auth_token}"}
-        response = requests.get(f"{BASE_URL}/api/psychology/stats", headers=headers)
+        response = http_get(f"{BASE_URL}/api/psychology/stats", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert "avg_confidence" in data
@@ -285,12 +308,56 @@ class TestAuthenticatedEndpoints:
     def test_ascension_status(self, auth_token):
         """Test /api/ascension/status endpoint"""
         headers = {"Authorization": f"Bearer {auth_token}"}
-        response = requests.get(f"{BASE_URL}/api/ascension/status", headers=headers)
+        response = http_get(f"{BASE_URL}/api/ascension/status", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert "xp" in data
         assert "current_level" in data
         assert "all_levels" in data
+
+    def test_deep_research_payload(self, auth_token):
+        """Test /api/research/deep-research endpoint"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = http_get(f"{BASE_URL}/api/research/deep-research", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+        assert "signals" in data
+        assert "diversification" in data
+        assert "risk_exposure" in data
+        assert "weekly_bias" in data
+        assert "monthly_bias" in data
+
+    def test_collection_status_endpoint(self, auth_token):
+        """Test collection control status endpoint"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = http_get(f"{BASE_URL}/api/system/collection/status", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "collection_allowed" in data
+        assert "reason" in data
+        assert "market_window_open" in data
+
+    def test_data_integrity_endpoint(self, auth_token):
+        """Test data integrity endpoint"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = http_get(f"{BASE_URL}/api/system/data-integrity", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("status") == "ok"
+        assert "mongo" in data
+        assert "files" in data
+        assert "data_lake" in data
+
+    def test_storage_maintenance_endpoint(self, auth_token):
+        """Test storage maintenance endpoint"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = http_post(f"{BASE_URL}/api/system/storage/maintenance", headers=headers, json={})
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("status") == "ok"
+        assert "maintenance" in data
+        assert "data_lake" in data
 
 
 if __name__ == "__main__":

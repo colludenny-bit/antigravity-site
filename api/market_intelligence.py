@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 import math
 import re
 from typing import Dict, List, Optional
-from urllib import error as urllib_error
-from urllib import request as urllib_request
+from urllib import parse as urllib_parse
+import requests
 
 
 ASSET_CONFIG = {
@@ -17,10 +17,18 @@ ASSET_CONFIG = {
 
 COT_LEGACY_INDEX_URL = "https://www.cftc.gov/MarketReports/CommitmentsofTraders/HistoricalViewable/index.htm"
 COT_LEGACY_BASE_URL = "https://www.cftc.gov"
+ALLOWED_COT_HOSTS = {"www.cftc.gov"}
 _COT_LEGACY_CACHE: Dict[str, Optional[object]] = {
     "expires_at": None,
     "payload": None,
 }
+
+
+def _validated_external_url(url: str, allowed_hosts: set) -> str:
+    parsed = urllib_parse.urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname not in allowed_hosts:
+        raise ValueError(f"Blocked outbound URL: {url}")
+    return url
 
 
 STRATEGY_CATALOG = [
@@ -193,12 +201,17 @@ def _latest_cot_legacy_report(now: datetime) -> dict:
     }
 
     try:
-        req = urllib_request.Request(
+        url = _validated_external_url(
             COT_LEGACY_INDEX_URL,
-            headers={"User-Agent": "Karion-COT-Agent/1.0"},
+            ALLOWED_COT_HOSTS,
         )
-        with urllib_request.urlopen(req, timeout=8) as response:
-            html = response.read().decode("utf-8", errors="ignore")
+        response = requests.get(
+            url,
+            headers={"User-Agent": "Karion-COT-Agent/1.0"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        html = response.text
 
         codes = re.findall(
             r"/MarketReports/CommitmentsofTraders/HistoricalViewable/cot(\d{6})",
@@ -223,7 +236,7 @@ def _latest_cot_legacy_report(now: datetime) -> dict:
             }
         else:
             payload = fallback_payload
-    except (urllib_error.URLError, TimeoutError, ValueError):
+    except (requests.RequestException, TimeoutError, ValueError):
         payload = fallback_payload
 
     _COT_LEGACY_CACHE["payload"] = payload

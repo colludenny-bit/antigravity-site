@@ -1076,48 +1076,44 @@ export default function CryptoPage() {
       </div>
 
       {/* ─── Tabs ─── */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="overview" className="flex items-center gap-1.5">
-            <Globe className="w-3.5 h-3.5" />Overview
+      <Tabs defaultValue="overview" className="w-full space-y-6">
+        <TabsList className="bg-transparent p-0 flex gap-6 border-b border-white/5 w-full justify-start h-auto rounded-none overflow-x-auto overflow-y-hidden scrollbar-hide">
+          <TabsTrigger value="overview" className="flex items-center gap-1.5 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-[#00D9A5] data-[state=active]:shadow-none rounded-none px-0 py-3 text-sm text-white/50 data-[state=active]:text-[#00D9A5] bg-transparent border-b-2 border-transparent transition-all hover:text-white/80 shrink-0">
+            <Globe className="w-4 h-4" />Overview
           </TabsTrigger>
-          <TabsTrigger value="whales" className="flex items-center gap-1.5">
-            <Waves className="w-3.5 h-3.5" />Whales
+          <TabsTrigger value="whales" className="flex items-center gap-1.5 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-[#00D9A5] data-[state=active]:shadow-none rounded-none px-0 py-3 text-sm text-white/50 data-[state=active]:text-[#00D9A5] bg-transparent border-b-2 border-transparent transition-all hover:text-white/80 shrink-0">
+            <Waves className="w-4 h-4" />Whales
           </TabsTrigger>
-          <TabsTrigger value="onchain" className="flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5" />On-Chain
+          <TabsTrigger value="onchain" className="flex items-center gap-1.5 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-[#00D9A5] data-[state=active]:shadow-none rounded-none px-0 py-3 text-sm text-white/50 data-[state=active]:text-[#00D9A5] bg-transparent border-b-2 border-transparent transition-all hover:text-white/80 shrink-0">
+            <Activity className="w-4 h-4" />On-Chain
           </TabsTrigger>
-          <TabsTrigger value="defi" className="flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5" />DeFi
+          <TabsTrigger value="defi" className="flex items-center gap-1.5 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-[#00D9A5] data-[state=active]:shadow-none rounded-none px-0 py-3 text-sm text-white/50 data-[state=active]:text-[#00D9A5] bg-transparent border-b-2 border-transparent transition-all hover:text-white/80 shrink-0">
+            <Layers className="w-4 h-4" />DeFi
           </TabsTrigger>
-          <TabsTrigger value="fundamentals" className="flex items-center gap-1.5">
-            <Code className="w-3.5 h-3.5" />Fundamentals
+          <TabsTrigger value="fundamentals" className="flex items-center gap-1.5 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-[#00D9A5] data-[state=active]:shadow-none rounded-none px-0 py-3 text-sm text-white/50 data-[state=active]:text-[#00D9A5] bg-transparent border-b-2 border-transparent transition-all hover:text-white/80 shrink-0">
+            <Code className="w-4 h-4" />Fundamentals
           </TabsTrigger>
         </TabsList>
 
-        <AnimatePresence mode="wait">
-          <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-            <TabsContent value="overview">
-              <OverviewTab coin={selectedCoin} chartData={chartData} globalData={globalData} mvrvData={mvrvData} />
-            </TabsContent>
+        <TabsContent value="overview" className="mt-0 focus-visible:outline-none focus-visible:ring-0">
+          <OverviewTab coin={selectedCoin} chartData={chartData} globalData={globalData} mvrvData={mvrvData} />
+        </TabsContent>
 
-            <TabsContent value="whales">
-              <WhalesTab symbol={selectedSymbol} whaleTxs={whaleTxs} netflowData={netflowData} topWallets={topWallets} />
-            </TabsContent>
+        <TabsContent value="whales" className="mt-0 focus-visible:outline-none focus-visible:ring-0">
+          <WhalesTab symbol={selectedSymbol} whaleTxs={whaleTxs} netflowData={netflowData} topWallets={topWallets} />
+        </TabsContent>
 
-            <TabsContent value="onchain">
-              <OnChainTab symbol={selectedSymbol} flowData={flowData} holderDist={holderDist} mvrvData={mvrvData} soprData={soprData} />
-            </TabsContent>
+        <TabsContent value="onchain" className="mt-0 focus-visible:outline-none focus-visible:ring-0">
+          <OnChainTab symbol={selectedSymbol} flowData={flowData} holderDist={holderDist} mvrvData={mvrvData} soprData={soprData} />
+        </TabsContent>
 
-            <TabsContent value="defi">
-              <DeFiTab symbol={selectedSymbol} defiData={defiData} />
-            </TabsContent>
+        <TabsContent value="defi" className="mt-0 focus-visible:outline-none focus-visible:ring-0">
+          <DeFiTab symbol={selectedSymbol} defiData={defiData} />
+        </TabsContent>
 
-            <TabsContent value="fundamentals">
-              <FundamentalsTab symbol={selectedSymbol} coin={selectedCoin} fundamentals={fundamentals} />
-            </TabsContent>
-          </motion.div>
-        </AnimatePresence>
+        <TabsContent value="fundamentals" className="mt-0 focus-visible:outline-none focus-visible:ring-0">
+          <FundamentalsTab symbol={selectedSymbol} coin={selectedCoin} fundamentals={fundamentals} />
+        </TabsContent>
       </Tabs>
     </div>
   );

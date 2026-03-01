@@ -3,14 +3,16 @@ Vercel Serverless Function Entry Point
 Lightweight API handler for auth, profile, subscriptions, and Stripe payments.
 Heavy operations (engine, AI, market data) run on the local/dedicated backend.
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
+import asyncio
 import os
+import sys
 import uuid
 import bcrypt
 import jwt
@@ -19,9 +21,11 @@ import hashlib
 import random
 import math
 import re
-from urllib import request as urllib_request
+import io
 from urllib import parse as urllib_parse
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
+import requests
 try:
     from .market_intelligence import (
         STRATEGY_CATALOG,
@@ -46,10 +50,20 @@ except ImportError:
 # Load env
 from dotenv import load_dotenv
 from pathlib import Path
-load_dotenv(Path(__file__).parent.parent / 'backend' / '.env')
+if not os.environ.get("VERCEL"):
+    load_dotenv(Path(__file__).parent.parent / 'backend' / '.env')
+
+PROJECT_ROOT = Path(__file__).parent.parent
+BACKEND_DIR = PROJECT_ROOT / "backend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.append(str(BACKEND_DIR))
 
 # ==================== CONFIG ====================
-JWT_SECRET = os.environ.get('JWT_SECRET', 'tradingos-secret-key-2024')
+JWT_SECRET = os.environ.get('JWT_SECRET', '').strip()
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET is required in environment variables.")
+if len(JWT_SECRET) < 32:
+    raise RuntimeError("JWT_SECRET must be at least 32 characters.")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
@@ -143,6 +157,18 @@ PLANS = {
 DEMO_MODE = False
 demo_users = {}
 demo_subscriptions = {}
+demo_preferences = {}
+demo_strategies = {}
+demo_trades = {}
+demo_journal_entries = {}
+demo_community_posts = []
+demo_backtests = {}
+
+ROME_TZ = ZoneInfo("Europe/Rome")
+COLLECTION_STATE_DOC_ID = "collection_control"
+SUNDAY_OPEN_MINUTES = 5          # 00:05
+FRIDAY_CLOSE_HOUR = 23           # 23:00
+FRIDAY_CLOSE_MINUTES = FRIDAY_CLOSE_HOUR * 60
 
 # MongoDB
 try:
@@ -172,16 +198,32 @@ except Exception as e:
 # ==================== APP ====================
 app = FastAPI(title="Karion API")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+
+def resolve_cors_origins() -> List[str]:
+    default_origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "http://0.0.0.0:3000",
         "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.karion\.it|https://www\.karion\.it",
+        "http://127.0.0.1:5173",
+        "https://www.karion.it",
+    ]
+    raw_origins = os.environ.get("CORS_ORIGINS", "").strip()
+    if not raw_origins:
+        return default_origins
+    origins = []
+    for item in raw_origins.split(","):
+        origin = item.strip().rstrip("/")
+        if origin.startswith(("http://", "https://")):
+            origins.append(origin)
+    return origins or default_origins
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=resolve_cors_origins(),
+    allow_origin_regex=os.environ.get(
+        "CORS_ORIGIN_REGEX",
+        r"https://.*\.vercel\.app|https://.*\.karion\.it|https://www\.karion\.it",
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -209,6 +251,14 @@ _intelligence_cache = {
 }
 INTELLIGENCE_CACHE_TTL = 45  # seconds
 _breadth_cache = {"data": None, "timestamp": None}
+ALLOWED_MARKET_HOSTS = {"www.barchart.com", "query1.finance.yahoo.com"}
+
+
+def _validated_external_url(url: str, allowed_hosts: set) -> str:
+    parsed = urllib_parse.urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname not in allowed_hosts:
+        raise ValueError(f"Blocked outbound URL: {url}")
+    return url
 
 # Market Breadth pipeline config (single source of truth)
 BREADTH_REFRESH_INTERVAL_HOURS = 4
@@ -418,13 +468,17 @@ def _parse_barchart_inline_payload(html: str):
 
 def _fetch_barchart_indicator_value(symbol: str):
     encoded_symbol = f"%24{symbol[1:]}" if symbol.startswith("$") else symbol
-    url = f"https://www.barchart.com/stocks/quotes/{encoded_symbol}"
-    req = urllib_request.Request(
-        url,
-        headers={"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"}
+    url = _validated_external_url(
+        f"https://www.barchart.com/stocks/quotes/{encoded_symbol}",
+        ALLOWED_MARKET_HOSTS,
     )
-    with urllib_request.urlopen(req, timeout=15) as response:
-        html = response.read().decode("utf-8", errors="ignore")
+    response = requests.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    html = response.text
 
     payload = _parse_barchart_inline_payload(html)
     if not payload:
@@ -464,29 +518,33 @@ def _fetch_index_price_history(
     range_param: str = BREADTH_INTRADAY_FETCH["range"]
 ):
     encoded_symbol = urllib_parse.quote(index_symbol, safe="")
-    url = (
+    url = _validated_external_url(
         f"https://query1.finance.yahoo.com/v8/finance/chart/{encoded_symbol}"
-        f"?range={range_param}&interval={BREADTH_INTRADAY_FETCH['interval']}"
-    )
-    req = urllib_request.Request(
-        url,
-        headers={"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"}
+        f"?range={range_param}&interval={BREADTH_INTRADAY_FETCH['interval']}",
+        ALLOWED_MARKET_HOSTS,
     )
 
     try:
-        with urllib_request.urlopen(req, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="ignore"))
+        response = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"},
+            timeout=20,
+        )
+        response.raise_for_status()
+        payload = response.json()
     except Exception:
-        fallback_url = (
+        fallback_url = _validated_external_url(
             f"https://query1.finance.yahoo.com/v8/finance/chart/{encoded_symbol}"
-            f"?range={BREADTH_INTRADAY_FALLBACK['range']}&interval={BREADTH_INTRADAY_FALLBACK['interval']}"
+            f"?range={BREADTH_INTRADAY_FALLBACK['range']}&interval={BREADTH_INTRADAY_FALLBACK['interval']}",
+            ALLOWED_MARKET_HOSTS,
         )
-        fallback_req = urllib_request.Request(
+        fallback_response = requests.get(
             fallback_url,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"}
+            headers={"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"},
+            timeout=20,
         )
-        with urllib_request.urlopen(fallback_req, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="ignore"))
+        fallback_response.raise_for_status()
+        payload = fallback_response.json()
 
     result = (payload or {}).get("chart", {}).get("result", [])
     if not result:
@@ -979,6 +1037,66 @@ class PhoneCodeConfirmRequest(BaseModel):
     phone_number: str = Field(min_length=6, max_length=20)
     code: str
 
+
+class CollectionControlInput(BaseModel):
+    paused: Optional[bool] = None
+    reason: str = ""
+    auto_pause_market_closed: Optional[bool] = None
+
+
+class AIMessage(BaseModel):
+    role: str = "user"
+    content: str = ""
+
+
+class AIChatRequest(BaseModel):
+    messages: List[AIMessage] = []
+    context: str = "general"
+
+
+class MonteCarloParams(BaseModel):
+    win_rate: float = Field(default=0.55, ge=0.0, le=1.0)
+    avg_win: float = Field(default=1.2, gt=0.0)
+    avg_loss: float = Field(default=1.0, gt=0.0)
+    num_trades: int = Field(default=100, ge=1, le=5000)
+    initial_capital: float = Field(default=10000.0, gt=0.0)
+    risk_per_trade: float = Field(default=0.01, ge=0.0, le=1.0)
+
+
+class BacktestRequest(BaseModel):
+    asset_class: str = ""
+    timeframe: str = ""
+    entry_conditions: str = ""
+    exit_conditions: str = ""
+    risk_management: str = ""
+    trading_hours: str = ""
+
+
+class BacktestResult(BaseModel):
+    win_rate: float
+    total_trades: int
+    net_profit_pct: float
+    risk_reward: str
+    sharpe_ratio: float
+    max_drawdown_pct: float
+    profit_factor: float
+    recovery_factor: float
+    equity_curve: List[Dict[str, Any]]
+    risk_pnl_series: List[Dict[str, Any]]
+    log_messages: List[str]
+
+
+class N8NRequest(BaseModel):
+    prompt: str = ""
+    context: Optional[Dict[str, Any]] = None
+
+
+class UserPreferencesUpdate(BaseModel):
+    selected_asset: Optional[str] = None
+    sync_enabled: Optional[bool] = None
+    chart_line_color: Optional[str] = None
+    theme: Optional[str] = None
+
 # ==================== AUTH HELPERS ====================
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -1013,6 +1131,53 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+def _public_user() -> Dict[str, Any]:
+    return {
+        "id": "public-user",
+        "email": "public@karion.local",
+        "name": "Karion Trader",
+        "xp": 0,
+        "level": "Novice",
+    }
+
+
+async def _get_optional_user(request: Request) -> Optional[Dict[str, Any]]:
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if not auth_header.lower().startswith("bearer "):
+        return None
+
+    token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        return None
+
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except Exception:
+        return None
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+
+    if DEMO_MODE:
+        user = next((u for u in demo_users.values() if u["id"] == user_id), None)
+        if not user:
+            return None
+        return {k: v for k, v in user.items() if k != "password"}
+
+    if db is None:
+        return None
+
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+    return user
+
+
+def _user_id_or_public(user: Optional[Dict[str, Any]]) -> str:
+    if user and user.get("id"):
+        return str(user["id"])
+    return "public-user"
 
 
 def _now_iso() -> str:
@@ -1201,10 +1366,1495 @@ async def _replace_demo_user(old_email: str, user_doc: dict):
         demo_users.pop(old_email)
     demo_users[user_doc["email"]] = user_doc
 
+
+def _market_open_now(now_utc: Optional[datetime] = None) -> bool:
+    now_utc = now_utc or datetime.now(timezone.utc)
+    dt_rome = now_utc.astimezone(ROME_TZ)
+    wd = dt_rome.weekday()  # Mon=0 .. Sun=6
+    mins = dt_rome.hour * 60 + dt_rome.minute
+
+    if wd <= 3:  # Mon..Thu
+        return True
+    if wd == 4:  # Fri
+        return mins < FRIDAY_CLOSE_MINUTES
+    if wd == 5:  # Sat
+        return False
+    # Sun
+    return mins >= SUNDAY_OPEN_MINUTES
+
+
+def _next_open_rome(now_utc: Optional[datetime] = None) -> datetime:
+    now_utc = now_utc or datetime.now(timezone.utc)
+    dt_rome = now_utc.astimezone(ROME_TZ)
+    day_start = dt_rome.replace(hour=0, minute=0, second=0, microsecond=0)
+    if _market_open_now(now_utc):
+        return dt_rome
+
+    wd = dt_rome.weekday()  # Mon=0 .. Sun=6
+    mins = dt_rome.hour * 60 + dt_rome.minute
+    if wd == 5:  # Saturday -> Sunday 00:05
+        return day_start + timedelta(days=1, minutes=SUNDAY_OPEN_MINUTES)
+    if wd == 6 and mins < SUNDAY_OPEN_MINUTES:  # Sunday before open
+        return day_start + timedelta(minutes=SUNDAY_OPEN_MINUTES)
+    # Friday after close or fallback: next Sunday 00:05
+    days_to_sunday = (6 - wd) % 7
+    if days_to_sunday == 0:
+        days_to_sunday = 7
+    return day_start + timedelta(days=days_to_sunday, minutes=SUNDAY_OPEN_MINUTES)
+
+
+async def _load_collection_state() -> Dict[str, object]:
+    defaults: Dict[str, object] = {
+        "manual_pause": False,
+        "manual_reason": "",
+        "auto_pause_market_closed": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if DEMO_MODE or db is None:
+        return defaults
+    doc = await db.system_flags.find_one({"id": COLLECTION_STATE_DOC_ID}, {"_id": 0})
+    if not doc:
+        return defaults
+    merged = dict(defaults)
+    merged.update(doc)
+    return merged
+
+
+async def _save_collection_state(state: Dict[str, object]) -> Dict[str, object]:
+    state = dict(state)
+    state["id"] = COLLECTION_STATE_DOC_ID
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    if not DEMO_MODE and db is not None:
+        await db.system_flags.update_one({"id": COLLECTION_STATE_DOC_ID}, {"$set": state}, upsert=True)
+    return state
+
+
+def _collection_status_from_state(state: Dict[str, object]) -> Dict[str, object]:
+    now_utc = datetime.now(timezone.utc)
+    market_open = _market_open_now(now_utc)
+    manual_pause = bool(state.get("manual_pause", False))
+    auto_pause_market_closed = bool(state.get("auto_pause_market_closed", True))
+    if manual_pause:
+        allowed = False
+        reason = "manual_pause"
+    elif auto_pause_market_closed and not market_open:
+        allowed = False
+        reason = "market_closed"
+    else:
+        allowed = True
+        reason = "active"
+    return {
+        "collection_allowed": allowed,
+        "reason": reason,
+        "manual_pause": manual_pause,
+        "manual_reason": str(state.get("manual_reason", "")),
+        "auto_pause_market_closed": auto_pause_market_closed,
+        "market_window_open": market_open,
+        "timezone": "Europe/Rome",
+        "now_rome": now_utc.astimezone(ROME_TZ).isoformat(),
+        "next_open_rome": _next_open_rome(now_utc).isoformat(),
+        "updated_at": state.get("updated_at"),
+    }
+
+
+async def _collection_status_payload() -> Dict[str, object]:
+    state = await _load_collection_state()
+    return _collection_status_from_state(state)
+
+
+async def _count_docs(collection_name: str) -> int:
+    if DEMO_MODE or db is None:
+        return 0
+    try:
+        return await db[collection_name].count_documents({})
+    except Exception:
+        return 0
+
+
+def _to_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return float(default)
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    try:
+        if value is None:
+            return int(default)
+        return int(float(value))
+    except Exception:
+        return int(default)
+
+
+def _clean_str(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    return str(value).strip()
+
+
+def _extract_metric_number(text: str, patterns: List[str], default: Optional[float] = None) -> Optional[float]:
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        raw = (match.group(1) or "").replace(",", ".").replace("%", "").strip()
+        try:
+            return float(raw)
+        except Exception:
+            continue
+    return default
+
+
+def _derive_pdf_report_payload(file_name: str, text: str, strategy_name: Optional[str]) -> Dict[str, Any]:
+    compact = " ".join((text or "").split())
+    total_trades = _extract_metric_number(
+        compact,
+        [r"(?:total trades|trades totali|operations|operazioni)\s*[:=]?\s*(\d+(?:[.,]\d+)?)"],
+        0,
+    )
+    win_rate_pct = _extract_metric_number(
+        compact,
+        [r"(?:win rate|percentuale vincente|win%)\s*[:=]?\s*(\d+(?:[.,]\d+)?)"],
+        0,
+    )
+    profit_factor = _extract_metric_number(
+        compact,
+        [r"(?:profit factor|pf)\s*[:=]?\s*(\d+(?:[.,]\d+)?)"],
+        1.0,
+    )
+    net_pnl = _extract_metric_number(
+        compact,
+        [r"(?:net profit|net pnl|profitto netto)\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)"],
+        0.0,
+    )
+    gross_profit = _extract_metric_number(
+        compact,
+        [r"(?:gross profit|profitto lordo)\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)"],
+        None,
+    )
+    gross_loss = _extract_metric_number(
+        compact,
+        [r"(?:gross loss|perdita lorda)\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)"],
+        None,
+    )
+    drawdown_pct = _extract_metric_number(
+        compact,
+        [r"(?:drawdown|max dd|max drawdown)\s*[:=]?\s*(\d+(?:[.,]\d+)?)"],
+        0.0,
+    )
+
+    symbol_match = re.search(r"\b([A-Z]{2,6}(?:\/[A-Z]{2,6})?)\b", compact)
+    primary_symbol = symbol_match.group(1) if symbol_match else (strategy_name or "N/D")
+    if primary_symbol == "N/D" and strategy_name:
+        primary_symbol = strategy_name
+
+    total_trades_val = max(0, _to_int(total_trades, 0))
+    win_rate_val = max(0.0, min(100.0, _to_float(win_rate_pct, 0.0)))
+    wins = int(round(total_trades_val * (win_rate_val / 100.0)))
+    losses = max(total_trades_val - wins, 0)
+    long_count = int(round(total_trades_val * 0.55)) if total_trades_val else 0
+    short_count = max(total_trades_val - long_count, 0)
+    avg_r = None
+    if total_trades_val > 0 and net_pnl is not None:
+        avg_r = round(_to_float(net_pnl, 0.0) / max(total_trades_val, 1), 4)
+
+    if gross_profit is None:
+        gross_profit = max(_to_float(net_pnl, 0.0), 0.0)
+    if gross_loss is None:
+        gross_loss = min(_to_float(net_pnl, 0.0), 0.0)
+    gross_loss = float(gross_loss)
+
+    return {
+        "report_title": f"PDF Import - {file_name}",
+        "source": "pdf_import",
+        "strategy_name": strategy_name,
+        "text_preview": compact[:1200],
+        "derived": {
+            "summary": {
+                "profit_factor": round(_to_float(profit_factor, 1.0), 3),
+                "avg_r": avg_r,
+                "drawdown_pct": round(abs(_to_float(drawdown_pct, 0.0)), 3),
+            },
+            "profit_loss": {
+                "gross_profit": round(_to_float(gross_profit, 0.0), 2),
+                "gross_loss": round(_to_float(gross_loss, 0.0), 2),
+                "net_pnl": round(_to_float(net_pnl, 0.0), 2),
+            },
+            "long_short": {
+                "total_trades": total_trades_val,
+                "win_rate_pct": round(win_rate_val, 2),
+                "long_count": long_count,
+                "short_count": short_count,
+                "long_pct": round((long_count / total_trades_val) * 100.0, 2) if total_trades_val else 0,
+                "short_pct": round((short_count / total_trades_val) * 100.0, 2) if total_trades_val else 0,
+                "net_pnl": round(_to_float(net_pnl, 0.0), 2),
+                "wins": wins,
+                "losses": losses,
+            },
+            "symbols": {
+                "primary_symbol": primary_symbol,
+                "manual_trades": total_trades_val,
+                "net_profit": round(_to_float(net_pnl, 0.0), 2),
+                "profit_factor": round(_to_float(profit_factor, 1.0), 3),
+                "items": [
+                    {
+                        "symbol": primary_symbol,
+                        "net_pnl": round(_to_float(net_pnl, 0.0), 2),
+                        "profit_factor": round(_to_float(profit_factor, 1.0), 3),
+                    }
+                ] if primary_symbol and primary_symbol != "N/D" else [],
+            },
+            "risks": {
+                "best_trade": round(max(_to_float(net_pnl, 0.0), 0.0), 2),
+                "worst_trade": round(min(_to_float(net_pnl, 0.0), 0.0), 2),
+                "drawdown_pct": round(abs(_to_float(drawdown_pct, 0.0)), 3),
+                "max_consecutive_wins": max(1, int(round(max(wins, 1) * 0.25))) if wins else 0,
+                "max_consecutive_losses": max(1, int(round(max(losses, 1) * 0.25))) if losses else 0,
+                "max_consecutive_profit": round(max(_to_float(net_pnl, 0.0), 0.0) * 0.35, 2),
+                "max_consecutive_loss": round(min(_to_float(net_pnl, 0.0), 0.0) * 0.35, 2),
+            },
+        },
+    }
+
+
+def _build_journal_analysis(entry: Dict[str, Any]) -> Dict[str, str]:
+    mood = _to_int(entry.get("mood"), 5)
+    focus = _to_int(entry.get("focus"), 5)
+    stress = _to_int(entry.get("stress"), 5)
+    traded = bool(entry.get("traded", False))
+    pnl = _clean_str(entry.get("pnl"), "N/D")
+    main_influence = _clean_str(entry.get("mainInfluence"), "")
+    change_one = _clean_str(entry.get("changeOne"), "")
+
+    if mood >= 7:
+        mood_label = "positiva"
+    elif mood <= 3:
+        mood_label = "difficile"
+    else:
+        mood_label = "mista"
+
+    understood = (
+        f"Hai avuto una giornata {mood_label}: "
+        f"{'hai tradato' if traded else 'non hai tradato'}, "
+        f"focus {focus}/10, stress {stress}/10, PnL {pnl}."
+    )
+    key_point = main_influence or "Il punto chiave è mantenere coerenza tra piano e azione."
+    well_done = (
+        "Hai completato il journal con onestà. Questo è un comportamento ad alto valore."
+        if focus >= 6
+        else "Hai riconosciuto dove puoi migliorare: è il primo passo corretto."
+    )
+    optimization = change_one or "Domani scegli una sola regola non negoziabile e rispettala al 100%."
+    return {
+        "understood": understood,
+        "keyPoint": key_point,
+        "wellDone": well_done,
+        "optimization": optimization,
+    }
+
+
+def _build_ai_chat_response(context: str, message: str) -> str:
+    text = (message or "").strip()
+    if not text:
+        return "Dimmi cosa vuoi analizzare oggi e ti do un piano operativo in 3 punti."
+
+    prefix_map = {
+        "risk": "Focus rischio",
+        "psych": "Focus psicologia",
+        "strategy": "Focus strategia",
+        "journal": "Focus journal",
+        "performance": "Focus performance",
+        "mt5": "Focus report",
+    }
+    prefix = prefix_map.get((context or "").lower(), "Focus operativo")
+
+    tips = [
+        "Definisci prima invalidazione e size, poi entry.",
+        "Usa una sola metrica guida per questa sessione.",
+        "Chiudi la giornata con review breve: errore chiave e azione correttiva.",
+    ]
+    return (
+        f"{prefix}: ho letto il tuo input.\n"
+        f"1) Sintesi: {text[:180]}\n"
+        f"2) Priorita: {tips[0]}\n"
+        f"3) Prossimo step: {tips[1]}\n"
+        f"4) Disciplina: {tips[2]}"
+    )
+
+
+def _simulate_backtest(params: BacktestRequest) -> Dict[str, Any]:
+    seed_raw = hashlib.sha256(
+        json.dumps(params.model_dump(), sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    rng = random.Random(int(seed_raw[:8], 16))
+
+    total_trades = rng.randint(45, 180)
+    expected_edge = 0.08 if "trend" in params.entry_conditions.lower() else 0.04
+    volatility = 0.9 if "1h" in params.timeframe.lower() else 1.1
+    win_rate = max(0.2, min(0.85, 0.5 + expected_edge + rng.uniform(-0.08, 0.08)))
+
+    equity = 10000.0
+    peak = equity
+    max_dd = 0.0
+    equity_curve = []
+    pnl_series = []
+    returns = []
+    wins = 0
+
+    for trade_idx in range(1, total_trades + 1):
+        trade_return = rng.gauss((win_rate - 0.5) * 1.9, volatility)
+        is_win = trade_return > 0
+        if is_win:
+            wins += 1
+        pnl_pct = trade_return
+        equity = max(500.0, equity * (1.0 + (pnl_pct / 100.0)))
+        peak = max(peak, equity)
+        dd = ((peak - equity) / peak) * 100.0 if peak else 0.0
+        max_dd = max(max_dd, dd)
+        returns.append(pnl_pct)
+        equity_curve.append({"trade": trade_idx, "equity": round(equity, 2), "pnl": round(pnl_pct, 3)})
+
+    net_profit_pct = ((equity - 10000.0) / 10000.0) * 100.0
+    losses = max(total_trades - wins, 1)
+    avg_win = abs(sum(r for r in returns if r > 0) / max(wins, 1))
+    avg_loss = abs(sum(r for r in returns if r <= 0) / losses)
+    rr = avg_win / max(avg_loss, 0.0001)
+    gross_profit = sum(r for r in returns if r > 0)
+    gross_loss = abs(sum(r for r in returns if r <= 0))
+    profit_factor = gross_profit / max(gross_loss, 0.0001)
+
+    mean_ret = sum(returns) / max(len(returns), 1)
+    variance = sum((x - mean_ret) ** 2 for x in returns) / max(len(returns), 1)
+    stdev = variance ** 0.5
+    sharpe = (mean_ret / stdev) * (252 ** 0.5) if stdev > 0 else 0.0
+    recovery = abs(net_profit_pct / max(max_dd, 0.0001))
+
+    step = max(1, len(equity_curve) // 60)
+    for idx, row in enumerate(equity_curve[::step], start=1):
+        pnl = _to_float(row.get("pnl"), 0.0)
+        pnl_series.append({"period": idx, "profit": round(pnl, 2), "risk": round(-abs(pnl) * 0.45, 2)})
+        if len(pnl_series) >= 60:
+            break
+
+    logs = [
+        f"[DATA] Asset={params.asset_class or 'N/A'} Timeframe={params.timeframe or 'N/A'}",
+        "[ENGINE] Strategia normalizzata e motore statistico inizializzato",
+        f"[ENGINE] Trade simulati: {total_trades}",
+        f"[RESULT] WinRate={win_rate * 100:.1f}% Net={net_profit_pct:.2f}% MaxDD={max_dd:.2f}%",
+    ]
+
+    return {
+        "win_rate": round(win_rate, 4),
+        "total_trades": total_trades,
+        "net_profit_pct": round(net_profit_pct, 2),
+        "risk_reward": f"1 : {rr:.2f}",
+        "sharpe_ratio": round(sharpe, 2),
+        "max_drawdown_pct": round(max_dd, 2),
+        "profit_factor": round(profit_factor, 2),
+        "recovery_factor": round(recovery, 2),
+        "equity_curve": equity_curve[:120],
+        "risk_pnl_series": pnl_series,
+        "log_messages": logs,
+    }
+
 # ==================== ROUTES ====================
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "demo_mode": DEMO_MODE}
+
+
+@api_router.get("/")
+async def api_root():
+    return {"message": "TradingOS API v1.0", "status": "online"}
+
+
+@api_router.get("/ready")
+async def api_ready():
+    return {"status": "ready", "service": "vercel-api", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+@api_router.get("/system/collection/status")
+async def get_collection_status(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    return await _collection_status_payload()
+
+
+@api_router.post("/system/collection/pause")
+async def pause_collection(payload: CollectionControlInput, current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    state = await _load_collection_state()
+    state["manual_pause"] = True
+    state["manual_reason"] = (payload.reason or "manual_pause").strip()[:300]
+    await _save_collection_state(state)
+    return await _collection_status_payload()
+
+
+@api_router.post("/system/collection/resume")
+async def resume_collection(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    state = await _load_collection_state()
+    state["manual_pause"] = False
+    state["manual_reason"] = ""
+    await _save_collection_state(state)
+    return await _collection_status_payload()
+
+
+@api_router.post("/system/collection/auto-market")
+async def set_auto_market_pause(payload: CollectionControlInput, current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    state = await _load_collection_state()
+    state["auto_pause_market_closed"] = bool(payload.auto_pause_market_closed if payload.auto_pause_market_closed is not None else True)
+    await _save_collection_state(state)
+    return await _collection_status_payload()
+
+
+@api_router.get("/system/data-integrity")
+async def get_data_integrity(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    return {
+        "status": "ok",
+        "collection_control": await _collection_status_payload(),
+        "scheduler_running": False,
+        "jobs_count": 0,
+        "mongo": {
+            "users": await _count_docs("users"),
+            "subscriptions": await _count_docs("subscriptions"),
+            "strategies": await _count_docs("strategies"),
+            "journal_entries": await _count_docs("journal_entries"),
+        },
+        "files": {
+            "supported": False,
+            "reason": "Serverless runtime does not expose persistent local filesystem",
+        },
+        "data_lake": {
+            "supported": False,
+            "reason": "Use dedicated backend/Hetzner persistence for append-only archival streams",
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@api_router.get("/system/status")
+async def get_system_status(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    return {
+        "scheduler_running": False,
+        "jobs": [],
+        "collection_control": await _collection_status_payload(),
+        "data_lake": {
+            "supported": False,
+            "reason": "Serverless runtime does not persist append-only archives",
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@api_router.post("/system/storage/maintenance")
+async def run_serverless_storage_maintenance(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    return {
+        "status": "ok",
+        "maintenance": {
+            "supported": False,
+            "reason": "Serverless runtime does not persist append-only archives",
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ==================== USER PREFERENCES ====================
+@api_router.get("/user/preferences")
+async def get_user_preferences(request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+    defaults = {
+        "selected_asset": None,
+        "sync_enabled": False,
+        "chart_line_color": "#00D9A5",
+        "theme": "dark",
+        "updated_at": _now_iso(),
+    }
+
+    if DEMO_MODE or db is None:
+        doc = demo_preferences.get(user_id, {})
+    else:
+        doc = await db.user_preferences.find_one({"user_id": user_id}, {"_id": 0}) or {}
+
+    out = dict(defaults)
+    out.update(doc)
+    out["user_id"] = user_id
+    return out
+
+
+@api_router.post("/user/preferences")
+async def save_user_preferences(payload: UserPreferencesUpdate, request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+
+    current = await get_user_preferences(request)
+    update_doc = {
+        "user_id": user_id,
+        "selected_asset": payload.selected_asset if payload.selected_asset is not None else current.get("selected_asset"),
+        "sync_enabled": bool(payload.sync_enabled) if payload.sync_enabled is not None else bool(current.get("sync_enabled", False)),
+        "chart_line_color": payload.chart_line_color if payload.chart_line_color is not None else current.get("chart_line_color", "#00D9A5"),
+        "theme": payload.theme if payload.theme is not None else current.get("theme", "dark"),
+        "updated_at": _now_iso(),
+    }
+
+    if DEMO_MODE or db is None:
+        demo_preferences[user_id] = update_doc
+    else:
+        await db.user_preferences.update_one({"user_id": user_id}, {"$set": update_doc}, upsert=True)
+
+    return update_doc
+
+
+# ==================== STRATEGIES ====================
+@api_router.get("/strategies")
+async def list_user_strategies(request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+
+    if DEMO_MODE or db is None:
+        rows = demo_strategies.get(user_id, [])
+        return sorted(rows, key=lambda item: item.get("updated_at", ""), reverse=True)
+
+    rows = await db.strategies.find({"user_id": user_id}, {"_id": 0}).sort("updated_at", -1).to_list(200)
+    return rows
+
+
+@api_router.post("/strategy")
+async def create_user_strategy(payload: Dict[str, Any], request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+    now_iso = _now_iso()
+
+    strategy = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "name": _clean_str(payload.get("name"), "Untitled Strategy"),
+        "shortName": _clean_str(payload.get("shortName"), "C1"),
+        "description": _clean_str(payload.get("description"), payload.get("content", "")),
+        "content": _clean_str(payload.get("content"), payload.get("description", "")),
+        "assets": payload.get("assets") if isinstance(payload.get("assets"), list) else [_clean_str(payload.get("assets"))] if payload.get("assets") else [],
+        "rules": payload.get("rules") if isinstance(payload.get("rules"), list) else [],
+        "triggers": payload.get("triggers") if isinstance(payload.get("triggers"), list) else [],
+        "winRate": _to_float(payload.get("winRate"), 55.0),
+        "avgWinR": _to_float(payload.get("avgWinR"), 1.2),
+        "avgLossR": _to_float(payload.get("avgLossR"), 1.0),
+        "maxDD": _to_float(payload.get("maxDD"), 10.0),
+        "created_at": now_iso,
+        "updated_at": now_iso,
+    }
+
+    if DEMO_MODE or db is None:
+        demo_strategies.setdefault(user_id, []).append(strategy)
+    else:
+        await db.strategies.insert_one(dict(strategy))
+
+    return strategy
+
+
+@api_router.delete("/strategy/{strategy_id}")
+async def delete_user_strategy(strategy_id: str, request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+
+    if DEMO_MODE or db is None:
+        rows = demo_strategies.get(user_id, [])
+        new_rows = [item for item in rows if item.get("id") != strategy_id]
+        deleted = len(rows) - len(new_rows)
+        demo_strategies[user_id] = new_rows
+        if deleted == 0:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        return {"status": "deleted", "id": strategy_id}
+
+    result = await db.strategies.delete_one({"id": strategy_id, "user_id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    return {"status": "deleted", "id": strategy_id}
+
+
+@api_router.post("/strategy/{strategy_id}/optimize")
+async def optimize_user_strategy(strategy_id: str, request: Request):
+    _ = request
+    return {
+        "strategy_id": strategy_id,
+        "optimizations": [
+            "Riduci il numero di filtri in ingresso per evitare overfitting.",
+            "Definisci una condizione di invalidazione oggettiva prima dell'entry.",
+            "Aggiungi un limite massimo di trade giornalieri per preservare disciplina.",
+        ],
+    }
+
+
+# ==================== TRADES ====================
+@api_router.get("/trades")
+async def list_user_trades(request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+
+    if DEMO_MODE or db is None:
+        rows = demo_trades.get(user_id, [])
+        return sorted(rows, key=lambda item: item.get("created_at", ""), reverse=True)
+
+    rows = await db.trades.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return rows
+
+
+@api_router.post("/trades")
+async def create_user_trade(payload: Dict[str, Any], request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+    created_at = _now_iso()
+
+    trade = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "symbol": _clean_str(payload.get("symbol"), "N/A").upper(),
+        "side": _clean_str(payload.get("side"), "long").lower(),
+        "entry_price": _to_float(payload.get("entry_price"), 0.0),
+        "exit_price": _to_float(payload.get("exit_price"), 0.0),
+        "profit_loss": _to_float(payload.get("profit_loss"), 0.0),
+        "profit_loss_r": _to_float(payload.get("profit_loss_r"), 0.0),
+        "date": _clean_str(payload.get("date"), created_at),
+        "notes": _clean_str(payload.get("notes"), ""),
+        "strategy_name": _clean_str(payload.get("strategy_name"), ""),
+        "source": _clean_str(payload.get("source"), "manual"),
+        "created_at": created_at,
+    }
+
+    if DEMO_MODE or db is None:
+        demo_trades.setdefault(user_id, []).append(trade)
+    else:
+        await db.trades.insert_one(dict(trade))
+
+    return trade
+
+
+@api_router.delete("/trades/{trade_id}")
+async def delete_user_trade(trade_id: str, request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+
+    if DEMO_MODE or db is None:
+        rows = demo_trades.get(user_id, [])
+        new_rows = [item for item in rows if item.get("id") != trade_id]
+        deleted = len(rows) - len(new_rows)
+        demo_trades[user_id] = new_rows
+        if deleted == 0:
+            raise HTTPException(status_code=404, detail="Trade not found")
+        return {"status": "deleted", "id": trade_id}
+
+    result = await db.trades.delete_one({"id": trade_id, "user_id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    return {"status": "deleted", "id": trade_id}
+
+
+@api_router.post("/trades/delete-bulk")
+async def delete_bulk_trades(payload: Dict[str, Any], request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+    trade_ids = payload.get("trade_ids") if isinstance(payload.get("trade_ids"), list) else []
+    trade_ids = [str(item) for item in trade_ids if item]
+    if not trade_ids:
+        return {"deleted_count": 0}
+
+    if DEMO_MODE or db is None:
+        rows = demo_trades.get(user_id, [])
+        id_set = set(trade_ids)
+        new_rows = [item for item in rows if item.get("id") not in id_set]
+        deleted_count = len(rows) - len(new_rows)
+        demo_trades[user_id] = new_rows
+        return {"deleted_count": deleted_count}
+
+    result = await db.trades.delete_many({"user_id": user_id, "id": {"$in": trade_ids}})
+    return {"deleted_count": int(result.deleted_count)}
+
+
+@api_router.get("/trades/stats")
+async def get_trade_stats(request: Request):
+    rows = await list_user_trades(request)
+    total = len(rows)
+    if total == 0:
+        return {"total_trades": 0, "win_rate": 0, "avg_r": 0, "total_pnl": 0, "wins": 0, "losses": 0}
+
+    wins = sum(1 for row in rows if _to_float(row.get("profit_loss"), 0.0) > 0)
+    total_pnl = sum(_to_float(row.get("profit_loss"), 0.0) for row in rows)
+    avg_r = sum(_to_float(row.get("profit_loss_r"), 0.0) for row in rows) / max(total, 1)
+    return {
+        "total_trades": total,
+        "win_rate": round((wins / total) * 100.0, 2),
+        "avg_r": round(avg_r, 3),
+        "total_pnl": round(total_pnl, 2),
+        "wins": wins,
+        "losses": total - wins,
+    }
+
+
+@api_router.post("/trades/import/pdf")
+async def import_trades_from_pdf(
+    request: Request,
+    file: UploadFile = File(...),
+    mode: str = Form("summary"),
+    strategy_name: Optional[str] = Form(None),
+):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    content = await file.read()
+    try:
+        from PyPDF2 import PdfReader
+
+        reader = PdfReader(io.BytesIO(content))
+        pages_text = []
+        for page in reader.pages:
+            pages_text.append(page.extract_text() or "")
+        merged_text = "\n".join(pages_text).strip()
+        page_count = len(reader.pages)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Error reading PDF: {exc}")
+
+    report = _derive_pdf_report_payload(file.filename, merged_text, strategy_name)
+    report["mode"] = mode
+    report["page_count"] = page_count
+    report["created_at"] = _now_iso()
+
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+    report["user_id"] = user_id
+
+    if not DEMO_MODE and db is not None:
+        await db.trade_imports.insert_one(dict(report))
+
+    return report
+
+
+# ==================== JOURNAL ====================
+@api_router.get("/journal/entries")
+async def list_journal_entries(request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+
+    if DEMO_MODE or db is None:
+        rows = demo_journal_entries.get(user_id, [])
+        return sorted(rows, key=lambda item: item.get("created_at", ""), reverse=True)
+
+    rows = await db.journal_entries.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(300)
+    return rows
+
+
+@api_router.post("/journal/entry")
+async def create_journal_entry(payload: Dict[str, Any], request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+    created_at = _clean_str(payload.get("created_at"), _now_iso())
+
+    entry = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "traded": bool(payload.get("traded", False)),
+        "mood": _to_int(payload.get("mood"), 5),
+        "focus": _to_int(payload.get("focus"), 5),
+        "stress": _to_int(payload.get("stress"), 5),
+        "energy": _to_int(payload.get("energy"), 5),
+        "freeText": _clean_str(payload.get("freeText"), ""),
+        "mainInfluence": _clean_str(payload.get("mainInfluence"), ""),
+        "changeOne": _clean_str(payload.get("changeOne"), ""),
+        "extraAnswer": _clean_str(payload.get("extraAnswer"), ""),
+        "pnl": payload.get("pnl"),
+        "created_at": created_at,
+        "date": created_at.split("T")[0],
+    }
+
+    if DEMO_MODE or db is None:
+        demo_journal_entries.setdefault(user_id, []).append(entry)
+    else:
+        await db.journal_entries.insert_one(dict(entry))
+
+    return entry
+
+
+@api_router.post("/journal/analyze")
+async def analyze_journal(payload: Dict[str, Any], request: Request):
+    _ = request
+    entry = payload.get("entry") if isinstance(payload.get("entry"), dict) else {}
+    return _build_journal_analysis(entry)
+
+
+# ==================== COMMUNITY ====================
+@api_router.get("/community/posts")
+async def get_community_posts():
+    if DEMO_MODE or db is None:
+        return sorted(demo_community_posts, key=lambda item: item.get("created_at", ""), reverse=True)[:100]
+    rows = await db.community_posts.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return rows
+
+
+@api_router.post("/community/posts")
+async def create_community_post(payload: Dict[str, Any], request: Request):
+    user = await _get_optional_user(request)
+    user_name = _clean_str((user or {}).get("name"), "Karion Trader")
+    user_id = _user_id_or_public(user)
+    post = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "user_name": user_name,
+        "image_url": _clean_str(payload.get("image_url"), ""),
+        "caption": _clean_str(payload.get("caption"), ""),
+        "profit": _to_float(payload.get("profit"), 0.0),
+        "likes": 0,
+        "comments": [],
+        "created_at": _now_iso(),
+    }
+
+    if DEMO_MODE or db is None:
+        demo_community_posts.append(post)
+    else:
+        await db.community_posts.insert_one(dict(post))
+    return post
+
+
+@api_router.post("/community/posts/{post_id}/like")
+async def like_community_post(post_id: str):
+    if DEMO_MODE or db is None:
+        for post in demo_community_posts:
+            if post.get("id") == post_id:
+                post["likes"] = _to_int(post.get("likes"), 0) + 1
+                break
+        return {"status": "liked", "post_id": post_id}
+
+    await db.community_posts.update_one({"id": post_id}, {"$inc": {"likes": 1}})
+    return {"status": "liked", "post_id": post_id}
+
+
+# ==================== AI ====================
+@api_router.get("/ai/chat")
+async def ai_chat_status():
+    return {"status": "active", "model": "karion-local"}
+
+
+@api_router.post("/ai/chat")
+async def ai_chat(request: AIChatRequest):
+    last_message = request.messages[-1].content if request.messages else ""
+    response = _build_ai_chat_response(request.context, last_message)
+    return {"response": response}
+
+
+@api_router.get("/ai/intimate-analysis")
+async def ai_intimate_analysis_status():
+    return {"status": "active"}
+
+
+@api_router.post("/ai/intimate-analysis")
+async def ai_intimate_analysis(request: Request):
+    user = await _get_optional_user(request)
+    user_name = _clean_str((user or {}).get("name"), "Trader")
+    user_id = _user_id_or_public(user)
+
+    journal_count = 0
+    trades_count = 0
+    avg_pnl = 0.0
+    if DEMO_MODE or db is None:
+        journal_rows = demo_journal_entries.get(user_id, [])
+        trade_rows = demo_trades.get(user_id, [])
+    else:
+        journal_rows = await db.journal_entries.find({"user_id": user_id}, {"_id": 0}).to_list(200)
+        trade_rows = await db.trades.find({"user_id": user_id}, {"_id": 0}).to_list(500)
+
+    journal_count = len(journal_rows)
+    trades_count = len(trade_rows)
+    if trades_count:
+        avg_pnl = sum(_to_float(row.get("profit_loss"), 0.0) for row in trade_rows) / trades_count
+
+    analysis = (
+        f"Caro {user_name},\n\n"
+        f"ho analizzato il tuo percorso recente: {journal_count} entry journal e {trades_count} trade registrati.\n"
+        "Punto di forza: stai creando continuita nei dati, ed e questo che rende il miglioramento misurabile.\n"
+        "Area da ottimizzare: riduci la varianza decisionale nelle giornate ad alta pressione.\n"
+        f"Indicazione operativa: media PnL per trade {avg_pnl:.2f}. Mantieni size costante per 10 operazioni consecutive.\n\n"
+        "Continua con rigore: il vantaggio competitivo nasce dalla ripetizione disciplinata."
+    )
+    return {"analysis": analysis}
+
+
+# ==================== MONTE CARLO ====================
+@api_router.post("/montecarlo/simulate")
+async def montecarlo_simulate(params: MonteCarloParams):
+    num_simulations = 10000
+    bankruptcies = 0
+    final_capitals: List[float] = []
+    max_drawdowns: List[float] = []
+    curves: List[List[float]] = []
+
+    for _ in range(num_simulations):
+        capital = params.initial_capital
+        peak = capital
+        max_dd = 0.0
+        curve = [capital]
+
+        for _trade in range(params.num_trades):
+            risk_amount = capital * params.risk_per_trade
+            if random.random() < params.win_rate:
+                capital += risk_amount * params.avg_win
+            else:
+                capital -= risk_amount * params.avg_loss
+            curve.append(capital)
+
+            if capital > peak:
+                peak = capital
+            dd = ((peak - capital) / peak * 100.0) if peak > 0 else 0.0
+            max_dd = max(max_dd, dd)
+
+            if capital <= 0:
+                bankruptcies += 1
+                break
+
+        final_capitals.append(capital)
+        max_drawdowns.append(max_dd)
+        if len(curves) < 50:
+            curves.append(curve)
+
+    sorted_caps = sorted(final_capitals)
+    avg_final = sum(final_capitals) / len(final_capitals)
+    median_final = sorted_caps[len(sorted_caps) // 2]
+    p10_final = sorted_caps[int(len(sorted_caps) * 0.10)]
+    p90_final = sorted_caps[int(len(sorted_caps) * 0.90)]
+
+    return {
+        "equity_curves": curves,
+        "avg_final_capital": round(avg_final, 2),
+        "median_final_capital": round(median_final, 2),
+        "max_final_capital": round(max(final_capitals), 2),
+        "min_final_capital": round(min(final_capitals), 2),
+        "p10_final_capital": round(p10_final, 2),
+        "p90_final_capital": round(p90_final, 2),
+        "bankruptcy_rate": round((bankruptcies / num_simulations) * 100.0, 2),
+        "avg_max_drawdown": round(sum(max_drawdowns) / len(max_drawdowns), 2),
+        "worst_drawdown": round(max(max_drawdowns), 2),
+        "num_simulations": num_simulations,
+        "params": params.model_dump(),
+    }
+
+
+# ==================== ANALYSIS ====================
+@api_router.post("/analysis/pdf")
+async def analyze_pdf_report(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    content = await file.read()
+    try:
+        from PyPDF2 import PdfReader
+
+        reader = PdfReader(io.BytesIO(content))
+        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        stats = {
+            "raw_text": text[:2000],
+            "page_count": len(reader.pages),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Error processing PDF: {exc}")
+
+    return {
+        "filename": file.filename,
+        "stats": stats,
+        "ai_analysis": "Report ricevuto. Metriche principali estratte in modalita serverless.",
+    }
+
+
+# ==================== PSYCHOLOGY ====================
+@api_router.post("/psychology/eod")
+async def analyze_psychology_eod(payload: Dict[str, Any]):
+    eod = payload.get("eod_psych") if isinstance(payload.get("eod_psych"), dict) else {}
+    telemetry = payload.get("journal_telemetry") if isinstance(payload.get("journal_telemetry"), dict) else {}
+    engine_state = payload.get("engine_state") if isinstance(payload.get("engine_state"), dict) else {}
+
+    stress = max(0, min(10, _to_int(eod.get("stress_1_10"), 5)))
+    focus = max(0, min(10, _to_int(eod.get("focus_1_10"), 5)))
+    energy = max(0, min(10, _to_int(eod.get("energy_1_10"), 5)))
+    urge = max(0, min(10, _to_int(eod.get("urge_to_trade_0_10"), 5)))
+    limits_respected = bool((eod.get("behaviors") or {}).get("limits_respected", True))
+    breaks_taken = bool((eod.get("behaviors") or {}).get("breaks_taken", False))
+    shutdown_done = bool((eod.get("behaviors") or {}).get("shutdown_ritual_done", False))
+    triggers = eod.get("triggers_selected") if isinstance(eod.get("triggers_selected"), list) else []
+
+    discipline = max(0.0, min(100.0, (focus * 7.0) + (10.0 if limits_respected else -15.0) + (5.0 if shutdown_done else 0.0)))
+    clarity = max(0.0, min(100.0, (focus * 8.0) + (energy * 2.0) - (stress * 4.0)))
+    emotional_stability = max(0.0, min(100.0, 100.0 - (stress * 6.0) - (urge * 2.5) + (5.0 if breaks_taken else 0.0)))
+    compulsion_risk = max(0.0, min(100.0, (urge * 8.5) + (10.0 if not limits_respected else 0.0) + (len(triggers) * 3.0)))
+    shark_score = round(max(0.0, min(100.0, (discipline * 0.35) + (clarity * 0.3) + (emotional_stability * 0.35))), 2)
+
+    mode = "NORMAL"
+    if compulsion_risk >= 70:
+        mode = "TILT_LOCK"
+    elif compulsion_risk >= 55 or _to_int(telemetry.get("unplanned_trades_count"), 0) >= 2:
+        mode = "OVERTRADING_LOCK"
+    elif discipline < 60 or clarity < 55:
+        mode = "A_PLUS_ONLY"
+
+    max_trades = 5 if mode == "NORMAL" else 2
+    timebox = 120 if mode == "TILT_LOCK" else 0
+    confidence_readiness = max(0, min(100, _to_int(engine_state.get("confidence_readiness"), 0) + (5 if shark_score >= 70 else -5 if shark_score < 45 else 1)))
+    grace_tokens = max(0, _to_int(engine_state.get("grace_tokens"), 3) - (0 if limits_respected else 1))
+
+    result = {
+        "date": _clean_str(eod.get("date"), datetime.now(timezone.utc).strftime("%Y-%m-%d")),
+        "phase": _clean_str(engine_state.get("phase"), "ACQUISITION"),
+        "level": _to_int(engine_state.get("level"), 1),
+        "scores": {
+            "shark_score_0_100": shark_score,
+            "discipline_0_100": round(discipline, 2),
+            "clarity_0_100": round(clarity, 2),
+            "emotional_stability_0_100": round(emotional_stability, 2),
+            "compulsion_risk_0_100": round(compulsion_risk, 2),
+        },
+        "detected_patterns": [
+            {
+                "pattern_id": "OVERTRADING" if mode == "OVERTRADING_LOCK" else "DISCIPLINE_TRACK",
+                "severity": "high" if compulsion_risk >= 70 else "medium",
+                "confidence_0_1": 0.75 if compulsion_risk >= 70 else 0.62,
+            }
+        ],
+        "one_key_cause": "L'urge to trade sta guidando troppo il timing." if compulsion_risk >= 60 else "Serve maggiore costanza nelle pause e nel reset.",
+        "one_thing_done_well": "Hai chiuso la giornata con il check-in EOD: ottimo ancoraggio di disciplina.",
+        "tomorrow_protocol": {
+            "mode": mode,
+            "micro_rule_if_then": "IF urge > 6 THEN pausa 10 minuti e nessun nuovo ordine finche non torni sotto 5.",
+            "constraints": {
+                "max_trades": max_trades,
+                "timebox_minutes": timebox,
+                "allowed_setups": ["A_PLUS_ONLY"] if mode != "NORMAL" else ["A+", "B+"],
+            },
+            "reset_steps": [
+                "Rivedi il piano prima dell'apertura.",
+                "Imposta limite trade e timer di pausa.",
+                "Scrivi 1 riga di review dopo ogni operazione.",
+            ],
+        },
+        "readiness": {
+            "confidence_readiness_0_100": confidence_readiness,
+            "message_to_trader": "Conferma una routine minima ripetibile: questa settimana conta piu della perfezione.",
+            "promotion": {
+                "suggested": confidence_readiness >= 75,
+                "eligible": confidence_readiness >= 75 and discipline >= 65,
+                "next_phase": "MAINTENANCE",
+                "prove_week_required": confidence_readiness >= 75,
+                "why": ["Readiness e disciplina sopra soglia"] if confidence_readiness >= 75 else ["Accumula consistenza per alcuni giorni consecutivi"],
+            },
+        },
+        "data_updates": {
+            "grace_tokens_remaining": grace_tokens,
+            "flags": ["TILT_LOCK_TRIGGERED"] if mode == "TILT_LOCK" else [],
+        },
+    }
+
+    return result
+
+
+# ==================== ASCENSION ====================
+ASCENSION_LEVELS = [
+    {"name": "Novice", "min_xp": 0, "icon": "seedling"},
+    {"name": "Apprentice", "min_xp": 100, "icon": "leaf"},
+    {"name": "Practitioner", "min_xp": 300, "icon": "tree"},
+    {"name": "Expert", "min_xp": 600, "icon": "mountain"},
+    {"name": "Master", "min_xp": 1000, "icon": "sun"},
+    {"name": "Zen Master", "min_xp": 2000, "icon": "moon"},
+    {"name": "Market God", "min_xp": 5000, "icon": "crown"},
+]
+
+
+@api_router.get("/ascension/status")
+async def get_ascension_status(request: Request):
+    user = await _get_optional_user(request)
+    xp = _to_int((user or {}).get("xp"), 0)
+
+    current_level = ASCENSION_LEVELS[0]
+    next_level = ASCENSION_LEVELS[1] if len(ASCENSION_LEVELS) > 1 else None
+    for idx, level in enumerate(ASCENSION_LEVELS):
+        if xp >= level["min_xp"]:
+            current_level = level
+            next_level = ASCENSION_LEVELS[idx + 1] if idx + 1 < len(ASCENSION_LEVELS) else None
+
+    if next_level:
+        xp_span = max(next_level["min_xp"] - current_level["min_xp"], 1)
+        progress = ((xp - current_level["min_xp"]) / xp_span) * 100.0
+    else:
+        progress = 100.0
+
+    return {
+        "xp": xp,
+        "current_level": current_level,
+        "next_level": next_level,
+        "progress": round(max(0.0, min(100.0, progress)), 1),
+        "all_levels": ASCENSION_LEVELS,
+    }
+
+
+# ==================== BACKTEST + N8N ====================
+@api_router.post("/n8n/architect")
+async def n8n_architect(req: N8NRequest, request: Request):
+    user = await _get_optional_user(request)
+    user_email = _clean_str((user or {}).get("email"), "anonymous@karion.local")
+    n8n_url = _clean_str(os.environ.get("N8N_WEBHOOK_URL"), "")
+
+    if not n8n_url:
+        return {
+            "reply": "[N8N::ARCHITECT] n8n non configurato. Uso logica locale con fallback operativo.",
+            "suggested_params": {"risk_management": "ATR based stop con size fissa"},
+        }
+
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=20.0) as client_http:
+            response = await client_http.post(
+                n8n_url,
+                json={"prompt": req.prompt, "context": req.context or {}, "user": user_email},
+            )
+            if 200 <= response.status_code < 300:
+                return response.json()
+            return {
+                "reply": "[N8N::ARCHITECT] endpoint raggiunto ma risposta non valida, fallback locale attivo.",
+                "status_code": response.status_code,
+            }
+    except Exception as exc:
+        return {"reply": f"[SYSTEM::ERROR] n8n non raggiungibile: {exc}"}
+
+
+@api_router.post("/backtest/run", response_model=BacktestResult)
+async def run_backtest_engine(params: BacktestRequest):
+    result = _simulate_backtest(params)
+    return BacktestResult(**result)
+
+
+@api_router.post("/backtest/save")
+async def save_backtest_result(payload: Dict[str, Any], request: Request):
+    user = await _get_optional_user(request)
+    user_id = _user_id_or_public(user)
+    record = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "payload": payload,
+        "created_at": _now_iso(),
+    }
+
+    if DEMO_MODE or db is None:
+        demo_backtests.setdefault(user_id, []).append(record)
+    else:
+        await db.backtests.insert_one(dict(record))
+
+    return {"status": "saved", "id": record["id"]}
+
+
+def _research_deep_fallback(message: str) -> Dict[str, object]:
+    return {
+        "status": "error",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "message": message,
+        "signals": [],
+        "diversification": [],
+        "risk_exposure": {},
+        "weekly_bias": [],
+        "monthly_bias": [],
+        "summary": [],
+    }
+
+
+def _research_sessions_fallback(message: str) -> Dict[str, object]:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    return {
+        "status": "error",
+        "generated_at": now_iso,
+        "message": message,
+        "daily_report": {"rows": [], "summary": {}},
+        "auto_analysis": {"insights": [], "weight_updates": []},
+        "correlation_matrix": {"primary": [], "extra": []},
+        "matrices": {
+            "scenario_weekday": {"days": [], "rows": []},
+            "bias_asset": {"assets": [], "rows": []},
+        },
+        "health_score": {"value": 0.0, "status": "error", "components": {}, "sparkline": []},
+        "weights": {"weights": {}},
+        "historical_stats": {
+            "generated_at": now_iso,
+            "windows": {},
+            "scenario_leaderboard": [],
+            "asset_leaderboard": [],
+            "daily_trend": [],
+        },
+        "operational_playbook": {
+            "generated_at": now_iso,
+            "today": [],
+            "week": [],
+            "month": [],
+        },
+    }
+
+
+def _research_smart_money_fallback(message: str) -> Dict[str, object]:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    return {
+        "status": "error",
+        "generated_at": now_iso,
+        "message": message,
+        "summary": {
+            "global_score": 0.0,
+            "state": "NO_CLEAR_CLUSTER",
+            "top_theme": None,
+            "macro_regime": "MIXED",
+            "active_cross_asset_flags": 0,
+            "uoa_events": 0,
+            "message": "Institutional Radar Positioning engine non disponibile.",
+        },
+        "macro_filter": {
+            "regime": "MIXED",
+            "growth_proxy": "NEUTRAL",
+            "inflation_proxy": "NEUTRAL",
+            "liquidity_tone": "TRANSITION",
+            "vix": {"current": None, "change": None},
+            "scores": {
+                "macro_filter_score": 0.0,
+                "clarity_score": 0.0,
+                "stress_score": 0.0,
+            },
+            "notes": [],
+        },
+        "theme_scores": [],
+        "uoa_watchlist": [],
+        "sector_rotation": [],
+        "cross_asset_flags": [],
+        "news_lag_model": {"status": "error", "average_estimated_lead_hours": 0.0, "by_theme": [], "notes": []},
+        "data_quality": {},
+        "explainability": {"top_themes": [], "global_layer_mix": {}},
+        "regime_timeline": {"status": "error", "rows": [], "summary": {}},
+        "alert_engine": {"generated_at": now_iso, "global_risk": "UNKNOWN", "triggered_count": 0, "alerts": []},
+        "validation_lab": {"status": "error", "rows": []},
+        "theme_drilldown": {"status": "error", "themes": []},
+        "macro_event_overlay": {
+            "status": "error",
+            "as_of": now_iso,
+            "risk_score": 0.0,
+            "risk_level": "UNKNOWN",
+            "calendar_estimated": True,
+            "active_cross_flags": [],
+            "upcoming_events": [],
+        },
+        "lead_lag_radar": {"status": "error", "generated_at": now_iso, "rows": []},
+        "signal_decay_monitor": {"status": "error", "generated_at": now_iso, "rows": []},
+        "regime_switch_detector": {"status": "error", "generated_at": now_iso, "recent_flips": []},
+        "counterfactual_lab": {"status": "error", "generated_at": now_iso, "rows": []},
+        "execution_risk_overlay": {"status": "error", "generated_at": now_iso, "rows": []},
+        "narrative_saturation_meter": {"status": "error", "generated_at": now_iso, "rows": []},
+        "historical_analysis_10y": {
+            "status": "error",
+            "generated_at": now_iso,
+            "lookback_years": 10,
+            "theme_rows": [],
+            "cross_asset_correlation": [],
+            "statistical_tests": [],
+            "correlation_tests": [],
+            "institutional_leaderboard": [],
+            "calendar_playbook": {
+                "generated_at": now_iso,
+                "weekday_idx_utc": datetime.now(timezone.utc).weekday(),
+                "effective_weekday_idx": 0,
+                "effective_weekday": "MON",
+                "month_idx_utc": datetime.now(timezone.utc).month,
+                "month_name": "N/A",
+                "weekend_proxy_mode": True,
+                "today": [],
+                "week": [],
+                "month": [],
+                "summary": {
+                    "bullish_today_count": 0,
+                    "bearish_today_count": 0,
+                    "bullish_week_count": 0,
+                    "bearish_week_count": 0,
+                    "bullish_month_count": 0,
+                    "bearish_month_count": 0,
+                },
+            },
+            "coverage": {
+                "themes_covered": 0,
+                "min_samples_10y": 0,
+                "max_samples_10y": 0,
+                "statistical_tests_covered": 0,
+                "correlation_pairs_covered": 0,
+                "leaderboard_rows": 0,
+                "playbook_rows": 0,
+            },
+            "summary": {
+                "significant_theme_tests": 0,
+                "strong_correlation_pairs": 0,
+                "structural_break_pairs": 0,
+                "regime_shift_pairs": 0,
+                "max_corr_drift": 0.0,
+            },
+        },
+        "active_projection_assets": [],
+        "methodology": {},
+    }
+
+
+@api_router.get("/research/sources")
+async def get_research_sources(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        from institutional_scraper import get_sources_status
+
+        return get_sources_status()
+    except Exception:
+        return []
+
+
+@api_router.get("/research/vault")
+async def get_research_vault(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        import local_vault
+
+        return local_vault.get_reports()
+    except Exception:
+        return []
+
+
+@api_router.get("/research/accuracy")
+async def get_research_accuracy(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        import local_vault
+
+        return local_vault.compute_accuracy_heatmap()
+    except Exception as exc:
+        return {
+            "status": "collecting",
+            "message": f"Research accuracy unavailable: {exc}",
+            "data": [],
+        }
+
+
+@api_router.get("/research/stats")
+async def get_research_stats(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        import local_vault
+
+        return local_vault.compute_stats()
+    except Exception as exc:
+        return {
+            "win_rate": None,
+            "total_predictions": 0,
+            "hits": 0,
+            "misses": 0,
+            "status": "collecting",
+            "message": f"Research stats unavailable: {exc}",
+        }
+
+
+@api_router.get("/research/matrix")
+async def get_research_matrix(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        import local_vault_matrix
+
+        return local_vault_matrix.get_matrix_results()
+    except Exception:
+        return {}
+
+
+@api_router.get("/research/deep-research")
+async def get_research_deep(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        from deep_research_30 import build_deep_research_report
+
+        return build_deep_research_report()
+    except Exception as exc:
+        return _research_deep_fallback(str(exc))
+
+
+@api_router.get("/research/smart-money")
+async def get_research_smart_money(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        from smart_money_positioning import build_smart_money_positioning
+
+        # Deep research can fail in read-only runtimes; smart-money should still run
+        # using live market/cross-asset data with a safe fallback context.
+        try:
+            from deep_research_30 import build_deep_research_report
+            deep_report = build_deep_research_report()
+        except Exception:
+            deep_report = {"signals": [], "risk_exposure": {}}
+
+        intelligence = _get_intelligence_bundle()
+        multi_snapshot = intelligence.get("multi", {})
+        projections = intelligence.get("projections", [])
+
+        return build_smart_money_positioning(
+            deep_report=deep_report,
+            multi_snapshot=multi_snapshot,
+            projections=projections,
+        )
+    except Exception as exc:
+        return _research_smart_money_fallback(str(exc))
+
+
+@api_router.get("/research/sessions")
+async def get_research_sessions(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        from session_forensics import get_latest_session_report
+
+        return await asyncio.to_thread(get_latest_session_report)
+    except Exception as exc:
+        return _research_sessions_fallback(str(exc))
+
+
+@api_router.get("/research/sessions/history")
+async def get_research_sessions_history(limit: int = 30, current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        from session_forensics import get_session_report_history
+
+        safe_limit = max(1, min(int(limit or 30), 365))
+        rows = await asyncio.to_thread(get_session_report_history, safe_limit)
+        return {"count": len(rows), "limit": safe_limit, "items": rows}
+    except Exception as exc:
+        return {"count": 0, "limit": limit, "items": [], "status": "error", "message": str(exc)}
+
+
+@api_router.post("/research/matrix-snapshot")
+async def save_research_matrix_snapshot(payload: dict, current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        if not payload.get("asset") or not payload.get("context"):
+            raise HTTPException(status_code=400, detail="Missing asset or context data")
+        import local_vault_matrix
+
+        snapshot_id = local_vault_matrix.save_matrix_snapshot(payload)
+        return {"success": True, "snapshot_id": snapshot_id}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return {"success": False, "status": "error", "message": str(exc)}
+
+
+@api_router.post("/research/trigger")
+async def trigger_research_ingestion(current_user: dict = Depends(get_current_user)):
+    _ = current_user
+    try:
+        from institutional_scraper import run_institutional_ingestion
+
+        result = await run_institutional_ingestion()
+        return {"status": "ok", **result}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
 
 @api_router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):

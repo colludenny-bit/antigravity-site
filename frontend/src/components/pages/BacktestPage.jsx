@@ -14,11 +14,23 @@ import {
     ComposedChart, Bar, Cell
 } from 'recharts';
 import { toast } from 'sonner';
+import api from '../../services/api';
 import { Input } from '../ui/input';
 import { ScrollArea } from '../ui/scroll-area';
 import { Send, BrainCircuit, Play } from 'lucide-react';
 
+const BACKEND_URL_RAW = (process.env.REACT_APP_BACKEND_URL || '').trim().replace(/\/$/, '');
+const IS_LOCAL_HOST = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const SAFE_BACKEND_URL = !IS_LOCAL_HOST && /localhost|127\.0\.0\.1/.test(BACKEND_URL_RAW) ? '' : BACKEND_URL_RAW;
 const TARGET_SCALE = new THREE.Vector3(1, 1, 1);
+const RESOLVED_BACKEND = (() => {
+    const envBase = (SAFE_BACKEND_URL).trim().replace(/\/$/, '');
+    if (envBase) return envBase;
+    if (typeof window !== 'undefined' && window.location?.origin?.startsWith('http')) {
+        return window.location.origin;
+    }
+    return 'http://localhost:8000';
+})();
 
 
 /* =========================================================================
@@ -538,6 +550,23 @@ export default function BacktestPage() {
         status: 'INCOMPLETE'
     });
 
+    // Cloud Preferences Sync
+    useEffect(() => {
+        const loadPrefs = async () => {
+            try {
+                const res = await api.get('/user/preferences');
+                if (res.data && res.data.sync_enabled) {
+                    if (res.data.selected_asset) {
+                        setStrategyParams(prev => ({ ...prev, asset_class: res.data.selected_asset }));
+                    }
+                }
+            } catch (err) {
+                console.warn('Sync failed in BacktestPage');
+            }
+        };
+        loadPrefs();
+    }, []);
+
     // Auto-scroll Effects
     useEffect(() => {
         if (chatScrollRef.current) {
@@ -603,7 +632,7 @@ export default function BacktestPage() {
                 ]);
 
                 try {
-                    const BACKEND = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+                    const BACKEND = RESOLVED_BACKEND;
                     const token = localStorage.getItem('karion_token');
                     const res = await fetch(`${BACKEND}/api/n8n/architect`, {
                         method: 'POST',
@@ -687,7 +716,7 @@ export default function BacktestPage() {
         setMiniChartData([]);
 
         // --- REAL API CALL to Python backtest engine ---
-        const BACKEND = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+        const BACKEND = RESOLVED_BACKEND;
 
         // Helper to add a log with delay
         const addLog = async (msg, delay = 800) => {
