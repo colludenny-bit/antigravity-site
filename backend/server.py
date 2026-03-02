@@ -1803,18 +1803,29 @@ async def get_vix_data():
             
     except Exception as e:
         logger.error(f"VIX fetch error: {e}")
-        # Fallback to simulated data
-        vix_base = 18 + random.random() * 6
+
+        # Prefer stale cache over synthetic values so downstream analytics remain consistent.
+        if _vix_cache["data"]:
+            stale = dict(_vix_cache["data"])
+            stale["timestamp"] = now.isoformat()
+            stale["cache_stale"] = True
+            stale["warning"] = f"vix refresh failed: {str(e)}"
+            stale["source"] = f"{stale.get('source', 'unknown')}_stale_cache"
+            return stale
+
+        # Deterministic fallback (no random component).
+        fallback_current = 20.0
         return {
-            "current": round(vix_base, 2),
-            "yesterday": round(vix_base + (random.random() - 0.5) * 2, 2),
-            "change": round((random.random() - 0.5) * 4, 2),
-            "direction": random.choice(["rising", "falling", "stable"]),
+            "current": round(fallback_current, 2),
+            "yesterday": round(fallback_current, 2),
+            "change": 0.0,
+            "direction": "stable",
             "regime": "neutral",
-            "high_5d": round(vix_base + 3, 2),
-            "low_5d": round(vix_base - 3, 2),
+            "high_5d": round(fallback_current + 2.0, 2),
+            "low_5d": round(fallback_current - 2.0, 2),
             "timestamp": now.isoformat(),
-            "source": "simulated"
+            "source": "fallback_static",
+            "warning": f"vix unavailable: {str(e)}"
         }
 
 @api_router.get("/market/prices")
@@ -1867,18 +1878,29 @@ async def get_market_prices():
                 
         except Exception as e:
             logger.warning(f"Price fetch error for {display_name}: {e}")
-            # Fallback prices
+            # Prefer stale symbol cache before deterministic static fallback.
+            cached_prices = _market_cache.get("data") or {}
+            cached_symbol = cached_prices.get(display_name)
+            if isinstance(cached_symbol, dict):
+                stale_row = dict(cached_symbol)
+                stale_row["source"] = f"{stale_row.get('source', 'unknown')}_stale_cache"
+                stale_row["cache_stale"] = True
+                stale_row["warning"] = f"price refresh failed: {str(e)}"
+                prices[display_name] = stale_row
+                continue
+
             base_prices = {"XAUUSD": 2650, "NAS100": 21450, "SP500": 6050, "EURUSD": 1.085, "DOW": 44200}
-            base = base_prices.get(display_name, 100)
-            change = (random.random() - 0.5) * 2
+            base = float(base_prices.get(display_name, 100.0))
+            decimals = 5 if display_name == "EURUSD" else 2
             prices[display_name] = {
                 "symbol": display_name,
-                "price": round(base * (1 + change/100), 2 if display_name != "EURUSD" else 5),
-                "change": round(change, 2),
-                "prev_close": round(base, 2 if display_name != "EURUSD" else 5),
-                "weekly_high": round(base * 1.02, 2 if display_name != "EURUSD" else 5),
-                "weekly_low": round(base * 0.98, 2 if display_name != "EURUSD" else 5),
-                "source": "simulated"
+                "price": round(base, decimals),
+                "change": 0.0,
+                "prev_close": round(base, decimals),
+                "weekly_high": round(base * 1.02, decimals),
+                "weekly_low": round(base * 0.98, decimals),
+                "source": "fallback_static",
+                "warning": f"price unavailable: {str(e)}"
             }
     
     _market_cache["data"] = prices
@@ -1947,26 +1969,55 @@ def calculate_multi_source_score(symbol: str, vix_data: dict, prices: dict):
     elif vix_change < -8:
         vix_score += 0.4
     
-    # 2) Macro Score (simulated with market context)
+    # 2) Macro Score (deterministic market-context model)
     price_data = prices.get(symbol, {})
     price_change = price_data.get("change", 0)
     
-    macro_score = 0
+    def _clamp_local(value: float, low: float, high: float) -> float:
+        return max(low, min(high, value))
+
+    price_momentum = _clamp_local(price_change / 3.5, -1.0, 1.0)
+    vix_momentum = _clamp_local(vix_change / 10.0, -1.0, 1.0)
+
+    macro_score = 0.0
     if symbol == "XAUUSD":
-        # Gold benefits from risk-off
-        macro_score = -vix_score * 0.5 + (random.random() * 0.2 - 0.1)
+        # Gold generally benefits from stress regime and downside equity beta.
+        macro_score = _clamp_local((-vix_score * 0.45) + (price_momentum * 0.35), -1.0, 1.0)
     elif symbol == "EURUSD":
-        # EUR/USD sensitive to rate differentials
-        macro_score = (random.random() * 0.4 - 0.2)
+        # FX reacts to macro regime transitions and local momentum.
+        macro_score = _clamp_local((-vix_momentum * 0.25) + (price_momentum * 0.45), -1.0, 1.0)
     else:
-        # Indices follow risk sentiment
-        macro_score = vix_score * 0.3 + (random.random() * 0.2 - 0.1)
-    
-    # 3) News Score (decay applied, simulated)
-    news_score = (random.random() * 0.3 - 0.15)
-    
-    # 4) COT Score (weekly bias, simulated)
-    cot_score = (random.random() * 0.4 - 0.2)
+        # Equity indices are primarily tied to risk sentiment + local momentum.
+        macro_score = _clamp_local((vix_score * 0.35) + (price_momentum * 0.40), -1.0, 1.0)
+
+    # 3) News Score (deterministic event-proximity model).
+    now_utc = datetime.now(timezone.utc)
+    next_event_hours = None
+    for event in MACRO_EVENTS:
+        try:
+            hh, mm = [int(part) for part in str(event.get("time", "00:00")).split(":")]
+        except Exception:
+            continue
+        event_dt = now_utc.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if event_dt < now_utc:
+            event_dt += timedelta(days=1)
+        delta_h = (event_dt - now_utc).total_seconds() / 3600.0
+        if next_event_hours is None or delta_h < next_event_hours:
+            next_event_hours = delta_h
+    event_proximity = 0.0 if next_event_hours is None else _clamp_local(1.0 - (next_event_hours / 12.0), 0.0, 1.0)
+    if symbol in ("NAS100", "SP500"):
+        news_direction = 1.0 if vix_change <= 0 else -1.0
+    elif symbol == "XAUUSD":
+        news_direction = 1.0 if vix_change >= 0 else -1.0
+    else:
+        regime = str(vix_data.get("regime", "neutral")).lower()
+        news_direction = 1.0 if regime == "risk-on" else -1.0 if regime == "risk-off" else 0.0
+    news_score = _clamp_local(news_direction * event_proximity * 0.25, -0.25, 0.25)
+
+    # 4) COT-style prior (deterministic bias prior + current momentum tilt).
+    cot_baseline = {"NAS100": -0.08, "SP500": -0.05, "XAUUSD": 0.06, "EURUSD": 0.04}
+    cot_momentum = _clamp_local(price_change / 10.0, -0.12, 0.12)
+    cot_score = _clamp_local(cot_baseline.get(symbol, 0.0) + cot_momentum, -0.3, 0.3)
     
     # Combined Score
     total_score = (
