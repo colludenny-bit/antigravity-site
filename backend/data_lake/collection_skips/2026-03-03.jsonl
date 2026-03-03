@@ -503,3 +503,6 @@
 {"ts_utc":"2026-03-03T03:03:23.959440+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
 {"ts_utc":"2026-03-03T03:03:23.964490+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
 {"ts_utc":"2026-03-03T03:03:23.965056+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-03T03:04:49.912577+00:00","stream":"collection_skips","payload":{"job":"matrix_snapshot","reason":"manual_pause","asset":"XAUUSD"}}
+{"ts_utc":"2026-03-03T03:04:49.939629+00:00","stream":"collection_skips","payload":{"job":"matrix_snapshot","reason":"manual_pause","asset":"NAS100"}}
+{"ts_utc":"2026-03-03T03:04:49.948622+00:00","stream":"collection_skips","payload":{"job":"matrix_snapshot","reason":"manual_pause","asset":"SP500"}}
