@@ -14,9 +14,10 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 import yfinance as yf
 
 logger = logging.getLogger("summary_forensics")
@@ -32,6 +33,13 @@ ASSET_TO_TICKER = {
     "XAUUSD": "GC=F",
     "EURUSD": "EURUSD=X",
 }
+ASSET_PRICE_BOUNDS: Dict[str, Tuple[float, float]] = {
+    "NAS100": (10000.0, 50000.0),
+    "SP500": (3000.0, 10000.0),
+    "XAUUSD": (2000.0, 7000.0),
+    "EURUSD": (0.5, 2.0),
+}
+MAX_CANDLE_DEVIATION_PCT = 25.0
 
 
 def _ensure_paths() -> None:
@@ -63,17 +71,65 @@ def _safe_float(value) -> Optional[float]:
     try:
         if value is None:
             return None
+        if hasattr(value, "ndim") and getattr(value, "ndim", 1) > 1 and hasattr(value, "iloc"):
+            value = value.iloc[:, 0]
         if hasattr(value, "iloc"):
-            return float(value.iloc[0])
+            value = value.iloc[-1]
+        if hasattr(value, "item"):
+            try:
+                value = value.item()
+            except Exception:
+                pass
         return float(value)
     except Exception:
         return None
 
+def _normalize_ohlc_frame(df, ticker: Optional[str] = None):
+    if df is None or df.empty:
+        return df
+
+    if isinstance(df.columns, pd.MultiIndex):
+        if ticker and ticker in set(df.columns.get_level_values(-1)):
+            try:
+                df = df.xs(ticker, axis=1, level=-1)
+            except Exception:
+                pass
+        elif ticker and ticker in set(df.columns.get_level_values(0)):
+            try:
+                df = df.xs(ticker, axis=1, level=0)
+            except Exception:
+                pass
+
+        if isinstance(df.columns, pd.MultiIndex):
+            flat = list(df.columns.to_flat_index())
+            cols = [c[0] if isinstance(c, tuple) else c for c in flat]
+            if not {"Open", "High", "Low", "Close"}.intersection(set(cols)):
+                cols = [c[-1] if isinstance(c, tuple) else c for c in flat]
+            df = df.copy()
+            df.columns = cols
+            df = df.loc[:, ~pd.Index(df.columns).duplicated(keep="first")]
+
+    if "Close" not in df.columns and "Adj Close" in df.columns:
+        df = df.rename(columns={"Adj Close": "Close"})
+
+    return df
+
 
 def _latest_5m_candle(ticker: str) -> Dict:
     # Small fetch window keeps runtime light.
-    df = yf.download(tickers=ticker, period="2d", interval="5m", progress=False, auto_adjust=False)
+    df = yf.download(
+        tickers=ticker,
+        period="2d",
+        interval="5m",
+        progress=False,
+        auto_adjust=False,
+        threads=False,
+    )
     if df is None or df.empty:
+        return {}
+    df = _normalize_ohlc_frame(df, ticker=ticker)
+    required_cols = {"Open", "High", "Low", "Close"}
+    if not required_cols.issubset(df.columns):
         return {}
     if df.index.tz is None:
         df.index = df.index.tz_localize("UTC")
@@ -89,6 +145,44 @@ def _latest_5m_candle(ticker: str) -> Dict:
         "close": _safe_float(last.get("Close")),
         "volume": _safe_float(last.get("Volume")),
     }
+
+
+def _is_ohlc_consistent(candle: Dict) -> bool:
+    open_v = _safe_float(candle.get("open"))
+    high_v = _safe_float(candle.get("high"))
+    low_v = _safe_float(candle.get("low"))
+    close_v = _safe_float(candle.get("close"))
+    if None in (open_v, high_v, low_v, close_v):
+        return False
+    if high_v < max(open_v, close_v):
+        return False
+    if low_v > min(open_v, close_v):
+        return False
+    return high_v >= low_v
+
+
+def _is_candle_coherent(asset: str, candle: Dict, anchor_price: Optional[float]) -> Tuple[bool, str]:
+    if not candle:
+        return False, "empty"
+    close_v = _safe_float(candle.get("close"))
+    if close_v is None or close_v <= 0:
+        return False, "missing_close"
+
+    bounds = ASSET_PRICE_BOUNDS.get(asset)
+    if bounds:
+        lower, upper = bounds
+        if close_v < lower or close_v > upper:
+            return False, f"close_out_of_bounds:{close_v:.5f}"
+
+    if anchor_price and anchor_price > 0:
+        deviation_pct = abs(close_v - anchor_price) / anchor_price * 100.0
+        if deviation_pct > MAX_CANDLE_DEVIATION_PCT:
+            return False, f"close_anchor_deviation:{deviation_pct:.2f}%"
+
+    if not _is_ohlc_consistent(candle):
+        return False, "ohlc_inconsistent"
+
+    return True, "ok"
 
 
 def _normalize_summary_asset(asset: str, data: Dict) -> Dict:
@@ -126,16 +220,29 @@ async def save_market_summary_snapshot(db) -> Dict:
     for asset, ticker in ASSET_TO_TICKER.items():
         normalized = _normalize_summary_asset(asset, assets_analysis.get(asset, {}))
         summary_assets.append(normalized)
+        anchor_price = _safe_float(normalized.get("price"))
         try:
             candle = await asyncio.to_thread(_latest_5m_candle, ticker)
         except Exception as exc:
             logger.warning("5m candle fetch failed for %s: %s", asset, exc)
+            candle = {}
+        is_valid, reason = _is_candle_coherent(asset, candle, anchor_price)
+        if not is_valid:
+            logger.warning(
+                "Discarding incoherent 5m candle for %s (%s). ticker=%s anchor=%s candle=%s",
+                asset,
+                reason,
+                ticker,
+                anchor_price,
+                candle,
+            )
             candle = {}
         market_5m[asset] = candle
 
     signature_payload = {
         "synthetic_bias": synthetic_bias,
         "assets": summary_assets,
+        "market_5m": market_5m,
     }
     signature = hashlib.sha256(
         json.dumps(signature_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -167,15 +274,20 @@ async def save_market_summary_snapshot(db) -> Dict:
 def _eval_after_summary(direction: str, start_price: Optional[float], candles_df) -> Dict:
     if not start_price or candles_df is None or candles_df.empty:
         return {"evaluated": False}
-    highs = candles_df["High"]
-    lows = candles_df["Low"]
-    closes = candles_df["Close"]
+    candles_df = _normalize_ohlc_frame(candles_df)
+    highs = candles_df.get("High")
+    lows = candles_df.get("Low")
+    closes = candles_df.get("Close")
+    if highs is None or lows is None or closes is None:
+        return {"evaluated": False}
     if highs.empty or lows.empty or closes.empty:
         return {"evaluated": False}
 
-    period_high = float(highs.max())
-    period_low = float(lows.min())
-    final_close = float(closes.iloc[-1])
+    period_high = _safe_float(highs.max() if hasattr(highs, "max") else highs)
+    period_low = _safe_float(lows.min() if hasattr(lows, "min") else lows)
+    final_close = _safe_float(closes.iloc[-1] if hasattr(closes, "iloc") else closes)
+    if None in (period_high, period_low, final_close):
+        return {"evaluated": False}
     delta = final_close - float(start_price)
     direction = (direction or "NEUTRAL").upper()
     hit = False
@@ -212,6 +324,10 @@ def _fetch_5m_window(ticker: str, start_utc: datetime, end_utc: datetime):
         auto_adjust=False,
     )
     if df is None or df.empty:
+        return None
+    df = _normalize_ohlc_frame(df, ticker=ticker)
+    required_cols = {"High", "Low", "Close"}
+    if not required_cols.issubset(df.columns):
         return None
     if df.index.tz is None:
         df.index = df.index.tz_localize("UTC")

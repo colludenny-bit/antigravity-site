@@ -1,0 +1,12 @@
+{"ts_utc":"2026-02-28T03:12:07.575414+00:00","stream":"collection_skips","payload":{"job":"global_pulse","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T03:12:07.575831+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T03:12:07.575976+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T03:12:07.576115+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T03:13:39.934995+00:00","stream":"collection_skips","payload":{"job":"global_pulse","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T03:13:39.936013+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T03:13:39.936213+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T03:13:39.936352+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T10:37:14.545516+00:00","stream":"collection_skips","payload":{"job":"global_pulse","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T10:37:14.546302+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T10:37:14.546467+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"market_closed"}}
+{"ts_utc":"2026-02-28T10:37:14.546605+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"market_closed"}}

@@ -4,7 +4,7 @@
     "bank": "Morgan Stanley",
     "title": "Global Strategy Research",
     "source_url": "https://r.jina.ai/http://www.morganstanley.com/insights",
-    "upload_timestamp": "2026-03-01T02:58:25.426230+00:00",
+    "upload_timestamp": "2026-03-02T01:54:30.956185+00:00",
     "status": "SYNCED",
     "analysis": {
       "title": "Morgan Stanley Report Analysis",
@@ -19,9 +19,202 @@
     },
     "uploaded_by": "Karion Scraper (Auto)",
     "text_preview": "Morgan Stanley\u2019s latest updates on markets, economies, global trends and more.\nGlobal Markets Adjust to U.S. Tariff Reversal\nA landmark ruling by the U.S. Supreme Court voids existing tariffs, prompting investors, companies and policymakers to reassess trade impacts.\nHard Lessons: Morgan Stanley\u2019s L",
-    "saved_at": "2026-03-01T02:58:25.427387+00:00",
+    "saved_at": "2026-03-02T01:54:30.956671+00:00",
     "content_hash": "76310fccedec12dadebecf533bc121b713ef512562cfbc1a71ace09f16427a6e",
-    "report_id": "rep-20260301025825427468"
+    "report_id": "rep-20260302015430956702"
+  },
+  {
+    "filename": "IMF_report.html",
+    "bank": "IMF",
+    "title": "World Economic Outlook",
+    "source_url": "https://r.jina.ai/http://www.imf.org/en/Publications/WEO",
+    "upload_timestamp": "2026-03-02T01:54:03.482748+00:00",
+    "status": "SYNCED",
+    "analysis": {
+      "title": "IMF Report Analysis",
+      "summary": "###### [Global Economy: Steady amid Divergent Forces](https://www. org/en/publications/weo/issues/2026/01/19/world-economic-outlook-update-january-2026)\n![Image 1: World Economic Outlook Update, January 2026](https://www. org/-/media/images/imf/publications/weo/2026/january/english/weo-update-january-2026-cover.",
+      "bias": "NEUTRAL",
+      "affected_assets": [
+        "NAS100"
+      ],
+      "bull_score": 22,
+      "bear_score": 18,
+      "text_length": 8000
+    },
+    "uploaded_by": "Karion Scraper (Auto)",
+    "text_preview": "###### [Global Economy: Steady amid Divergent Forces](https://www.imf.org/en/publications/weo/issues/2026/01/19/world-economic-outlook-update-january-2026)\n![Image 1: World Economic Outlook Update, January 2026](https://www.imf.org/-/media/images/imf/publications/weo/2026/january/english/weo-update-",
+    "saved_at": "2026-03-02T01:54:03.483760+00:00",
+    "content_hash": "fdba24750ddf9cc716bb2346cfb4802eaed145bab1ef26963460b9791c3afda2",
+    "report_id": "rep-20260302015403483822"
+  },
+  {
+    "filename": "J.P._Morgan_report.pdf",
+    "bank": "J.P. Morgan",
+    "title": "Global Market Outlook",
+    "source_url": "https://am.jpmorgan.com/us/en/asset-management/liq/insights/market-insights/",
+    "upload_timestamp": "2026-03-02T01:54:01.712533+00:00",
+    "status": "SYNCED",
+    "analysis": {
+      "title": "J.P. Morgan Report Analysis",
+      "summary": "Morgan Asset Management\u2019s website and/or mobile terms, privacy and security policies don't apply to the site or app you're about to visit. Please review its terms, privacy and security policies to see how they apply to you. Morgan Asset Management isn\u2019t responsible for (and doesn't provide) any products, services or content at this third-party site or app, except for products and services that explicitly carry the J.",
+      "bias": "NEUTRAL",
+      "affected_assets": [
+        "General Market"
+      ],
+      "bull_score": 0,
+      "bear_score": 0,
+      "text_length": 462
+    },
+    "uploaded_by": "Karion Scraper (Auto)",
+    "text_preview": "J.P. Morgan Asset Management\u2019s website and/or mobile terms, privacy and security policies don't apply to the site or app you're about to visit. Please review its terms, privacy and security policies to see how they apply to you. J.P. Morgan Asset Management isn\u2019t responsible for (and doesn't provide",
+    "saved_at": "2026-03-02T01:54:01.712900+00:00",
+    "content_hash": "8ed149feef6d4cf3e401886c38d5e7c24763e612272708599cfca6b067c064d3",
+    "report_id": "rep-20260302015401712930"
+  },
+  {
+    "filename": "BlackRock_report.html",
+    "bank": "BlackRock",
+    "title": "Investment Institute Weekly",
+    "source_url": "https://www.blackrock.com/corporate/insights/blackrock-investment-institute/publications/weekly-commentary",
+    "upload_timestamp": "2026-03-02T01:53:59.628997+00:00",
+    "status": "SYNCED",
+    "analysis": {
+      "title": "BlackRock Report Analysis",
+      "summary": "Welcome to BlackRock Corporate site\nBefore we proceed, please take a moment to review and accept the following terms and Conditions:\nPlease read this page before proceeding as it explains certain restrictions imposed by law on the distribution of this information and the jurisdictions in which our products and services are authorised to be offered or sold. By entering this site, you are agreeing that you have reviewed and agreed to the terms contained herein, including any legal or regulatory re",
+      "bias": "BEARISH",
+      "affected_assets": [
+        "NAS100"
+      ],
+      "bull_score": 1,
+      "bear_score": 4,
+      "text_length": 8000
+    },
+    "uploaded_by": "Karion Scraper (Auto)",
+    "text_preview": "Welcome to BlackRock Corporate site\nBefore we proceed, please take a moment to review and accept the following terms and Conditions:\nPlease read this page before proceeding as it explains certain restrictions imposed by law on the distribution of this information and the jurisdictions in which our p",
+    "saved_at": "2026-03-02T01:53:59.629954+00:00",
+    "content_hash": "4d2c7e817ad68e46c706eda6feba5374500f5a99fce7991c35c4be87da9e4023",
+    "report_id": "rep-20260302015359629982"
+  },
+  {
+    "filename": "BIS_report.html",
+    "bank": "BIS",
+    "title": "Quarterly Review",
+    "source_url": "https://www.bis.org/rss/index.htm",
+    "upload_timestamp": "2026-03-02T01:53:59.319406+00:00",
+    "status": "SYNCED",
+    "analysis": {
+      "title": "BIS Report Analysis",
+      "summary": "This website requires javascript for proper use\nRSS feeds make keeping in touch with updates to the BIS website easy, quick and flexible. The feeds enable you to see at a glance what new content has been added in your areas of interest, without having to repeatedly visit or search the site. How do I read the feeds?\nWhen an RSS feed is available for a page you will see the\nicon.",
+      "bias": "NEUTRAL",
+      "affected_assets": [
+        "General Market"
+      ],
+      "bull_score": 0,
+      "bear_score": 0,
+      "text_length": 1332
+    },
+    "uploaded_by": "Karion Scraper (Auto)",
+    "text_preview": "This website requires javascript for proper use\nRSS feeds make keeping in touch with updates to the BIS website easy, quick and flexible. The feeds enable you to see at a glance what new content has been added in your areas of interest, without having to repeatedly visit or search the site.\nHow do I",
+    "saved_at": "2026-03-02T01:53:59.319867+00:00",
+    "content_hash": "27aec9c5bf70c5ec2268388ded99b807579eebca497c038ea8720ed0ee356ee0",
+    "report_id": "rep-20260302015359319896"
+  },
+  {
+    "filename": "ECB_report.html",
+    "bank": "ECB",
+    "title": "Monetary Policy Decisions",
+    "source_url": "https://www.ecb.europa.eu/press/accounts/html/index.en.html",
+    "upload_timestamp": "2026-03-02T01:53:59.226726+00:00",
+    "status": "SYNCED",
+    "analysis": {
+      "title": "ECB Report Analysis",
+      "summary": "Monetary policy accounts\nThe accounts cover the monetary policy meetings of the Governing Council, normally held every six weeks. They include a review of financial, economic and monetary developments and policy options as well as a summary of the discussions and decisions. The accounts are typically published four weeks after the meetings.",
+      "bias": "NEUTRAL",
+      "affected_assets": [
+        "EURUSD"
+      ],
+      "bull_score": 0,
+      "bear_score": 0,
+      "text_length": 599
+    },
+    "uploaded_by": "Karion Scraper (Auto)",
+    "text_preview": "Monetary policy accounts\nThe accounts cover the monetary policy meetings of the Governing Council, normally held every six weeks. They include a review of financial, economic and monetary developments and policy options as well as a summary of the discussions and decisions.\nThe accounts are typicall",
+    "saved_at": "2026-03-02T01:53:59.227664+00:00",
+    "content_hash": "7a979f15ece5e20e6eb6ffd2a9607b75bda567b404d08c9c460112eb29f71fa3",
+    "report_id": "rep-20260302015359227693"
+  },
+  {
+    "filename": "Federal_Reserve_report.html",
+    "bank": "Federal Reserve",
+    "title": "FOMC Minutes / Statements",
+    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+    "upload_timestamp": "2026-03-02T01:53:59.121144+00:00",
+    "status": "SYNCED",
+    "analysis": {
+      "title": "Federal Reserve Report Analysis",
+      "summary": "gov\nwebsite belongs to an official government organization in the United States. gov websites use HTTPS\nmeans you've safely connected to the. Share sensitive information only on official, secure websites.",
+      "bias": "NEUTRAL",
+      "affected_assets": [
+        "General Market"
+      ],
+      "bull_score": 0,
+      "bear_score": 0,
+      "text_length": 248
+    },
+    "uploaded_by": "Karion Scraper (Auto)",
+    "text_preview": "Official websites use .gov\nwebsite belongs to an official government organization in the United States.\nSecure .gov websites use HTTPS\nmeans you've safely connected to the .gov website. Share sensitive information only on official, secure websites.",
+    "saved_at": "2026-03-02T01:53:59.122011+00:00",
+    "content_hash": "a131d5ea36fdab24f15add4630367bd69388d6411aedbeb1dfb0c97e779313f5",
+    "report_id": "rep-20260302015359122051"
+  },
+  {
+    "filename": "World_Bank_report.html",
+    "bank": "World Bank",
+    "title": "Global Economic Prospects",
+    "source_url": "https://www.worldbank.org/en/publication/global-economic-prospects",
+    "upload_timestamp": "2026-03-02T01:53:59.043854+00:00",
+    "status": "SYNCED",
+    "analysis": {
+      "title": "World Bank Report Analysis",
+      "summary": "Global Economic Prospects\non selection, highlighted content\nGlobal Economy is Resilient, but Vulnerable Countries Lag\nThe global economy has shown notable resilience to heightened trade tensions and policy uncertainty. Last year\u2019s faster-than-expected pace of growth capped a recovery from the 2020 recession unmatched in six decades, even if vulnerable emerging market and developing economies are lagging behind. This year, global growth is projected to edge down, in part as firms scale back inven",
+      "bias": "BULLISH",
+      "affected_assets": [
+        "NAS100",
+        "EURUSD"
+      ],
+      "bull_score": 36,
+      "bear_score": 23,
+      "text_length": 8000
+    },
+    "uploaded_by": "Karion Scraper (Auto)",
+    "text_preview": "Global Economic Prospects\non selection, highlighted content\nGlobal Economy is Resilient, but Vulnerable Countries Lag\nThe global economy has shown notable resilience to heightened trade tensions and policy uncertainty. Last year\u2019s faster-than-expected pace of growth capped a recovery from the 2020 r",
+    "saved_at": "2026-03-02T01:53:59.044626+00:00",
+    "content_hash": "a63d4b3a9e46b7c349ce960021daf069d76de587f28338badfa976d72006ca92",
+    "report_id": "rep-20260302015359044652"
+  },
+  {
+    "filename": "CFTC_report.html",
+    "bank": "CFTC",
+    "title": "Commitments of Traders Reports",
+    "source_url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
+    "upload_timestamp": "2026-03-02T01:53:58.912086+00:00",
+    "status": "SYNCED",
+    "analysis": {
+      "title": "CFTC Report Analysis",
+      "summary": "Commitments of Traders (COT) Reports Descriptions\nIntroduction and Classification Methodology\nThe Commodity Futures Trading Commission (Commission or CFTC) publishes the Commitments of Traders (COT) reports to help the public understand market dynamics. Specifically, the COT reports provide a breakdown of each Tuesday\u2019s open interest for futures and options on futures markets in which 20 or more traders hold positions equal to or above the reporting levels established by the CFTC. The CFTC relea",
+      "bias": "BULLISH",
+      "affected_assets": [
+        "General Market"
+      ],
+      "bull_score": 5,
+      "bear_score": 0,
+      "text_length": 8000
+    },
+    "uploaded_by": "Karion Scraper (Auto)",
+    "text_preview": "Commitments of Traders (COT) Reports Descriptions\nIntroduction and Classification Methodology\nThe Commodity Futures Trading Commission (Commission or CFTC) publishes the Commitments of Traders (COT) reports to help the public understand market dynamics. Specifically, the COT reports provide a breakd",
+    "saved_at": "2026-03-02T01:53:58.913019+00:00",
+    "content_hash": "c5d1af4f2e0ca8256066e9fa422a04359d1ba2b6c13ece422e2e9f78346f501f",
+    "report_id": "rep-20260302015358913057"
   },
   {
     "filename": "Goldman_Sachs_report.html",
@@ -48,198 +241,5 @@
     "saved_at": "2026-03-01T02:58:25.039359+00:00",
     "content_hash": "bdb80cbf6a2d24423310f3294a5953f18e4ce639e6296e768279573feb2f9e64",
     "report_id": "rep-20260301025825039399"
-  },
-  {
-    "filename": "IMF_report.html",
-    "bank": "IMF",
-    "title": "World Economic Outlook",
-    "source_url": "https://r.jina.ai/http://www.imf.org/en/Publications/WEO",
-    "upload_timestamp": "2026-03-01T02:58:24.647966+00:00",
-    "status": "SYNCED",
-    "analysis": {
-      "title": "IMF Report Analysis",
-      "summary": "###### [Global Economy: Steady amid Divergent Forces](https://www. org/en/publications/weo/issues/2026/01/19/world-economic-outlook-update-january-2026)\n![Image 1: World Economic Outlook Update, January 2026](https://www. org/-/media/images/imf/publications/weo/2026/january/english/weo-update-january-2026-cover.",
-      "bias": "NEUTRAL",
-      "affected_assets": [
-        "NAS100"
-      ],
-      "bull_score": 22,
-      "bear_score": 18,
-      "text_length": 8000
-    },
-    "uploaded_by": "Karion Scraper (Auto)",
-    "text_preview": "###### [Global Economy: Steady amid Divergent Forces](https://www.imf.org/en/publications/weo/issues/2026/01/19/world-economic-outlook-update-january-2026)\n![Image 1: World Economic Outlook Update, January 2026](https://www.imf.org/-/media/images/imf/publications/weo/2026/january/english/weo-update-",
-    "saved_at": "2026-03-01T02:58:24.648422+00:00",
-    "content_hash": "fdba24750ddf9cc716bb2346cfb4802eaed145bab1ef26963460b9791c3afda2",
-    "report_id": "rep-20260301025824648462"
-  },
-  {
-    "filename": "J.P._Morgan_report.pdf",
-    "bank": "J.P. Morgan",
-    "title": "Global Market Outlook",
-    "source_url": "https://am.jpmorgan.com/us/en/asset-management/liq/insights/market-insights/",
-    "upload_timestamp": "2026-03-01T02:58:24.426678+00:00",
-    "status": "SYNCED",
-    "analysis": {
-      "title": "J.P. Morgan Report Analysis",
-      "summary": "Morgan Asset Management\u2019s website and/or mobile terms, privacy and security policies don't apply to the site or app you're about to visit. Please review its terms, privacy and security policies to see how they apply to you. Morgan Asset Management isn\u2019t responsible for (and doesn't provide) any products, services or content at this third-party site or app, except for products and services that explicitly carry the J.",
-      "bias": "NEUTRAL",
-      "affected_assets": [
-        "General Market"
-      ],
-      "bull_score": 0,
-      "bear_score": 0,
-      "text_length": 462
-    },
-    "uploaded_by": "Karion Scraper (Auto)",
-    "text_preview": "J.P. Morgan Asset Management\u2019s website and/or mobile terms, privacy and security policies don't apply to the site or app you're about to visit. Please review its terms, privacy and security policies to see how they apply to you. J.P. Morgan Asset Management isn\u2019t responsible for (and doesn't provide",
-    "saved_at": "2026-03-01T02:58:24.427220+00:00",
-    "content_hash": "8ed149feef6d4cf3e401886c38d5e7c24763e612272708599cfca6b067c064d3",
-    "report_id": "rep-20260301025824427249"
-  },
-  {
-    "filename": "BIS_report.html",
-    "bank": "BIS",
-    "title": "Quarterly Review",
-    "source_url": "https://www.bis.org/rss/index.htm",
-    "upload_timestamp": "2026-03-01T02:58:24.315062+00:00",
-    "status": "SYNCED",
-    "analysis": {
-      "title": "BIS Report Analysis",
-      "summary": "This website requires javascript for proper use\nRSS feeds make keeping in touch with updates to the BIS website easy, quick and flexible. The feeds enable you to see at a glance what new content has been added in your areas of interest, without having to repeatedly visit or search the site. How do I read the feeds?\nWhen an RSS feed is available for a page you will see the\nicon.",
-      "bias": "NEUTRAL",
-      "affected_assets": [
-        "General Market"
-      ],
-      "bull_score": 0,
-      "bear_score": 0,
-      "text_length": 1332
-    },
-    "uploaded_by": "Karion Scraper (Auto)",
-    "text_preview": "This website requires javascript for proper use\nRSS feeds make keeping in touch with updates to the BIS website easy, quick and flexible. The feeds enable you to see at a glance what new content has been added in your areas of interest, without having to repeatedly visit or search the site.\nHow do I",
-    "saved_at": "2026-03-01T02:58:24.315627+00:00",
-    "content_hash": "27aec9c5bf70c5ec2268388ded99b807579eebca497c038ea8720ed0ee356ee0",
-    "report_id": "rep-20260301025824315666"
-  },
-  {
-    "filename": "BlackRock_report.html",
-    "bank": "BlackRock",
-    "title": "Investment Institute Weekly",
-    "source_url": "https://www.blackrock.com/corporate/insights/blackrock-investment-institute/publications/weekly-commentary",
-    "upload_timestamp": "2026-03-01T02:58:24.124091+00:00",
-    "status": "SYNCED",
-    "analysis": {
-      "title": "BlackRock Report Analysis",
-      "summary": "Welcome to BlackRock Corporate site\nBefore we proceed, please take a moment to review and accept the following terms and Conditions:\nPlease read this page before proceeding as it explains certain restrictions imposed by law on the distribution of this information and the jurisdictions in which our products and services are authorised to be offered or sold. By entering this site, you are agreeing that you have reviewed and agreed to the terms contained herein, including any legal or regulatory re",
-      "bias": "BEARISH",
-      "affected_assets": [
-        "NAS100"
-      ],
-      "bull_score": 1,
-      "bear_score": 4,
-      "text_length": 8000
-    },
-    "uploaded_by": "Karion Scraper (Auto)",
-    "text_preview": "Welcome to BlackRock Corporate site\nBefore we proceed, please take a moment to review and accept the following terms and Conditions:\nPlease read this page before proceeding as it explains certain restrictions imposed by law on the distribution of this information and the jurisdictions in which our p",
-    "saved_at": "2026-03-01T02:58:24.124650+00:00",
-    "content_hash": "4d2c7e817ad68e46c706eda6feba5374500f5a99fce7991c35c4be87da9e4023",
-    "report_id": "rep-20260301025824124680"
-  },
-  {
-    "filename": "Federal_Reserve_report.html",
-    "bank": "Federal Reserve",
-    "title": "FOMC Minutes / Statements",
-    "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
-    "upload_timestamp": "2026-03-01T02:58:23.969766+00:00",
-    "status": "SYNCED",
-    "analysis": {
-      "title": "Federal Reserve Report Analysis",
-      "summary": "gov\nwebsite belongs to an official government organization in the United States. gov websites use HTTPS\nmeans you've safely connected to the. Share sensitive information only on official, secure websites.",
-      "bias": "NEUTRAL",
-      "affected_assets": [
-        "General Market"
-      ],
-      "bull_score": 0,
-      "bear_score": 0,
-      "text_length": 248
-    },
-    "uploaded_by": "Karion Scraper (Auto)",
-    "text_preview": "Official websites use .gov\nwebsite belongs to an official government organization in the United States.\nSecure .gov websites use HTTPS\nmeans you've safely connected to the .gov website. Share sensitive information only on official, secure websites.",
-    "saved_at": "2026-03-01T02:58:23.970522+00:00",
-    "content_hash": "a131d5ea36fdab24f15add4630367bd69388d6411aedbeb1dfb0c97e779313f5",
-    "report_id": "rep-20260301025823970569"
-  },
-  {
-    "filename": "ECB_report.html",
-    "bank": "ECB",
-    "title": "Monetary Policy Decisions",
-    "source_url": "https://www.ecb.europa.eu/press/accounts/html/index.en.html",
-    "upload_timestamp": "2026-03-01T02:58:23.884153+00:00",
-    "status": "SYNCED",
-    "analysis": {
-      "title": "ECB Report Analysis",
-      "summary": "Monetary policy accounts\nThe accounts cover the monetary policy meetings of the Governing Council, normally held every six weeks. They include a review of financial, economic and monetary developments and policy options as well as a summary of the discussions and decisions. The accounts are typically published four weeks after the meetings.",
-      "bias": "NEUTRAL",
-      "affected_assets": [
-        "EURUSD"
-      ],
-      "bull_score": 0,
-      "bear_score": 0,
-      "text_length": 599
-    },
-    "uploaded_by": "Karion Scraper (Auto)",
-    "text_preview": "Monetary policy accounts\nThe accounts cover the monetary policy meetings of the Governing Council, normally held every six weeks. They include a review of financial, economic and monetary developments and policy options as well as a summary of the discussions and decisions.\nThe accounts are typicall",
-    "saved_at": "2026-03-01T02:58:23.888004+00:00",
-    "content_hash": "7a979f15ece5e20e6eb6ffd2a9607b75bda567b404d08c9c460112eb29f71fa3",
-    "report_id": "rep-20260301025823888042"
-  },
-  {
-    "filename": "World_Bank_report.html",
-    "bank": "World Bank",
-    "title": "Global Economic Prospects",
-    "source_url": "https://www.worldbank.org/en/publication/global-economic-prospects",
-    "upload_timestamp": "2026-03-01T02:58:23.723871+00:00",
-    "status": "SYNCED",
-    "analysis": {
-      "title": "World Bank Report Analysis",
-      "summary": "Global Economic Prospects\non selection, highlighted content\nGlobal Economy is Resilient, but Vulnerable Countries Lag\nThe global economy has shown notable resilience to heightened trade tensions and policy uncertainty. Last year\u2019s faster-than-expected pace of growth capped a recovery from the 2020 recession unmatched in six decades, even if vulnerable emerging market and developing economies are lagging behind. This year, global growth is projected to edge down, in part as firms scale back inven",
-      "bias": "BULLISH",
-      "affected_assets": [
-        "NAS100",
-        "EURUSD"
-      ],
-      "bull_score": 36,
-      "bear_score": 23,
-      "text_length": 8000
-    },
-    "uploaded_by": "Karion Scraper (Auto)",
-    "text_preview": "Global Economic Prospects\non selection, highlighted content\nGlobal Economy is Resilient, but Vulnerable Countries Lag\nThe global economy has shown notable resilience to heightened trade tensions and policy uncertainty. Last year\u2019s faster-than-expected pace of growth capped a recovery from the 2020 r",
-    "saved_at": "2026-03-01T02:58:23.726360+00:00",
-    "content_hash": "a63d4b3a9e46b7c349ce960021daf069d76de587f28338badfa976d72006ca92",
-    "report_id": "rep-20260301025823726390"
-  },
-  {
-    "filename": "CFTC_report.html",
-    "bank": "CFTC",
-    "title": "Commitments of Traders Reports",
-    "source_url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
-    "upload_timestamp": "2026-03-01T02:58:23.670822+00:00",
-    "status": "SYNCED",
-    "analysis": {
-      "title": "CFTC Report Analysis",
-      "summary": "Commitments of Traders (COT) Reports Descriptions\nIntroduction and Classification Methodology\nThe Commodity Futures Trading Commission (Commission or CFTC) publishes the Commitments of Traders (COT) reports to help the public understand market dynamics. Specifically, the COT reports provide a breakdown of each Tuesday\u2019s open interest for futures and options on futures markets in which 20 or more traders hold positions equal to or above the reporting levels established by the CFTC. The CFTC relea",
-      "bias": "BULLISH",
-      "affected_assets": [
-        "General Market"
-      ],
-      "bull_score": 5,
-      "bear_score": 0,
-      "text_length": 8000
-    },
-    "uploaded_by": "Karion Scraper (Auto)",
-    "text_preview": "Commitments of Traders (COT) Reports Descriptions\nIntroduction and Classification Methodology\nThe Commodity Futures Trading Commission (Commission or CFTC) publishes the Commitments of Traders (COT) reports to help the public understand market dynamics. Specifically, the COT reports provide a breakd",
-    "saved_at": "2026-03-01T02:58:23.671923+00:00",
-    "content_hash": "c5d1af4f2e0ca8256066e9fa422a04359d1ba2b6c13ece422e2e9f78346f501f",
-    "report_id": "rep-20260301025823671994"
   }
 ]

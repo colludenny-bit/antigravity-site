@@ -1,0 +1,83 @@
+{
+  "updated_at_utc": "2026-03-03T02:25:11.383236+00:00",
+  "rows": [
+    {
+      "id": "tv-xauusd-20260303T014826Z-09acff04",
+      "asset": "XAUUSD",
+      "path": "data_summaries/tv_screenshots/XAUUSD/2026-03-03/example-20260303T014826Z-2c42e3.png",
+      "abs_path": "/Users/denny/Documents/New project/backend/data_summaries/tv_screenshots/XAUUSD/2026-03-03/example-20260303T014826Z-2c42e3.png",
+      "filename": "example-20260303T014826Z-2c42e3.png",
+      "mime_type": "image/png",
+      "size_bytes": 16578,
+      "rome_day": "2026-03-03",
+      "captured_at_utc": "2026-03-03T01:48:26.097033+00:00",
+      "source": "TV_AUTOMATION",
+      "note": "smoke_test"
+    },
+    {
+      "id": "tv-xauusd-20260303T015344Z-54f68420",
+      "asset": "XAUUSD",
+      "path": "data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t015332z-20260303T015344Z-ffdde6.png",
+      "abs_path": "/Users/denny/Documents/New project/backend/data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t015332z-20260303T015344Z-ffdde6.png",
+      "filename": "xauusd-20260303t015332z-20260303T015344Z-ffdde6.png",
+      "mime_type": "image/png",
+      "size_bytes": 16578,
+      "rome_day": "2026-03-03",
+      "captured_at_utc": "2026-03-03T01:53:44.006423+00:00",
+      "source": "TV_AUTOMATION",
+      "note": "auto_capture"
+    },
+    {
+      "id": "tv-xauusd-20260303T015602Z-682c1a28",
+      "asset": "XAUUSD",
+      "path": "data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t015550z-20260303T015602Z-486399.png",
+      "abs_path": "/Users/denny/Documents/New project/backend/data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t015550z-20260303T015602Z-486399.png",
+      "filename": "xauusd-20260303t015550z-20260303T015602Z-486399.png",
+      "mime_type": "image/png",
+      "size_bytes": 396913,
+      "rome_day": "2026-03-03",
+      "captured_at_utc": "2026-03-03T01:56:02.010851+00:00",
+      "source": "TV_AUTOMATION",
+      "note": "auto_capture"
+    },
+    {
+      "id": "tv-xauusd-20260303T020055Z-4e19015e",
+      "asset": "XAUUSD",
+      "path": "data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t020044z-20260303T020055Z-9e7886.png",
+      "abs_path": "/Users/denny/Documents/New project/backend/data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t020044z-20260303T020055Z-9e7886.png",
+      "filename": "xauusd-20260303t020044z-20260303T020055Z-9e7886.png",
+      "mime_type": "image/png",
+      "size_bytes": 396913,
+      "rome_day": "2026-03-03",
+      "captured_at_utc": "2026-03-03T02:00:55.883895+00:00",
+      "source": "TV_AUTOMATION",
+      "note": "auto_capture"
+    },
+    {
+      "id": "tv-xauusd-20260303T022156Z-fcd1e25a",
+      "asset": "XAUUSD",
+      "path": "data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t022144z-20260303T022156Z-6c2873.png",
+      "abs_path": "/Users/denny/Documents/New project/backend/data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t022144z-20260303T022156Z-6c2873.png",
+      "filename": "xauusd-20260303t022144z-20260303T022156Z-6c2873.png",
+      "mime_type": "image/png",
+      "size_bytes": 396913,
+      "rome_day": "2026-03-03",
+      "captured_at_utc": "2026-03-03T02:21:56.682461+00:00",
+      "source": "TV_AUTOMATION",
+      "note": "auto_capture"
+    },
+    {
+      "id": "tv-xauusd-20260303T022511Z-e0ad4107",
+      "asset": "XAUUSD",
+      "path": "data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t022458z-20260303T022511Z-2620a2.png",
+      "abs_path": "/Users/denny/Documents/New project/backend/data_summaries/tv_screenshots/XAUUSD/2026-03-03/xauusd-20260303t022458z-20260303T022511Z-2620a2.png",
+      "filename": "xauusd-20260303t022458z-20260303T022511Z-2620a2.png",
+      "mime_type": "image/png",
+      "size_bytes": 396913,
+      "rome_day": "2026-03-03",
+      "captured_at_utc": "2026-03-03T02:25:11.381588+00:00",
+      "source": "TV_AUTOMATION",
+      "note": "auto_capture"
+    }
+  ]
+}

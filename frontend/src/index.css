@@ -469,12 +469,22 @@ html.dark.carbon-black a:not([class*="text-"]):hover {
     @apply border-border;
   }
 
+  html,
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-apple);
     font-size: 15px;
     letter-spacing: -0.01em;
     zoom: 1;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    font-family: inherit;
+    letter-spacing: inherit;
   }
 
   h1,

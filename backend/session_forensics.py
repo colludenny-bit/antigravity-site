@@ -113,6 +113,15 @@ def _to_float(value: Any, default: float = 0.0) -> float:
     try:
         if value is None:
             return default
+        if hasattr(value, "ndim") and getattr(value, "ndim", 1) > 1 and hasattr(value, "iloc"):
+            value = value.iloc[:, 0]
+        if hasattr(value, "iloc"):
+            value = value.iloc[-1]
+        if hasattr(value, "item"):
+            try:
+                value = value.item()
+            except Exception:
+                pass
         return float(value)
     except Exception:
         return default

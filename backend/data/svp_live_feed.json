@@ -1,0 +1,22 @@
+{
+  "updated_at_utc": "2026-03-03T01:48:31.528866+00:00",
+  "assets": {
+    "XAUUSD": [
+      {
+        "asset": "XAUUSD",
+        "rome_day": "2026-03-03",
+        "va_low": 5328.5,
+        "va_high": 5379.2,
+        "va_mid": 5353.85,
+        "poc": 5351.7,
+        "range": 50.69999999999982,
+        "session_name": null,
+        "resolution": "5m",
+        "is_closed": false,
+        "source": "SMOKE",
+        "timestamp_utc": "2026-03-03T01:48:31.528866+00:00",
+        "captured_at_utc": "2026-03-03T01:48:31.528866+00:00"
+      }
+    ]
+  }
+}

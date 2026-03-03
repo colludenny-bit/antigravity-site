@@ -359,6 +359,44 @@ class TestAuthenticatedEndpoints:
         assert "maintenance" in data
         assert "data_lake" in data
 
+    def test_subscription_status_endpoint(self, auth_token):
+        """Test subscription status endpoint"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+        response = http_get(f"{BASE_URL}/api/subscription/status", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+        assert "plan_slug" in data
+        assert "plan_name" in data
+        assert "plan" in data
+        assert isinstance(data["plan"], dict)
+
+    def test_user_preferences_roundtrip(self, auth_token):
+        """Test preferences GET/POST flow"""
+        headers = {"Authorization": f"Bearer {auth_token}"}
+
+        read_response = http_get(f"{BASE_URL}/api/user/preferences", headers=headers)
+        assert read_response.status_code == 200
+        read_data = read_response.json()
+        assert "sync_enabled" in read_data
+        assert "chart_line_color" in read_data
+        assert "theme" in read_data
+        assert "language" in read_data
+
+        payload = {
+            "selected_asset": "NAS100",
+            "sync_enabled": True,
+            "chart_line_color": "#12ABEF",
+            "theme": "dark",
+            "language": "it",
+        }
+        write_response = http_post(f"{BASE_URL}/api/user/preferences", headers=headers, json=payload)
+        assert write_response.status_code == 200
+        write_data = write_response.json()
+        assert write_data.get("selected_asset") == "NAS100"
+        assert write_data.get("sync_enabled") is True
+        assert write_data.get("chart_line_color") == "#12ABEF"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

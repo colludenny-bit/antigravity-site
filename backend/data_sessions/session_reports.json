@@ -1,126 +1,8 @@
 [
   {
     "status": "collecting",
-    "rome_day": "2026-02-27",
-    "generated_at": "2026-03-01T03:57:15.846546+00:00",
-    "message": "Nessun dato 5m disponibile per sessioni complete (Asian/London/NY).",
-    "daily_report": {
-      "rows": [],
-      "summary": {}
-    },
-    "auto_analysis": {
-      "insights": [],
-      "weight_updates": []
-    },
-    "correlation_matrix": {
-      "primary": [],
-      "extra": [],
-      "total_correlations": 0,
-      "significant_correlations": 0,
-      "significant_ratio": 0.0
-    },
-    "matrices": {
-      "scenario_weekday": {
-        "days": [
-          "LUN",
-          "MAR",
-          "MER",
-          "GIO",
-          "VEN"
-        ],
-        "rows": []
-      },
-      "bias_asset": {
-        "assets": [
-          "NAS100",
-          "SP500",
-          "XAUUSD",
-          "EURUSD"
-        ],
-        "rows": []
-      }
-    },
-    "health_score": {
-      "value": 0.0,
-      "status": "collecting",
-      "components": {},
-      "sparkline": [],
-      "interpretation": "Nessun dato 5m disponibile per sessioni complete (Asian/London/NY)."
-    },
-    "weights": {
-      "weights": {
-        "A": 1.0,
-        "B": 1.0,
-        "C": 1.0,
-        "D": 1.0,
-        "E": 1.0
-      },
-      "alpha": 0.5
-    }
-  },
-  {
-    "status": "collecting",
-    "rome_day": "2026-02-28",
-    "generated_at": "2026-03-01T03:57:20.197102+00:00",
-    "message": "Nessun dato 5m disponibile per sessioni complete (Asian/London/NY).",
-    "daily_report": {
-      "rows": [],
-      "summary": {}
-    },
-    "auto_analysis": {
-      "insights": [],
-      "weight_updates": []
-    },
-    "correlation_matrix": {
-      "primary": [],
-      "extra": [],
-      "total_correlations": 0,
-      "significant_correlations": 0,
-      "significant_ratio": 0.0
-    },
-    "matrices": {
-      "scenario_weekday": {
-        "days": [
-          "LUN",
-          "MAR",
-          "MER",
-          "GIO",
-          "VEN"
-        ],
-        "rows": []
-      },
-      "bias_asset": {
-        "assets": [
-          "NAS100",
-          "SP500",
-          "XAUUSD",
-          "EURUSD"
-        ],
-        "rows": []
-      }
-    },
-    "health_score": {
-      "value": 0.0,
-      "status": "collecting",
-      "components": {},
-      "sparkline": [],
-      "interpretation": "Nessun dato 5m disponibile per sessioni complete (Asian/London/NY)."
-    },
-    "weights": {
-      "weights": {
-        "A": 1.0,
-        "B": 1.0,
-        "C": 1.0,
-        "D": 1.0,
-        "E": 1.0
-      },
-      "alpha": 0.5
-    }
-  },
-  {
-    "status": "collecting",
-    "rome_day": "2026-03-01",
-    "generated_at": "2026-03-01T22:12:33.081470+00:00",
+    "rome_day": "2026-03-02",
+    "generated_at": "2026-03-02T21:00:00.071865+00:00",
     "message": "Nessun dato 5m disponibile per sessioni complete (Sydney/Asian/London/NY).",
     "daily_report": {
       "rows": [],
@@ -176,26 +58,26 @@
       "alpha": 0.5
     },
     "historical_stats": {
-      "generated_at": "2026-03-01T22:12:33.053594+00:00",
+      "generated_at": "2026-03-02T21:00:00.058320+00:00",
       "windows": {
         "7d": {
           "label": "Ultimi 7 giorni",
           "samples": 28,
           "days": 7,
           "assets_covered": 4,
-          "verified_rate_pct": 78.57,
-          "bias_accuracy_pct": 46.43,
-          "target_hit_rate_pct": 50.0,
-          "avg_outcome_pips": 16.84,
-          "median_outcome_pips": 5.94,
-          "avg_ny_range_pips": 167.93,
-          "positive_outcome_rate_pct": 64.29,
-          "scenario_entropy_pct": 86.54,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 32.14,
+          "target_hit_rate_pct": 32.14,
+          "avg_outcome_pips": 23.17,
+          "median_outcome_pips": 11.07,
+          "avg_ny_range_pips": 222.35,
+          "positive_outcome_rate_pct": 57.14,
+          "scenario_entropy_pct": 76.53,
           "scenario_distribution": {
-            "C": 13,
+            "C": 17,
             "A": 3,
-            "B": 9,
-            "D": 3
+            "B": 6,
+            "D": 2
           }
         },
         "30d": {
@@ -203,18 +85,18 @@
           "samples": 120,
           "days": 30,
           "assets_covered": 4,
-          "verified_rate_pct": 67.5,
-          "bias_accuracy_pct": 48.33,
-          "target_hit_rate_pct": 38.33,
-          "avg_outcome_pips": 9.58,
-          "median_outcome_pips": 5.78,
-          "avg_ny_range_pips": 218.44,
-          "positive_outcome_rate_pct": 55.0,
-          "scenario_entropy_pct": 89.82,
+          "verified_rate_pct": 66.67,
+          "bias_accuracy_pct": 45.0,
+          "target_hit_rate_pct": 34.17,
+          "avg_outcome_pips": 11.05,
+          "median_outcome_pips": 9.22,
+          "avg_ny_range_pips": 231.14,
+          "positive_outcome_rate_pct": 53.33,
+          "scenario_entropy_pct": 87.84,
           "scenario_distribution": {
-            "C": 55,
-            "B": 33,
-            "D": 13,
+            "C": 59,
+            "B": 30,
+            "D": 12,
             "A": 19
           }
         },
@@ -223,38 +105,38 @@
           "samples": 360,
           "days": 90,
           "assets_covered": 4,
-          "verified_rate_pct": 64.44,
-          "bias_accuracy_pct": 50.0,
-          "target_hit_rate_pct": 31.94,
-          "avg_outcome_pips": 6.53,
-          "median_outcome_pips": 7.04,
-          "avg_ny_range_pips": 178.89,
-          "positive_outcome_rate_pct": 53.89,
-          "scenario_entropy_pct": 80.39,
+          "verified_rate_pct": 64.17,
+          "bias_accuracy_pct": 48.89,
+          "target_hit_rate_pct": 30.56,
+          "avg_outcome_pips": 7.03,
+          "median_outcome_pips": 7.09,
+          "avg_ny_range_pips": 183.12,
+          "positive_outcome_rate_pct": 53.33,
+          "scenario_entropy_pct": 79.5,
           "scenario_distribution": {
-            "C": 202,
-            "B": 90,
+            "C": 206,
+            "B": 87,
             "A": 39,
-            "D": 29
+            "D": 28
           }
         },
         "all": {
           "label": "Storico completo",
-          "samples": 3604,
-          "days": 901,
+          "samples": 3600,
+          "days": 900,
           "assets_covered": 4,
-          "verified_rate_pct": 61.24,
-          "bias_accuracy_pct": 48.92,
-          "target_hit_rate_pct": 34.79,
-          "avg_outcome_pips": 6.97,
-          "median_outcome_pips": 4.31,
-          "avg_ny_range_pips": 163.53,
-          "positive_outcome_rate_pct": 52.58,
-          "scenario_entropy_pct": 84.98,
+          "verified_rate_pct": 61.17,
+          "bias_accuracy_pct": 48.75,
+          "target_hit_rate_pct": 34.64,
+          "avg_outcome_pips": 6.93,
+          "median_outcome_pips": 4.03,
+          "avg_ny_range_pips": 163.78,
+          "positive_outcome_rate_pct": 52.47,
+          "scenario_entropy_pct": 84.89,
           "scenario_distribution": {
-            "B": 977,
-            "C": 1837,
-            "D": 320,
+            "C": 1841,
+            "B": 970,
+            "D": 319,
             "A": 470
           }
         }
@@ -263,29 +145,29 @@
         {
           "scenario": "C",
           "label": "Compression -> Expansion",
-          "samples": 1837,
-          "verified_rate_pct": 71.53,
-          "bias_accuracy_pct": 46.65,
-          "avg_outcome_pips": 4.9,
-          "target_hit_rate_pct": 34.95
+          "samples": 1841,
+          "verified_rate_pct": 71.54,
+          "bias_accuracy_pct": 46.55,
+          "avg_outcome_pips": 4.89,
+          "target_hit_rate_pct": 34.82
         },
         {
           "scenario": "D",
           "label": "Sweep -> Reversal",
-          "samples": 320,
-          "verified_rate_pct": 52.81,
-          "bias_accuracy_pct": 46.88,
+          "samples": 319,
+          "verified_rate_pct": 52.66,
+          "bias_accuracy_pct": 46.71,
           "avg_outcome_pips": 8.91,
-          "target_hit_rate_pct": 36.56
+          "target_hit_rate_pct": 36.36
         },
         {
           "scenario": "B",
           "label": "Continuation / Trend",
-          "samples": 977,
-          "verified_rate_pct": 51.89,
-          "bias_accuracy_pct": 51.89,
-          "avg_outcome_pips": 7.75,
-          "target_hit_rate_pct": 35.01
+          "samples": 970,
+          "verified_rate_pct": 51.55,
+          "bias_accuracy_pct": 51.55,
+          "avg_outcome_pips": 7.64,
+          "target_hit_rate_pct": 34.74
         },
         {
           "scenario": "A",
@@ -309,35 +191,35 @@
       "asset_leaderboard": [
         {
           "asset": "XAUUSD",
-          "samples": 901,
-          "verified_rate_pct": 62.49,
-          "bias_accuracy_pct": 48.06,
-          "avg_outcome_pips": 12.88,
-          "avg_ny_range_pips": 183.8
+          "samples": 900,
+          "verified_rate_pct": 62.44,
+          "bias_accuracy_pct": 48.0,
+          "avg_outcome_pips": 12.8,
+          "avg_ny_range_pips": 184.84
         },
         {
           "asset": "EURUSD",
-          "samples": 901,
-          "verified_rate_pct": 61.6,
-          "bias_accuracy_pct": 45.62,
-          "avg_outcome_pips": -0.37,
-          "avg_ny_range_pips": 84.37
+          "samples": 900,
+          "verified_rate_pct": 61.44,
+          "bias_accuracy_pct": 45.33,
+          "avg_outcome_pips": -0.48,
+          "avg_ny_range_pips": 84.35
         },
         {
           "asset": "NAS100",
-          "samples": 901,
-          "verified_rate_pct": 60.93,
-          "bias_accuracy_pct": 50.83,
-          "avg_outcome_pips": 8.53,
-          "avg_ny_range_pips": 220.98
+          "samples": 900,
+          "verified_rate_pct": 60.89,
+          "bias_accuracy_pct": 50.67,
+          "avg_outcome_pips": 8.6,
+          "avg_ny_range_pips": 220.92
         },
         {
           "asset": "SP500",
-          "samples": 901,
-          "verified_rate_pct": 59.93,
-          "bias_accuracy_pct": 51.17,
-          "avg_outcome_pips": 6.85,
-          "avg_ny_range_pips": 164.98
+          "samples": 900,
+          "verified_rate_pct": 59.89,
+          "bias_accuracy_pct": 51.0,
+          "avg_outcome_pips": 6.81,
+          "avg_ny_range_pips": 165.0
         }
       ],
       "daily_trend": [
@@ -1273,9 +1155,9 @@
           "rome_day": "2026-02-24",
           "samples": 4,
           "verified_rate_pct": 100.0,
-          "bias_accuracy_pct": 100.0,
-          "avg_outcome_pips": 4.5,
-          "avg_ny_range_pips": 27.0
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 53.83,
+          "avg_ny_range_pips": 232.86
         },
         {
           "rome_day": "2026-02-25",
@@ -1294,17 +1176,17 @@
           "avg_ny_range_pips": 214.34
         },
         {
-          "rome_day": "2026-02-28",
+          "rome_day": "2026-02-27",
           "samples": 4,
-          "verified_rate_pct": 100.0,
-          "bias_accuracy_pct": 100.0,
-          "avg_outcome_pips": 10.78,
-          "avg_ny_range_pips": 26.94
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 5.75,
+          "avg_ny_range_pips": 202.02
         }
       ]
     },
     "operational_playbook": {
-      "generated_at": "2026-03-01T22:12:33.081446+00:00",
+      "generated_at": "2026-03-02T21:00:00.071853+00:00",
       "today": [
         {
           "asset": "NAS100",
@@ -1395,33 +1277,33 @@
             {
               "asset": "NAS100",
               "bias": "LONG_BIAS",
-              "confidence": 76.01,
+              "confidence": 76.4,
               "samples": 186,
-              "avg_outcome_pips": 11.0,
+              "avg_outcome_pips": 11.76,
               "verified_rate_pct": 58.6
             },
             {
               "asset": "SP500",
               "bias": "LONG_BIAS",
-              "confidence": 76.27,
+              "confidence": 76.5,
               "samples": 186,
-              "avg_outcome_pips": 8.59,
+              "avg_outcome_pips": 9.02,
               "verified_rate_pct": 60.22
             },
             {
               "asset": "XAUUSD",
               "bias": "LONG_BIAS",
-              "confidence": 82.95,
+              "confidence": 82.87,
               "samples": 186,
-              "avg_outcome_pips": 12.79,
+              "avg_outcome_pips": 12.63,
               "verified_rate_pct": 65.05
             },
             {
               "asset": "EURUSD",
               "bias": "SHORT_BIAS",
-              "confidence": 70.11,
+              "confidence": 70.09,
               "samples": 186,
-              "avg_outcome_pips": -2.45,
+              "avg_outcome_pips": -2.41,
               "verified_rate_pct": 56.99
             }
           ]
@@ -1434,34 +1316,34 @@
             {
               "asset": "NAS100",
               "bias": "LONG_BIAS",
-              "confidence": 73.43,
-              "samples": 185,
-              "avg_outcome_pips": 1.74,
-              "verified_rate_pct": 61.08
+              "confidence": 72.83,
+              "samples": 184,
+              "avg_outcome_pips": 1.22,
+              "verified_rate_pct": 60.87
             },
             {
               "asset": "SP500",
               "bias": "LONG_BIAS",
-              "confidence": 72.05,
-              "samples": 185,
-              "avg_outcome_pips": 1.02,
-              "verified_rate_pct": 60.0
+              "confidence": 71.37,
+              "samples": 184,
+              "avg_outcome_pips": 0.34,
+              "verified_rate_pct": 59.78
             },
             {
               "asset": "XAUUSD",
               "bias": "LONG_BIAS",
-              "confidence": 81.1,
-              "samples": 185,
-              "avg_outcome_pips": 12.74,
-              "verified_rate_pct": 63.24
+              "confidence": 80.48,
+              "samples": 184,
+              "avg_outcome_pips": 12.15,
+              "verified_rate_pct": 63.04
             },
             {
               "asset": "EURUSD",
               "bias": "SHORT_BIAS",
-              "confidence": 71.1,
-              "samples": 185,
-              "avg_outcome_pips": -0.16,
-              "verified_rate_pct": 59.46
+              "confidence": 70.79,
+              "samples": 184,
+              "avg_outcome_pips": -0.2,
+              "verified_rate_pct": 59.24
             }
           ]
         },
@@ -1512,34 +1394,1505 @@
             {
               "asset": "NAS100",
               "bias": "LONG_BIAS",
-              "confidence": 83.38,
-              "samples": 183,
-              "avg_outcome_pips": 18.4,
-              "verified_rate_pct": 62.84
+              "confidence": 83.71,
+              "samples": 184,
+              "avg_outcome_pips": 18.42,
+              "verified_rate_pct": 63.04
             },
             {
               "asset": "SP500",
               "bias": "LONG_BIAS",
-              "confidence": 78.53,
-              "samples": 183,
-              "avg_outcome_pips": 13.93,
-              "verified_rate_pct": 60.11
+              "confidence": 78.86,
+              "samples": 184,
+              "avg_outcome_pips": 13.92,
+              "verified_rate_pct": 60.33
             },
             {
               "asset": "XAUUSD",
               "bias": "LONG_BIAS",
-              "confidence": 76.25,
-              "samples": 183,
-              "avg_outcome_pips": 11.49,
-              "verified_rate_pct": 59.02
+              "confidence": 76.78,
+              "samples": 184,
+              "avg_outcome_pips": 11.85,
+              "verified_rate_pct": 59.24
             },
             {
               "asset": "EURUSD",
               "bias": "LONG_BIAS",
-              "confidence": 74.25,
-              "samples": 183,
-              "avg_outcome_pips": 1.64,
-              "verified_rate_pct": 62.3
+              "confidence": 73.81,
+              "samples": 184,
+              "avg_outcome_pips": 1.15,
+              "verified_rate_pct": 61.96
+            }
+          ]
+        }
+      ],
+      "month": [
+        {
+          "asset": "NAS100",
+          "label": "Mar",
+          "bias": "LONG_BIAS",
+          "confidence": 55.0,
+          "samples": 64,
+          "verified_rate_pct": 54.69,
+          "avg_outcome_pips": 8.28,
+          "bias_accuracy_pct": 45.31
+        },
+        {
+          "asset": "SP500",
+          "label": "Mar",
+          "bias": "NEUTRAL",
+          "confidence": 48.92,
+          "samples": 64,
+          "verified_rate_pct": 50.0,
+          "avg_outcome_pips": 4.96,
+          "bias_accuracy_pct": 45.31
+        },
+        {
+          "asset": "XAUUSD",
+          "label": "Mar",
+          "bias": "LONG_BIAS",
+          "confidence": 74.58,
+          "samples": 64,
+          "verified_rate_pct": 60.94,
+          "avg_outcome_pips": 36.02,
+          "bias_accuracy_pct": 51.56
+        },
+        {
+          "asset": "EURUSD",
+          "label": "Mar",
+          "bias": "LONG_BIAS",
+          "confidence": 65.56,
+          "samples": 64,
+          "verified_rate_pct": 68.75,
+          "avg_outcome_pips": 3.3,
+          "bias_accuracy_pct": 51.56
+        }
+      ]
+    }
+  },
+  {
+    "status": "collecting",
+    "rome_day": "2026-03-03",
+    "generated_at": "2026-03-03T02:48:25.006612+00:00",
+    "message": "Nessun dato 5m disponibile per sessioni complete (Sydney/Asian/London/NY).",
+    "daily_report": {
+      "rows": [],
+      "summary": {}
+    },
+    "auto_analysis": {
+      "insights": [],
+      "weight_updates": []
+    },
+    "correlation_matrix": {
+      "primary": [],
+      "extra": [],
+      "total_correlations": 0,
+      "significant_correlations": 0,
+      "significant_ratio": 0.0
+    },
+    "matrices": {
+      "scenario_weekday": {
+        "days": [
+          "LUN",
+          "MAR",
+          "MER",
+          "GIO",
+          "VEN"
+        ],
+        "rows": []
+      },
+      "bias_asset": {
+        "assets": [
+          "NAS100",
+          "SP500",
+          "XAUUSD",
+          "EURUSD"
+        ],
+        "rows": []
+      }
+    },
+    "health_score": {
+      "value": 0.0,
+      "status": "collecting",
+      "components": {},
+      "sparkline": [],
+      "interpretation": "Nessun dato 5m disponibile per sessioni complete (Sydney/Asian/London/NY)."
+    },
+    "weights": {
+      "weights": {
+        "A": 1.0,
+        "B": 1.0,
+        "C": 1.0,
+        "D": 1.0,
+        "E": 1.0
+      },
+      "alpha": 0.5
+    },
+    "historical_stats": {
+      "generated_at": "2026-03-03T02:48:24.997303+00:00",
+      "windows": {
+        "7d": {
+          "label": "Ultimi 7 giorni",
+          "samples": 28,
+          "days": 7,
+          "assets_covered": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 32.14,
+          "target_hit_rate_pct": 32.14,
+          "avg_outcome_pips": 24.37,
+          "median_outcome_pips": 9.22,
+          "avg_ny_range_pips": 222.35,
+          "positive_outcome_rate_pct": 57.14,
+          "scenario_entropy_pct": 76.53,
+          "scenario_distribution": {
+            "C": 17,
+            "A": 3,
+            "B": 6,
+            "D": 2
+          }
+        },
+        "30d": {
+          "label": "Ultimi 30 giorni",
+          "samples": 120,
+          "days": 30,
+          "assets_covered": 4,
+          "verified_rate_pct": 66.67,
+          "bias_accuracy_pct": 45.0,
+          "target_hit_rate_pct": 34.17,
+          "avg_outcome_pips": 11.33,
+          "median_outcome_pips": 7.21,
+          "avg_ny_range_pips": 231.14,
+          "positive_outcome_rate_pct": 53.33,
+          "scenario_entropy_pct": 87.84,
+          "scenario_distribution": {
+            "C": 59,
+            "B": 30,
+            "D": 12,
+            "A": 19
+          }
+        },
+        "90d": {
+          "label": "Ultimi 90 giorni",
+          "samples": 360,
+          "days": 90,
+          "assets_covered": 4,
+          "verified_rate_pct": 64.17,
+          "bias_accuracy_pct": 48.89,
+          "target_hit_rate_pct": 30.56,
+          "avg_outcome_pips": 7.12,
+          "median_outcome_pips": 7.06,
+          "avg_ny_range_pips": 183.12,
+          "positive_outcome_rate_pct": 53.33,
+          "scenario_entropy_pct": 79.5,
+          "scenario_distribution": {
+            "C": 206,
+            "B": 87,
+            "A": 39,
+            "D": 28
+          }
+        },
+        "all": {
+          "label": "Storico completo",
+          "samples": 3600,
+          "days": 900,
+          "assets_covered": 4,
+          "verified_rate_pct": 61.17,
+          "bias_accuracy_pct": 48.75,
+          "target_hit_rate_pct": 34.64,
+          "avg_outcome_pips": 6.94,
+          "median_outcome_pips": 4.03,
+          "avg_ny_range_pips": 163.78,
+          "positive_outcome_rate_pct": 52.47,
+          "scenario_entropy_pct": 84.89,
+          "scenario_distribution": {
+            "C": 1841,
+            "B": 970,
+            "D": 319,
+            "A": 470
+          }
+        }
+      },
+      "scenario_leaderboard": [
+        {
+          "scenario": "C",
+          "label": "Compression -> Expansion",
+          "samples": 1841,
+          "verified_rate_pct": 71.54,
+          "bias_accuracy_pct": 46.55,
+          "avg_outcome_pips": 4.91,
+          "target_hit_rate_pct": 34.82
+        },
+        {
+          "scenario": "D",
+          "label": "Sweep -> Reversal",
+          "samples": 319,
+          "verified_rate_pct": 52.66,
+          "bias_accuracy_pct": 46.71,
+          "avg_outcome_pips": 8.91,
+          "target_hit_rate_pct": 36.36
+        },
+        {
+          "scenario": "B",
+          "label": "Continuation / Trend",
+          "samples": 970,
+          "verified_rate_pct": 51.55,
+          "bias_accuracy_pct": 51.55,
+          "avg_outcome_pips": 7.64,
+          "target_hit_rate_pct": 34.74
+        },
+        {
+          "scenario": "A",
+          "label": "Containment / Mean-Revert",
+          "samples": 470,
+          "verified_rate_pct": 46.17,
+          "bias_accuracy_pct": 52.98,
+          "avg_outcome_pips": 12.15,
+          "target_hit_rate_pct": 32.55
+        },
+        {
+          "scenario": "E",
+          "label": "Mixed / Unclassified",
+          "samples": 0,
+          "verified_rate_pct": 0.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": 0.0,
+          "target_hit_rate_pct": 0.0
+        }
+      ],
+      "asset_leaderboard": [
+        {
+          "asset": "XAUUSD",
+          "samples": 900,
+          "verified_rate_pct": 62.44,
+          "bias_accuracy_pct": 48.0,
+          "avg_outcome_pips": 12.86,
+          "avg_ny_range_pips": 184.84
+        },
+        {
+          "asset": "EURUSD",
+          "samples": 900,
+          "verified_rate_pct": 61.44,
+          "bias_accuracy_pct": 45.33,
+          "avg_outcome_pips": -0.48,
+          "avg_ny_range_pips": 84.35
+        },
+        {
+          "asset": "NAS100",
+          "samples": 900,
+          "verified_rate_pct": 60.89,
+          "bias_accuracy_pct": 50.67,
+          "avg_outcome_pips": 8.59,
+          "avg_ny_range_pips": 220.92
+        },
+        {
+          "asset": "SP500",
+          "samples": 900,
+          "verified_rate_pct": 59.89,
+          "bias_accuracy_pct": 51.0,
+          "avg_outcome_pips": 6.81,
+          "avg_ny_range_pips": 165.0
+        }
+      ],
+      "daily_trend": [
+        {
+          "rome_day": "2025-09-08",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -2.88,
+          "avg_ny_range_pips": 121.8
+        },
+        {
+          "rome_day": "2025-09-09",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 15.2,
+          "avg_ny_range_pips": 92.93
+        },
+        {
+          "rome_day": "2025-09-10",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 39.8,
+          "avg_ny_range_pips": 80.2
+        },
+        {
+          "rome_day": "2025-09-11",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 11.48,
+          "avg_ny_range_pips": 109.8
+        },
+        {
+          "rome_day": "2025-09-12",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 68.93,
+          "avg_ny_range_pips": 82.06
+        },
+        {
+          "rome_day": "2025-09-15",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 15.03,
+          "avg_ny_range_pips": 131.0
+        },
+        {
+          "rome_day": "2025-09-16",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -35.67,
+          "avg_ny_range_pips": 88.39
+        },
+        {
+          "rome_day": "2025-09-17",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 12.27,
+          "avg_ny_range_pips": 95.96
+        },
+        {
+          "rome_day": "2025-09-18",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 41.56,
+          "avg_ny_range_pips": 116.9
+        },
+        {
+          "rome_day": "2025-09-19",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 76.09,
+          "avg_ny_range_pips": 115.53
+        },
+        {
+          "rome_day": "2025-09-22",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -18.17,
+          "avg_ny_range_pips": 131.13
+        },
+        {
+          "rome_day": "2025-09-23",
+          "samples": 4,
+          "verified_rate_pct": 0.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -57.7,
+          "avg_ny_range_pips": 96.44
+        },
+        {
+          "rome_day": "2025-09-24",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": -29.17,
+          "avg_ny_range_pips": 114.91
+        },
+        {
+          "rome_day": "2025-09-25",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 48.05,
+          "avg_ny_range_pips": 108.73
+        },
+        {
+          "rome_day": "2025-09-26",
+          "samples": 4,
+          "verified_rate_pct": 0.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 65.28,
+          "avg_ny_range_pips": 106.8
+        },
+        {
+          "rome_day": "2025-09-29",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 40.34,
+          "avg_ny_range_pips": 122.19
+        },
+        {
+          "rome_day": "2025-09-30",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 25.36,
+          "avg_ny_range_pips": 91.02
+        },
+        {
+          "rome_day": "2025-10-01",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 0.81,
+          "avg_ny_range_pips": 75.47
+        },
+        {
+          "rome_day": "2025-10-02",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": 14.06,
+          "avg_ny_range_pips": 74.16
+        },
+        {
+          "rome_day": "2025-10-03",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 63.03,
+          "avg_ny_range_pips": 83.16
+        },
+        {
+          "rome_day": "2025-10-06",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -24.02,
+          "avg_ny_range_pips": 136.52
+        },
+        {
+          "rome_day": "2025-10-07",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 79.39,
+          "avg_ny_range_pips": 100.8
+        },
+        {
+          "rome_day": "2025-10-08",
+          "samples": 4,
+          "verified_rate_pct": 0.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -73.46,
+          "avg_ny_range_pips": 143.62
+        },
+        {
+          "rome_day": "2025-10-09",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -116.62,
+          "avg_ny_range_pips": 130.34
+        },
+        {
+          "rome_day": "2025-10-10",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 143.2,
+          "avg_ny_range_pips": 269.83
+        },
+        {
+          "rome_day": "2025-10-13",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 5.29,
+          "avg_ny_range_pips": 244.98
+        },
+        {
+          "rome_day": "2025-10-14",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 79.24,
+          "avg_ny_range_pips": 128.16
+        },
+        {
+          "rome_day": "2025-10-15",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 42.07,
+          "avg_ny_range_pips": 162.7
+        },
+        {
+          "rome_day": "2025-10-16",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": -19.14,
+          "avg_ny_range_pips": 178.84
+        },
+        {
+          "rome_day": "2025-10-17",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 142.2,
+          "avg_ny_range_pips": 168.68
+        },
+        {
+          "rome_day": "2025-10-20",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -171.25,
+          "avg_ny_range_pips": 248.05
+        },
+        {
+          "rome_day": "2025-10-21",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -34.13,
+          "avg_ny_range_pips": 282.63
+        },
+        {
+          "rome_day": "2025-10-22",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 44.95,
+          "avg_ny_range_pips": 150.96
+        },
+        {
+          "rome_day": "2025-10-23",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 38.74,
+          "avg_ny_range_pips": 157.04
+        },
+        {
+          "rome_day": "2025-10-24",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 7.11,
+          "avg_ny_range_pips": 166.34
+        },
+        {
+          "rome_day": "2025-10-27",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 9.74,
+          "avg_ny_range_pips": 261.63
+        },
+        {
+          "rome_day": "2025-10-28",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": -11.37,
+          "avg_ny_range_pips": 161.1
+        },
+        {
+          "rome_day": "2025-10-29",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -26.43,
+          "avg_ny_range_pips": 152.32
+        },
+        {
+          "rome_day": "2025-10-30",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -0.43,
+          "avg_ny_range_pips": 244.37
+        },
+        {
+          "rome_day": "2025-10-31",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 19.37,
+          "avg_ny_range_pips": 160.5
+        },
+        {
+          "rome_day": "2025-11-03",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -132.14,
+          "avg_ny_range_pips": 141.16
+        },
+        {
+          "rome_day": "2025-11-04",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 52.96,
+          "avg_ny_range_pips": 254.06
+        },
+        {
+          "rome_day": "2025-11-05",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": -63.16,
+          "avg_ny_range_pips": 175.67
+        },
+        {
+          "rome_day": "2025-11-06",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 11.65,
+          "avg_ny_range_pips": 211.99
+        },
+        {
+          "rome_day": "2025-11-07",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 160.9,
+          "avg_ny_range_pips": 136.69
+        },
+        {
+          "rome_day": "2025-11-10",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 12.46,
+          "avg_ny_range_pips": 274.22
+        },
+        {
+          "rome_day": "2025-11-11",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 38.81,
+          "avg_ny_range_pips": 134.92
+        },
+        {
+          "rome_day": "2025-11-12",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -105.63,
+          "avg_ny_range_pips": 153.08
+        },
+        {
+          "rome_day": "2025-11-13",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -47.2,
+          "avg_ny_range_pips": 231.11
+        },
+        {
+          "rome_day": "2025-11-14",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": -79.53,
+          "avg_ny_range_pips": 161.81
+        },
+        {
+          "rome_day": "2025-11-17",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": -35.93,
+          "avg_ny_range_pips": 185.04
+        },
+        {
+          "rome_day": "2025-11-18",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 12.7,
+          "avg_ny_range_pips": 163.43
+        },
+        {
+          "rome_day": "2025-11-19",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -99.78,
+          "avg_ny_range_pips": 136.36
+        },
+        {
+          "rome_day": "2025-11-20",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 41.58,
+          "avg_ny_range_pips": 194.79
+        },
+        {
+          "rome_day": "2025-11-21",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 140.34,
+          "avg_ny_range_pips": 144.24
+        },
+        {
+          "rome_day": "2025-11-24",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 45.18,
+          "avg_ny_range_pips": 234.56
+        },
+        {
+          "rome_day": "2025-11-25",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 66.41,
+          "avg_ny_range_pips": 141.34
+        },
+        {
+          "rome_day": "2025-11-26",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 66.74,
+          "avg_ny_range_pips": 161.32
+        },
+        {
+          "rome_day": "2025-11-28",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -6.87,
+          "avg_ny_range_pips": 159.07
+        },
+        {
+          "rome_day": "2025-12-01",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 8.98,
+          "avg_ny_range_pips": 124.5
+        },
+        {
+          "rome_day": "2025-12-02",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 24.86,
+          "avg_ny_range_pips": 133.61
+        },
+        {
+          "rome_day": "2025-12-03",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -4.23,
+          "avg_ny_range_pips": 116.8
+        },
+        {
+          "rome_day": "2025-12-04",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 13.15,
+          "avg_ny_range_pips": 97.89
+        },
+        {
+          "rome_day": "2025-12-05",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -22.47,
+          "avg_ny_range_pips": 105.33
+        },
+        {
+          "rome_day": "2025-12-08",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 10.21,
+          "avg_ny_range_pips": 105.95
+        },
+        {
+          "rome_day": "2025-12-09",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 50.79,
+          "avg_ny_range_pips": 96.28
+        },
+        {
+          "rome_day": "2025-12-10",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 33.58,
+          "avg_ny_range_pips": 126.42
+        },
+        {
+          "rome_day": "2025-12-11",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -64.27,
+          "avg_ny_range_pips": 124.7
+        },
+        {
+          "rome_day": "2025-12-12",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": -12.26,
+          "avg_ny_range_pips": 164.83
+        },
+        {
+          "rome_day": "2025-12-15",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 1.38,
+          "avg_ny_range_pips": 89.42
+        },
+        {
+          "rome_day": "2025-12-16",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -57.76,
+          "avg_ny_range_pips": 80.42
+        },
+        {
+          "rome_day": "2025-12-17",
+          "samples": 4,
+          "verified_rate_pct": 0.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 48.81,
+          "avg_ny_range_pips": 168.06
+        },
+        {
+          "rome_day": "2025-12-18",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 42.59,
+          "avg_ny_range_pips": 129.01
+        },
+        {
+          "rome_day": "2025-12-19",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 174.66,
+          "avg_ny_range_pips": 121.01
+        },
+        {
+          "rome_day": "2025-12-22",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 64.59,
+          "avg_ny_range_pips": 255.25
+        },
+        {
+          "rome_day": "2025-12-23",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 4.85,
+          "avg_ny_range_pips": 139.05
+        },
+        {
+          "rome_day": "2025-12-24",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 26.92,
+          "avg_ny_range_pips": 101.48
+        },
+        {
+          "rome_day": "2025-12-26",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": -130.76,
+          "avg_ny_range_pips": 105.14
+        },
+        {
+          "rome_day": "2025-12-29",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": -13.52,
+          "avg_ny_range_pips": 217.72
+        },
+        {
+          "rome_day": "2025-12-30",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -53.51,
+          "avg_ny_range_pips": 103.87
+        },
+        {
+          "rome_day": "2025-12-31",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 4.77,
+          "avg_ny_range_pips": 144.62
+        },
+        {
+          "rome_day": "2026-01-02",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 105.98,
+          "avg_ny_range_pips": 116.65
+        },
+        {
+          "rome_day": "2026-01-05",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 55.55,
+          "avg_ny_range_pips": 197.22
+        },
+        {
+          "rome_day": "2026-01-06",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -33.23,
+          "avg_ny_range_pips": 164.59
+        },
+        {
+          "rome_day": "2026-01-07",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -7.1,
+          "avg_ny_range_pips": 131.07
+        },
+        {
+          "rome_day": "2026-01-08",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 54.04,
+          "avg_ny_range_pips": 128.01
+        },
+        {
+          "rome_day": "2026-01-09",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 57.38,
+          "avg_ny_range_pips": 159.01
+        },
+        {
+          "rome_day": "2026-01-12",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": -18.68,
+          "avg_ny_range_pips": 152.03
+        },
+        {
+          "rome_day": "2026-01-13",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -11.61,
+          "avg_ny_range_pips": 108.94
+        },
+        {
+          "rome_day": "2026-01-14",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": -8.66,
+          "avg_ny_range_pips": 157.99
+        },
+        {
+          "rome_day": "2026-01-15",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -16.23,
+          "avg_ny_range_pips": 132.35
+        },
+        {
+          "rome_day": "2026-01-16",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 10.63,
+          "avg_ny_range_pips": 102.96
+        },
+        {
+          "rome_day": "2026-01-20",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 93.56,
+          "avg_ny_range_pips": 318.05
+        },
+        {
+          "rome_day": "2026-01-21",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 88.39,
+          "avg_ny_range_pips": 205.26
+        },
+        {
+          "rome_day": "2026-01-22",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 65.26,
+          "avg_ny_range_pips": 174.05
+        },
+        {
+          "rome_day": "2026-01-23",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 72.34,
+          "avg_ny_range_pips": 152.06
+        },
+        {
+          "rome_day": "2026-01-26",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 122.89,
+          "avg_ny_range_pips": 159.68
+        },
+        {
+          "rome_day": "2026-01-27",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 89.85,
+          "avg_ny_range_pips": 214.06
+        },
+        {
+          "rome_day": "2026-01-28",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -9.39,
+          "avg_ny_range_pips": 204.15
+        },
+        {
+          "rome_day": "2026-01-29",
+          "samples": 4,
+          "verified_rate_pct": 25.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -318.79,
+          "avg_ny_range_pips": 114.03
+        },
+        {
+          "rome_day": "2026-01-30",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -83.56,
+          "avg_ny_range_pips": 441.46
+        },
+        {
+          "rome_day": "2026-02-02",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": 105.91,
+          "avg_ny_range_pips": 270.56
+        },
+        {
+          "rome_day": "2026-02-03",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -65.9,
+          "avg_ny_range_pips": 360.89
+        },
+        {
+          "rome_day": "2026-02-04",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": -141.19,
+          "avg_ny_range_pips": 202.99
+        },
+        {
+          "rome_day": "2026-02-05",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": 185.02,
+          "avg_ny_range_pips": 282.2
+        },
+        {
+          "rome_day": "2026-02-06",
+          "samples": 4,
+          "verified_rate_pct": 0.0,
+          "bias_accuracy_pct": 100.0,
+          "avg_outcome_pips": 115.08,
+          "avg_ny_range_pips": 333.53
+        },
+        {
+          "rome_day": "2026-02-09",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": -43.91,
+          "avg_ny_range_pips": 264.44
+        },
+        {
+          "rome_day": "2026-02-10",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 31.61,
+          "avg_ny_range_pips": 193.52
+        },
+        {
+          "rome_day": "2026-02-11",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -175.36,
+          "avg_ny_range_pips": 187.91
+        },
+        {
+          "rome_day": "2026-02-12",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": 69.29,
+          "avg_ny_range_pips": 332.75
+        },
+        {
+          "rome_day": "2026-02-13",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": -84.86,
+          "avg_ny_range_pips": 225.0
+        },
+        {
+          "rome_day": "2026-02-17",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": 71.7,
+          "avg_ny_range_pips": 251.02
+        },
+        {
+          "rome_day": "2026-02-18",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 50.0,
+          "avg_outcome_pips": -12.88,
+          "avg_ny_range_pips": 254.75
+        },
+        {
+          "rome_day": "2026-02-19",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 92.25,
+          "avg_ny_range_pips": 175.87
+        },
+        {
+          "rome_day": "2026-02-20",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 11.62,
+          "avg_ny_range_pips": 241.55
+        },
+        {
+          "rome_day": "2026-02-23",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": 8.53,
+          "avg_ny_range_pips": 274.04
+        },
+        {
+          "rome_day": "2026-02-24",
+          "samples": 4,
+          "verified_rate_pct": 100.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 53.83,
+          "avg_ny_range_pips": 232.86
+        },
+        {
+          "rome_day": "2026-02-25",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 0.0,
+          "avg_outcome_pips": -24.45,
+          "avg_ny_range_pips": 215.75
+        },
+        {
+          "rome_day": "2026-02-26",
+          "samples": 4,
+          "verified_rate_pct": 50.0,
+          "bias_accuracy_pct": 75.0,
+          "avg_outcome_pips": 14.66,
+          "avg_ny_range_pips": 214.34
+        },
+        {
+          "rome_day": "2026-02-27",
+          "samples": 4,
+          "verified_rate_pct": 75.0,
+          "bias_accuracy_pct": 25.0,
+          "avg_outcome_pips": 14.15,
+          "avg_ny_range_pips": 202.02
+        }
+      ]
+    },
+    "operational_playbook": {
+      "generated_at": "2026-03-03T02:48:25.006603+00:00",
+      "today": [
+        {
+          "asset": "NAS100",
+          "label": "Tue",
+          "bias": "LONG_BIAS",
+          "confidence": 76.4,
+          "samples": 186,
+          "verified_rate_pct": 58.6,
+          "avg_outcome_pips": 11.76,
+          "bias_accuracy_pct": 51.08
+        },
+        {
+          "asset": "SP500",
+          "label": "Tue",
+          "bias": "LONG_BIAS",
+          "confidence": 76.5,
+          "samples": 186,
+          "verified_rate_pct": 60.22,
+          "avg_outcome_pips": 9.02,
+          "bias_accuracy_pct": 52.69
+        },
+        {
+          "asset": "XAUUSD",
+          "label": "Tue",
+          "bias": "LONG_BIAS",
+          "confidence": 82.87,
+          "samples": 186,
+          "verified_rate_pct": 65.05,
+          "avg_outcome_pips": 12.63,
+          "bias_accuracy_pct": 54.3
+        },
+        {
+          "asset": "EURUSD",
+          "label": "Tue",
+          "bias": "SHORT_BIAS",
+          "confidence": 70.09,
+          "samples": 186,
+          "verified_rate_pct": 56.99,
+          "avg_outcome_pips": -2.41,
+          "bias_accuracy_pct": 47.31
+        }
+      ],
+      "week": [
+        {
+          "date": "2026-03-02",
+          "weekday": "Mon",
+          "aggregate_bias": "LONG_TILT",
+          "asset_signals": [
+            {
+              "asset": "NAS100",
+              "bias": "LONG_BIAS",
+              "confidence": 76.88,
+              "samples": 167,
+              "avg_outcome_pips": 5.43,
+              "verified_rate_pct": 65.27
+            },
+            {
+              "asset": "SP500",
+              "bias": "LONG_BIAS",
+              "confidence": 76.04,
+              "samples": 167,
+              "avg_outcome_pips": 3.79,
+              "verified_rate_pct": 65.27
+            },
+            {
+              "asset": "XAUUSD",
+              "bias": "LONG_BIAS",
+              "confidence": 82.77,
+              "samples": 167,
+              "avg_outcome_pips": 17.97,
+              "verified_rate_pct": 64.67
+            },
+            {
+              "asset": "EURUSD",
+              "bias": "LONG_BIAS",
+              "confidence": 78.39,
+              "samples": 167,
+              "avg_outcome_pips": 1.84,
+              "verified_rate_pct": 68.86
+            }
+          ]
+        },
+        {
+          "date": "2026-03-03",
+          "weekday": "Tue",
+          "aggregate_bias": "LONG_TILT",
+          "asset_signals": [
+            {
+              "asset": "NAS100",
+              "bias": "LONG_BIAS",
+              "confidence": 76.4,
+              "samples": 186,
+              "avg_outcome_pips": 11.76,
+              "verified_rate_pct": 58.6
+            },
+            {
+              "asset": "SP500",
+              "bias": "LONG_BIAS",
+              "confidence": 76.5,
+              "samples": 186,
+              "avg_outcome_pips": 9.02,
+              "verified_rate_pct": 60.22
+            },
+            {
+              "asset": "XAUUSD",
+              "bias": "LONG_BIAS",
+              "confidence": 82.87,
+              "samples": 186,
+              "avg_outcome_pips": 12.63,
+              "verified_rate_pct": 65.05
+            },
+            {
+              "asset": "EURUSD",
+              "bias": "SHORT_BIAS",
+              "confidence": 70.09,
+              "samples": 186,
+              "avg_outcome_pips": -2.41,
+              "verified_rate_pct": 56.99
+            }
+          ]
+        },
+        {
+          "date": "2026-03-04",
+          "weekday": "Wed",
+          "aggregate_bias": "LONG_TILT",
+          "asset_signals": [
+            {
+              "asset": "NAS100",
+              "bias": "LONG_BIAS",
+              "confidence": 72.83,
+              "samples": 184,
+              "avg_outcome_pips": 1.22,
+              "verified_rate_pct": 60.87
+            },
+            {
+              "asset": "SP500",
+              "bias": "LONG_BIAS",
+              "confidence": 71.37,
+              "samples": 184,
+              "avg_outcome_pips": 0.34,
+              "verified_rate_pct": 59.78
+            },
+            {
+              "asset": "XAUUSD",
+              "bias": "LONG_BIAS",
+              "confidence": 80.48,
+              "samples": 184,
+              "avg_outcome_pips": 12.15,
+              "verified_rate_pct": 63.04
+            },
+            {
+              "asset": "EURUSD",
+              "bias": "SHORT_BIAS",
+              "confidence": 70.79,
+              "samples": 184,
+              "avg_outcome_pips": -0.2,
+              "verified_rate_pct": 59.24
+            }
+          ]
+        },
+        {
+          "date": "2026-03-05",
+          "weekday": "Thu",
+          "aggregate_bias": "LONG_TILT",
+          "asset_signals": [
+            {
+              "asset": "NAS100",
+              "bias": "LONG_BIAS",
+              "confidence": 70.89,
+              "samples": 179,
+              "avg_outcome_pips": 5.76,
+              "verified_rate_pct": 56.98
+            },
+            {
+              "asset": "SP500",
+              "bias": "LONG_BIAS",
+              "confidence": 68.76,
+              "samples": 179,
+              "avg_outcome_pips": 6.69,
+              "verified_rate_pct": 54.19
+            },
+            {
+              "asset": "XAUUSD",
+              "bias": "LONG_BIAS",
+              "confidence": 76.1,
+              "samples": 179,
+              "avg_outcome_pips": 9.81,
+              "verified_rate_pct": 60.34
+            },
+            {
+              "asset": "EURUSD",
+              "bias": "SHORT_BIAS",
+              "confidence": 72.91,
+              "samples": 179,
+              "avg_outcome_pips": -2.6,
+              "verified_rate_pct": 60.89
+            }
+          ]
+        },
+        {
+          "date": "2026-03-06",
+          "weekday": "Fri",
+          "aggregate_bias": "LONG_TILT",
+          "asset_signals": [
+            {
+              "asset": "NAS100",
+              "bias": "LONG_BIAS",
+              "confidence": 83.68,
+              "samples": 184,
+              "avg_outcome_pips": 18.37,
+              "verified_rate_pct": 63.04
+            },
+            {
+              "asset": "SP500",
+              "bias": "LONG_BIAS",
+              "confidence": 78.84,
+              "samples": 184,
+              "avg_outcome_pips": 13.89,
+              "verified_rate_pct": 60.33
+            },
+            {
+              "asset": "XAUUSD",
+              "bias": "LONG_BIAS",
+              "confidence": 76.92,
+              "samples": 184,
+              "avg_outcome_pips": 12.12,
+              "verified_rate_pct": 59.24
+            },
+            {
+              "asset": "EURUSD",
+              "bias": "LONG_BIAS",
+              "confidence": 73.81,
+              "samples": 184,
+              "avg_outcome_pips": 1.14,
+              "verified_rate_pct": 61.96
             }
           ]
         }

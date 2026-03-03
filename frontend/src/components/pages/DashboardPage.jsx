@@ -409,7 +409,7 @@ const useIsMobile = () => {
 };
 
 // Asset Charts Grid (2-3 charts visible at once)
-const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false, onSyncAsset, className = '' }) => {
+const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false, onSyncAsset, vix, regime, className = '' }) => {
   // State with LocalStorage Persistence
   const [viewMode, setViewMode] = useState('focus');
   const [selectedAsset, setSelectedAsset] = useState(() => localStorage.getItem('dashboard_selectedAsset') || null);
@@ -629,15 +629,63 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
     seasonalityBias,
     weekRule.description
   ]);
-  const screeningFocusSummaryLines = (() => {
-    const lines = [...(dailyOutlook?.outlookLines || [])];
-    if (lines.length < 4) {
-      lines.push(`Contesto ATR: ${Math.round(atrProgress)}% del range medio giornaliero gia percorso.`);
-    }
-    while (lines.length < 4) {
-      lines.push('Monitoraggio multi-timeframe in corso per conferma direzionale.');
-    }
-    return lines.slice(0, 4);
+  const screeningFocusNarrative = (() => {
+    if (!currentAsset) return 'Screening in aggiornamento.';
+
+    const assetLabelMap = {
+      NAS100: 'Nasdaq',
+      SP500: 'S&P 500',
+      XAUUSD: 'Oro',
+      EURUSD: 'EUR/USD',
+      DOW: 'Dow Jones',
+      BTCUSD: 'Bitcoin'
+    };
+    const assetLabel = assetLabelMap[currentAsset.symbol] || currentAsset.symbol;
+    const directionLabel = currentAsset.direction === 'Up'
+      ? 'rialzista'
+      : currentAsset.direction === 'Down'
+        ? 'ribassista'
+        : 'neutrale';
+    const drivers = Array.isArray(currentAsset?.drivers) ? currentAsset.drivers : [];
+    const rawPositioning = Number(currentAsset?.scores?.positioning);
+    const hasPositioning = Number.isFinite(rawPositioning);
+    const positioningNet = hasPositioning ? Math.round(rawPositioning - 50) : null;
+    const positioningSide = hasPositioning && positioningNet < 0 ? 'short' : 'long';
+    const rawVolatility = Number(currentAsset?.scores?.volatility);
+    const hasVolatility = Number.isFinite(rawVolatility);
+    const volatilityLabel = hasVolatility
+      ? (rawVolatility >= 65 ? 'alta' : rawVolatility >= 45 ? 'moderata' : 'contenuta')
+      : null;
+    const stressDriver = drivers.some((d) => {
+      const name = String(d?.name || d || '').toLowerCase();
+      const impact = String(d?.impact || '').toLowerCase();
+      const isRiskNode = name.includes('vix') || name.includes('regime') || name.includes('volatil') || name.includes('risk');
+      const stressImpact = impact.includes('bear') || impact.includes('down') || impact.includes('high') || impact.includes('stress');
+      return isRiskNode && stressImpact;
+    });
+    const vixLevel = Number(vix?.current);
+    const regimeLower = String(regime || '').toLowerCase();
+    const vixRiskFloor = Number.isFinite(vixLevel)
+      ? (vixLevel >= 24 ? 78 : vixLevel >= 20 ? 62 : vixLevel >= 16 ? 46 : 34)
+      : 0;
+    const regimeRiskFloor = regimeLower === 'risk-off' ? 74 : regimeLower === 'risk-on' ? 42 : 0;
+    const riskScore = Math.max(hasVolatility ? rawVolatility : 0, stressDriver ? 72 : 0, vixRiskFloor, regimeRiskFloor);
+    const riskLabel = riskScore >= 70 ? 'elevato' : riskScore >= 50 ? 'moderato' : 'contenuto';
+    const regimeTone = stressDriver ? 'regime di rischio teso' : 'regime operativo stabile';
+    const positioningText = hasPositioning
+      ? `Posizionamento istituzionale ${positioningSide} al ${Math.abs(positioningNet)}% netto.`
+      : 'Posizionamento istituzionale: dato CFTC non disponibile.';
+    const volatilityText = hasVolatility
+      ? `Volatilita attesa ${volatilityLabel}; ${regimeTone}.`
+      : `Volatilita attesa: dato non disponibile nel feed live; ${regimeTone}.`;
+    const discretionarySummary = String(currentAsset?.discretionaryContext?.summary || '').trim();
+    const dynamicLine = discretionarySummary || 'Contesto dinamico in aggiornamento.';
+
+    const line1 = `Bias ${directionLabel} al ${currentConfidence}% con rischio ${riskLabel}.`;
+    const line2 = `${positioningText}\n${volatilityText}`;
+    const line3 = dynamicLine;
+
+    return `${line1}\n${line2}\n${line3}`;
   })();
 
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
@@ -1036,7 +1084,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
               className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms] min-h-[364px] lg:min-h-[403px]"
             >
               <div className="space-y-3">
-                <div className="w-full aspect-[16/8] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
+                <div className="w-full aspect-[16/7] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
                   {animationsReady ? (
                     <TradingViewMiniChart
                       assetSymbol={currentAsset.symbol}
@@ -1049,15 +1097,16 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3">
-                  <ul className="space-y-1.5">
-                    {screeningFocusSummaryLines.map((line, i) => (
-                      <li key={`focus-summary-${i}`} className="flex items-start gap-2.5 text-sm font-semibold text-white/95 leading-relaxed tracking-tight">
-                        <div className="mt-2 w-1 h-1 rounded-full bg-[#00D9A5]/60 shadow-[0_0_8px_#00D9A5]/40 flex-shrink-0" />
-                        <TypewriterText text={line} speed={18} delay={400 + i * 320} />
-                      </li>
-                    ))}
-                  </ul>
+                <div className="relative rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3 space-y-1">
+                  <p className="font-apple text-[17px] font-medium text-white/95 leading-relaxed tracking-[0.01em] whitespace-pre-line pr-20">
+                    <TypewriterText text={screeningFocusNarrative} speed={18} delay={400} />
+                  </p>
+                  <button
+                    type="button"
+                    className="absolute right-4 bottom-3 inline-flex items-center justify-center h-7 min-w-[66px] px-3 rounded-[7px] border border-[#8B5CF6]/75 bg-[#23173D]/78 text-[#E5D9FF] text-[13px] font-semibold tracking-[0.01em] shadow-[0_0_12px_rgba(139,92,246,0.35)] hover:bg-[#2B1D4B]/85 transition-colors"
+                  >
+                    Deep
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -4243,16 +4292,7 @@ export default function DashboardPage() {
 
   const { analyses, vix, regime, next_event } = multiSourceData || {};
 
-  // Mock data for demo mode when backend is unavailable
-  const mockAnalyses = useMemo(() => ({
-    'XAUUSD': { price: 5055.2, direction: 'Up', confidence: 58, impulse: 'Rallenta', drivers: [{ name: 'Safe Haven', impact: 'Bullish' }, { name: 'Long liquidation', impact: 'Cautela' }] },
-    'NAS100': { price: 21450, direction: 'Up', confidence: 55, impulse: 'Laterale', drivers: [{ name: 'NFP forte', impact: 'Positivo' }, { name: 'Tech weakness', impact: 'Cautela' }] },
-    'SP500': { price: 6941.5, direction: 'Up', confidence: 52, impulse: 'Laterale', drivers: [{ name: 'NFP Beat', impact: 'Supportivo' }, { name: 'Fed hawkish', impact: 'Freno' }] },
-    'EURUSD': { price: 1.1870, direction: 'Up', confidence: 65, impulse: 'Prosegue', drivers: [{ name: 'USD Debole', impact: 'Bullish' }, { name: 'ECB Hawkish', impact: 'Supportivo' }] },
-  }), []);
-
-  // Use real data if available, otherwise fallback to mock data
-  const analysesData = analyses || mockAnalyses;
+  const analysesData = analyses || {};
 
   // Build assets array for chart tabs (no VIX)
   const assetsList = useMemo(() => Object.entries(analysesData).map(([symbol, data]) => {
@@ -4272,6 +4312,7 @@ export default function DashboardPage() {
       explanation: data.drivers?.map(d => `${d.name}: ${d.impact}`).join('. '),
       scores: assetEngineData?.scores || {},
       drivers: assetEngineData?.drivers || [],
+      discretionaryContext: assetEngineData?.discretionary_context || null,
       atr: assetEngineData?.atr,
       dayChangePoints: assetEngineData?.day_change_points,
       dayChangePct: assetEngineData?.day_change_pct,
@@ -4281,39 +4322,9 @@ export default function DashboardPage() {
     };
   }), [analysesData, engineData, livePrices]);
 
-  // Mock COT data for demo mode
-  const mockCotData = useMemo(() => ({
-    data: {
-      'NAS100': {
-        bias: 'Bear',
-        categories: {
-          asset_manager: { long: 58000, short: 82000 }
-        }
-      },
-      'SP500': {
-        bias: 'Bear',
-        categories: {
-          asset_manager: { long: 95000, short: 214941 }
-        }
-      },
-      'XAUUSD': {
-        bias: 'Bull',
-        categories: {
-          managed_money: { long: 115000, short: 52000 }
-        }
-      },
-      'EURUSD': {
-        bias: 'Bull',
-        categories: {
-          asset_manager: { long: 185000, short: 48000 }
-        }
-      },
-    }
-  }), []);
-
-  // Use real COT data only when at least one symbol is available
-  const hasLiveCotData = cotSummary?.data && Object.keys(cotSummary.data).length > 0;
-  const cotDataToUse = hasLiveCotData ? cotSummary : mockCotData;
+  const cotDataToUse = cotSummary?.data && Object.keys(cotSummary.data).length > 0
+    ? cotSummary
+    : { data: {} };
   const handleSyncAsset = useCallback((symbol) => {
     // Sync COT Favorites
     if (cotDataToUse?.data?.[symbol]) {
@@ -4504,6 +4515,8 @@ export default function DashboardPage() {
                 onFavoriteChange={setFavoriteCharts}
                 animationsReady={headerHidden}
                 onSyncAsset={handleSyncAsset}
+                vix={vix}
+                regime={regime}
                 className="lg:w-[calc(44%+1px)]"
               />
               <div className="lg:w-[calc(40%+1px)] lg:-ml-[4px]">

@@ -8,6 +8,8 @@ over multiple micro and macro timeframes using 5m/15m Yahoo Finance data.
 import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Dict, List, Optional
+import pandas as pd
 import local_vault_matrix
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -33,6 +35,80 @@ MFE_TIMEFRAMES = {
     "t_24h": timedelta(hours=24),
     "t_5d": timedelta(days=5)
 }
+STALE_DATA_GRACE = timedelta(hours=48)
+
+def _to_numeric_series(values) -> pd.Series:
+    """Normalize scalar/Series/DataFrame values into a numeric pandas Series."""
+    if values is None:
+        return pd.Series(dtype="float64")
+
+    if isinstance(values, pd.DataFrame):
+        if values.empty or values.shape[1] == 0:
+            return pd.Series(dtype="float64")
+        values = values.iloc[:, 0]
+
+    if isinstance(values, pd.Series):
+        series = values
+    else:
+        series = pd.Series([values])
+
+    return pd.to_numeric(series, errors="coerce").dropna()
+
+def _normalize_ohlc_frame(df) -> pd.DataFrame:
+    """
+    Normalize yfinance output to single-level OHLC columns.
+    yfinance may return a MultiIndex (Price, Ticker) even for a single ticker.
+    """
+    if df.empty:
+        return df
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df = df.copy()
+        df.columns = [col[0] for col in df.columns.to_flat_index()]
+        df = df.loc[:, ~pd.Index(df.columns).duplicated(keep="first")]
+
+    if "Close" not in df.columns and "Adj Close" in df.columns:
+        df = df.rename(columns={"Adj Close": "Close"})
+
+    return df
+
+def _parse_saved_at(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)
+    except Exception:
+        return None
+
+def _normalize_direction(direction: str) -> str:
+    normalized = str(direction or "").strip().upper()
+    if normalized in {"UP", "LONG", "BUY", "BULL", "BULLISH"}:
+        return "UP"
+    if normalized in {"DOWN", "SHORT", "SELL", "BEAR", "BEARISH"}:
+        return "DOWN"
+    return "NEUTRAL"
+
+def _due_timeframes(saved_at: datetime, flags: dict, now: datetime) -> List[str]:
+    due = []
+    for tf_key, duration in MFE_TIMEFRAMES.items():
+        if flags.get(tf_key):
+            continue
+        if now >= (saved_at + duration):
+            due.append(tf_key)
+    return due
+
+def _mark_stale_due_timeframes(snapshot_id: str, saved_at: datetime, due_tfs: List[str], now: datetime) -> int:
+    """
+    Mark due timeframes as evaluated when no market data is available long enough.
+    This avoids endless retries on permanently unavailable feeds.
+    """
+    marked = 0
+    for tf_key in due_tfs:
+        tf_end = saved_at + MFE_TIMEFRAMES[tf_key]
+        if now > (tf_end + STALE_DATA_GRACE):
+            local_vault_matrix.mark_timeframe_evaluated(snapshot_id, tf_key)
+            marked += 1
+    return marked
 
 def calculate_mfe_mae(start_price: float, direction: str, df_slice) -> tuple:
     """
@@ -42,10 +118,17 @@ def calculate_mfe_mae(start_price: float, direction: str, df_slice) -> tuple:
     if df_slice.empty:
         return 0, 0, False
         
+    high_series = _to_numeric_series(df_slice.get("High"))
+    low_series = _to_numeric_series(df_slice.get("Low"))
+    close_series = _to_numeric_series(df_slice.get("Close"))
+
+    if high_series.empty or low_series.empty or close_series.empty:
+        return 0, 0, False
+
     # Get highest high and lowest low of the period slice
-    period_high = float(df_slice['High'].max())
-    period_low = float(df_slice['Low'].min())
-    final_close = float(df_slice['Close'].iloc[-1])
+    period_high = float(high_series.max())
+    period_low = float(low_series.min())
+    final_close = float(close_series.iloc[-1])
     
     if direction == "UP":
         mfe = period_high - start_price
@@ -63,7 +146,7 @@ def calculate_mfe_mae(start_price: float, direction: str, df_slice) -> tuple:
         
     return mfe, mae, hit
 
-async def run_matrix_evaluations():
+def _run_matrix_evaluations_sync():
     """
     Core engine loop. Fetches unevaluated snapshots, 
     downloads high-resolution chart data, and slices it by timeframe.
@@ -85,110 +168,177 @@ async def run_matrix_evaluations():
         
     now = datetime.now(timezone.utc)
     evaluated_count = 0
-    
+    stale_marked = 0
+
+    # Build only actionable tasks first: no download if no due timeframe.
+    pending_by_asset: Dict[str, List[dict]] = {}
+    skipped_not_due = 0
+    skipped_invalid = 0
+
     for snp in snapshots:
         snapshot_id = snp.get("id")
         asset = snp.get("asset")
-        direction = snp.get("direction")
-        entry_price = snp.get("entry_price")
+        flags = snp.get("evaluated_flags", {})
         context = snp.get("context", {})
-        
-        try:
-            saved_at = datetime.fromisoformat(snp["saved_at"].replace("Z", "+00:00"))
-        except:
+
+        if not snapshot_id:
+            skipped_invalid += 1
             continue
-            
-        # We need data from `saved_at` up to `saved_at + 5 days` ideally.
-        # But if `now` is less than `saved_at + 5 days`, we can't evaluate the 5d timeframe yet.
-        # We fetch up to `now`.
-        
-        start_fetch = saved_at - timedelta(hours=1)
-        end_fetch = now + timedelta(hours=1)
-        
-        start_str = start_fetch.strftime('%Y-%m-%d')
-        end_str = end_fetch.strftime('%Y-%m-%d')
+
+        saved_at = _parse_saved_at(snp.get("saved_at"))
+        if not saved_at:
+            skipped_invalid += 1
+            continue
+
+        due_tfs = _due_timeframes(saved_at, flags, now)
+        if not due_tfs:
+            skipped_not_due += 1
+            continue
+
         ticker = TICKER_MAP.get(asset)
-        
         if not ticker:
+            stale_marked += _mark_stale_due_timeframes(snapshot_id, saved_at, due_tfs, now)
+            skipped_invalid += 1
             continue
-            
-        logger.info(f"Downloading YF data for {asset} from {start_str} to {end_str}")
-        
-        # Download 5-minute candles for absolute MFE/MAE precision
+
+        entry_series = _to_numeric_series(snp.get("entry_price"))
+        if entry_series.empty:
+            stale_marked += _mark_stale_due_timeframes(snapshot_id, saved_at, due_tfs, now)
+            skipped_invalid += 1
+            continue
+
+        direction = _normalize_direction(snp.get("direction"))
+        if direction == "NEUTRAL":
+            stale_marked += _mark_stale_due_timeframes(snapshot_id, saved_at, due_tfs, now)
+            skipped_invalid += 1
+            continue
+
+        pending_by_asset.setdefault(asset, []).append({
+            "snapshot_id": snapshot_id,
+            "saved_at": saved_at,
+            "due_tfs": due_tfs,
+            "direction": direction,
+            "entry_price": float(entry_series.iloc[-1]),
+            "context": context,
+        })
+
+    if not pending_by_asset:
+        logger.info(
+            "📊 [MATRIX] Daemon sleep. No due timeframes. skipped_not_due=%s skipped_invalid=%s stale_marked=%s",
+            skipped_not_due,
+            skipped_invalid,
+            stale_marked,
+        )
+        return {"evaluated": 0, "stale_marked": stale_marked}
+
+    for asset, items in pending_by_asset.items():
+        ticker = TICKER_MAP.get(asset)
+        if not ticker:
+            for item in items:
+                stale_marked += _mark_stale_due_timeframes(item["snapshot_id"], item["saved_at"], item["due_tfs"], now)
+            continue
+
+        start_fetch = min(item["saved_at"] for item in items) - timedelta(hours=1)
+        end_fetch = now + timedelta(hours=1)
+        start_str = start_fetch.strftime("%Y-%m-%d")
+        end_str = end_fetch.strftime("%Y-%m-%d")
+
+        logger.info("Downloading YF data for %s from %s to %s (%s snapshots)", asset, start_str, end_str, len(items))
+
         try:
-            df = await asyncio.to_thread(
-                yf.download,
+            df = yf.download(
                 tickers=ticker,
                 start=start_str,
                 end=end_str,
                 interval="5m",
-                progress=False
+                progress=False,
             )
         except Exception as e:
-            logger.warning(f"Failed to download data for {asset}: {e}")
+            logger.warning("Failed to download data for %s: %s", asset, e)
+            for item in items:
+                stale_marked += _mark_stale_due_timeframes(item["snapshot_id"], item["saved_at"], item["due_tfs"], now)
             continue
-            
+
         if df.empty:
+            logger.warning("No YF data returned for %s (%s -> %s)", asset, start_str, end_str)
+            for item in items:
+                stale_marked += _mark_stale_due_timeframes(item["snapshot_id"], item["saved_at"], item["due_tfs"], now)
             continue
-            
+
+        df = _normalize_ohlc_frame(df)
+        required_cols = {"High", "Low", "Close"}
+        if not required_cols.issubset(df.columns):
+            logger.warning("Skipping %s: missing OHLC columns after normalization (%s)", asset, df.columns.tolist())
+            for item in items:
+                stale_marked += _mark_stale_due_timeframes(item["snapshot_id"], item["saved_at"], item["due_tfs"], now)
+            continue
+
         # Convert index to UTC for safe comparison
         if df.index.tz is None:
-             df.index = df.index.tz_localize('UTC')
+            df.index = df.index.tz_localize("UTC")
         else:
-             df.index = df.index.tz_convert('UTC')
-             
-        flags = snp.get("evaluated_flags", {})
-        
-        for tf_key, duration in MFE_TIMEFRAMES.items():
-            if flags.get(tf_key):
-                continue # Already evaluated this timeframe on a previous run
-                
-            tf_end_time = saved_at + duration
-            
-            # If the timeframe hasn't happened yet in the real world, skip it until next daemon run
-            if now < tf_end_time:
-                continue 
-                
-            # Slice the dataframe exactly for this timeframe window
-            mask = (df.index >= saved_at) & (df.index <= tf_end_time)
-            df_slice = df.loc[mask]
-            
-            if df_slice.empty:
-                # Might be weekend or outside trading hours
-                logger.debug(f"No market data for {asset} exactly between {saved_at} and {tf_end_time}. Skipping TF {tf_key}.")
-                
-                # If we are vastly past the timeframe (e.g. 24h passed) and still no data, mark it True to not loop forever
-                if now > tf_end_time + timedelta(hours=48):
-                     local_vault_matrix.mark_timeframe_evaluated(snapshot_id, tf_key)
-                continue
-                
-            mfe_raw, mae_raw, hit = calculate_mfe_mae(entry_price, direction, df_slice)
-            
-            # Format pips safely based on asset decimals
-            multiplier = 10000 if "USD" in asset else 1
-            mfe_pips = round(mfe_raw * multiplier, 1)
-            mae_pips = round(mae_raw * multiplier, 1)
-            
-            # Save the metric mathematically
-            eval_data = {
-                "prediction_id": snapshot_id,
-                "asset": asset,
-                "timeframe": tf_key,
-                "direction": direction,
-                "mfe_pips": mfe_pips,
-                "mae_pips": mae_pips,
-                "hit": hit,
-                "context": context  # The secret sauce: copying the full multidimensional vector
-            }
-            
-            local_vault_matrix.save_matrix_evaluation(eval_data)
-            local_vault_matrix.mark_timeframe_evaluated(snapshot_id, tf_key)
-            
-            logger.info(f"✅ {asset} [{tf_key}] -> MFE: {mfe_pips} pips | MAE: {mae_pips} pips | Final Hit: {hit}")
-            evaluated_count += 1
+            df.index = df.index.tz_convert("UTC")
 
-    logger.info(f"📊 [MATRIX] Daemon sleep. Evaluated {evaluated_count} multi-dimensional slices.")
-    return {"evaluated": evaluated_count}
+        for item in items:
+            snapshot_id = item["snapshot_id"]
+            saved_at = item["saved_at"]
+            direction = item["direction"]
+            entry_price = item["entry_price"]
+            context = item["context"]
+
+            for tf_key in item["due_tfs"]:
+                tf_end_time = saved_at + MFE_TIMEFRAMES[tf_key]
+                mask = (df.index >= saved_at) & (df.index <= tf_end_time)
+                df_slice = df.loc[mask]
+
+                if df_slice.empty:
+                    stale_marked += _mark_stale_due_timeframes(snapshot_id, saved_at, [tf_key], now)
+                    continue
+
+                mfe_raw, mae_raw, hit = calculate_mfe_mae(entry_price, direction, df_slice)
+
+                # Format pips safely based on asset decimals
+                multiplier = 10000 if "USD" in asset else 1
+                mfe_pips = round(mfe_raw * multiplier, 1)
+                mae_pips = round(mae_raw * multiplier, 1)
+
+                # Save the metric mathematically
+                eval_data = {
+                    "prediction_id": snapshot_id,
+                    "asset": asset,
+                    "timeframe": tf_key,
+                    "direction": direction,
+                    "mfe_pips": mfe_pips,
+                    "mae_pips": mae_pips,
+                    "hit": hit,
+                    "context": context,  # The secret sauce: copying the full multidimensional vector
+                }
+
+                local_vault_matrix.save_matrix_evaluation(eval_data)
+                local_vault_matrix.mark_timeframe_evaluated(snapshot_id, tf_key)
+
+                logger.info("✅ %s [%s] -> MFE: %s pips | MAE: %s pips | Final Hit: %s", asset, tf_key, mfe_pips, mae_pips, hit)
+                evaluated_count += 1
+
+    logger.info(
+        "📊 [MATRIX] Daemon sleep. Evaluated %s slices. stale_marked=%s skipped_not_due=%s skipped_invalid=%s",
+        evaluated_count,
+        stale_marked,
+        skipped_not_due,
+        skipped_invalid,
+    )
+    return {
+        "evaluated": evaluated_count,
+        "stale_marked": stale_marked,
+        "skipped_not_due": skipped_not_due,
+        "skipped_invalid": skipped_invalid,
+    }
+
+async def run_matrix_evaluations():
+    """
+    Async wrapper to keep FastAPI event loop responsive while matrix I/O runs.
+    """
+    return await asyncio.to_thread(_run_matrix_evaluations_sync)
 
 if __name__ == "__main__":
     asyncio.run(run_matrix_evaluations())

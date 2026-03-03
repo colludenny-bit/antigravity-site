@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, status, Body
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, status, Body, Header, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 import jwt
 import bcrypt
 from PyPDF2 import PdfReader
@@ -19,6 +20,7 @@ import random
 import math
 import yfinance as yf
 import requests
+import csv
 from functools import lru_cache
 import asyncio
 import google.generativeai as genai
@@ -33,6 +35,8 @@ from collection_control import (
     status_payload as collection_status_payload,
 )
 from persistence_guard import archive_event, lake_status, run_maintenance
+from svp_live_store import ingest_live_snapshot, get_live_svp_pair, get_live_svp_status
+from tv_screenshot_store import save_screenshot, get_latest as get_latest_tv_screenshot, get_recent as get_recent_tv_screenshots, get_status as get_tv_screenshot_status
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -74,6 +78,7 @@ GEMINI_MODEL_PRO = os.environ.get('GEMINI_MODEL_PRO', GEMINI_MODEL_CHEAP)
 # Initialize models
 gemini_flash = genai.GenerativeModel(GEMINI_MODEL_CHEAP) if GEMINI_API_KEY else None
 gemini_pro = genai.GenerativeModel(GEMINI_MODEL_PRO) if GEMINI_API_KEY else None
+SVP_WEBHOOK_SECRET = os.environ.get("SVP_WEBHOOK_SECRET", "").strip()
 
 app = FastAPI(title="TradingOS API")
 api_router = APIRouter(prefix="/api")
@@ -290,8 +295,38 @@ class CollectionControlInput(BaseModel):
     auto_pause_market_closed: Optional[bool] = None
 
 
+class SVPLiveIngest(BaseModel):
+    asset: Optional[str] = None
+    symbol: Optional[str] = None
+    ticker: Optional[str] = None
+    va_low: Optional[float] = None
+    va_high: Optional[float] = None
+    vah: Optional[float] = None
+    val: Optional[float] = None
+    poc: Optional[float] = None
+    vpoc: Optional[float] = None
+    rome_day: Optional[str] = None
+    timestamp_utc: Optional[str] = None
+    timestamp: Optional[str] = None
+    timeframe: Optional[str] = None
+    resolution: Optional[str] = None
+    session_name: Optional[str] = None
+    session: Optional[str] = None
+    is_closed: Optional[bool] = False
+    source: Optional[str] = "TRADINGVIEW_WEBHOOK"
+    secret: Optional[str] = None
+
+
 class SessionRunInput(BaseModel):
     day: Optional[str] = None
+
+
+class UserPreferencesInput(BaseModel):
+    selected_asset: Optional[str] = None
+    sync_enabled: Optional[bool] = None
+    chart_line_color: Optional[str] = None
+    theme: Optional[str] = None
+    language: Optional[str] = None
 
 # ==================== AUTH HELPERS ====================
 
@@ -1728,6 +1763,92 @@ async def get_market_breadth():
         raise HTTPException(status_code=503, detail="Market breadth temporarily unavailable")
 
 
+@api_router.post("/market/svp/live")
+async def ingest_market_svp_live(payload: SVPLiveIngest, x_svp_secret: Optional[str] = Header(default=None)):
+    token = (x_svp_secret or payload.secret or "").strip()
+    if SVP_WEBHOOK_SECRET and token != SVP_WEBHOOK_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid SVP webhook secret")
+
+    try:
+        row = ingest_live_snapshot(payload.model_dump())
+        global _price_action_cache
+        _price_action_cache = {"data": None, "timestamp": None}
+        archive_event("svp_live_ingest", {"status": "ok", "asset": row.get("asset"), "rome_day": row.get("rome_day")})
+        return {"status": "ok", "saved": row}
+    except ValueError as exc:
+        archive_event("collection_errors", {"job": "svp_live_ingest", "error": str(exc)})
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        archive_event("collection_errors", {"job": "svp_live_ingest", "error": str(exc)})
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@api_router.get("/market/svp/live/status")
+async def market_svp_live_status(current_user: str = Depends(get_current_user)):
+    return get_live_svp_status()
+
+
+@api_router.get("/market/svp/live/{asset}")
+async def market_svp_live_asset(asset: str, current_user: str = Depends(get_current_user)):
+    pair = get_live_svp_pair(asset)
+    if not pair:
+        raise HTTPException(status_code=404, detail="SVP live snapshot not available")
+    return {"status": "ok", "pair": pair}
+
+
+@api_router.post("/market/svp/screenshot/upload")
+async def upload_market_svp_screenshot(
+    file: UploadFile = File(...),
+    asset: str = Form(...),
+    note: Optional[str] = Form(default=None),
+    source: Optional[str] = Form(default="TV_AUTOMATION"),
+    captured_at_utc: Optional[str] = Form(default=None),
+    secret: Optional[str] = Form(default=None),
+    x_svp_secret: Optional[str] = Header(default=None),
+):
+    token = (x_svp_secret or secret or "").strip()
+    if SVP_WEBHOOK_SECRET and token != SVP_WEBHOOK_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid SVP webhook secret")
+
+    try:
+        content = await file.read()
+        row = save_screenshot(
+            asset=asset,
+            content=content,
+            filename=file.filename or "chart.png",
+            source=source or "TV_AUTOMATION",
+            note=note,
+            captured_at_utc=captured_at_utc,
+        )
+        archive_event("tv_screenshots", {"status": "ok", "asset": row.get("asset"), "path": row.get("path")})
+        return {"status": "ok", "saved": row}
+    except ValueError as exc:
+        archive_event("collection_errors", {"job": "tv_screenshot_upload", "error": str(exc)})
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        archive_event("collection_errors", {"job": "tv_screenshot_upload", "error": str(exc)})
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@api_router.get("/market/svp/screenshot/status")
+async def market_svp_screenshot_status(current_user: str = Depends(get_current_user)):
+    return get_tv_screenshot_status()
+
+
+@api_router.get("/market/svp/screenshot/latest/{asset}")
+async def market_svp_screenshot_latest(asset: str, current_user: str = Depends(get_current_user)):
+    row = get_latest_tv_screenshot(asset)
+    if not row:
+        raise HTTPException(status_code=404, detail="No screenshot for asset")
+    return {"status": "ok", "latest": row}
+
+
+@api_router.get("/market/svp/screenshot/feed")
+async def market_svp_screenshot_feed(asset: Optional[str] = None, limit: int = 20, current_user: str = Depends(get_current_user)):
+    rows = get_recent_tv_screenshots(asset=asset, limit=limit)
+    return {"status": "ok", "rows": rows, "count": len(rows)}
+
+
 
 
 # ==================== MARKET DATA ====================
@@ -1735,6 +1856,1065 @@ async def get_market_breadth():
 # Cache for market data (refresh every 5 minutes)
 _market_cache = {"data": None, "timestamp": None}
 _vix_cache = {"data": None, "timestamp": None}
+_cot_live_cache = {"data": None, "timestamp": None}
+_session_discretionary_cache = {"data": None, "timestamp": None}
+_price_action_cache = {"data": None, "timestamp": None}
+ROME_TZ = ZoneInfo("Europe/Rome")
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    try:
+        if value is None:
+            return default
+        if isinstance(value, str):
+            value = value.replace(",", "").strip()
+        return int(float(value))
+    except Exception:
+        return default
+
+
+def _find_cot_row(rows: List[List[str]], predicate) -> Optional[List[str]]:
+    for row in rows:
+        if not row:
+            continue
+        name = str(row[0]).upper()
+        if predicate(name):
+            return row
+    return None
+
+
+def _median(values: List[float]) -> float:
+    vals = [float(v) for v in values if isinstance(v, (int, float)) and math.isfinite(float(v))]
+    if not vals:
+        return 0.0
+    vals.sort()
+    mid = len(vals) // 2
+    if len(vals) % 2 == 1:
+        return vals[mid]
+    return (vals[mid - 1] + vals[mid]) / 2.0
+
+
+def _row_direction_sign(row: Dict[str, Any]) -> int:
+    label = str(row.get("outcome_direction", "")).upper()
+    if "LONG" in label:
+        return 1
+    if "SHORT" in label:
+        return -1
+    return 1 if _safe_float(row.get("outcome_pips"), 0.0) > 0 else (-1 if _safe_float(row.get("outcome_pips"), 0.0) < 0 else 0)
+
+
+def _is_range_day(row: Dict[str, Any], median_range: float) -> bool:
+    scenario = str(row.get("scenario", "")).upper()
+    ny_range = _safe_float(row.get("ny_range_pips"), 0.0)
+    if median_range <= 0:
+        return scenario == "A"
+    if scenario == "D":
+        return False
+    if scenario == "A":
+        return True
+    return ny_range <= (median_range * 0.88)
+
+
+def _is_expansion_day(row: Dict[str, Any], median_range: float) -> bool:
+    scenario = str(row.get("scenario", "")).upper()
+    ny_range = _safe_float(row.get("ny_range_pips"), 0.0)
+    if scenario == "B":
+        return True
+    if scenario == "D":
+        if median_range <= 0:
+            return True
+        return ny_range >= (median_range * 1.05)
+    if scenario == "C":
+        if median_range <= 0:
+            return False
+        return ny_range >= (median_range * 1.02)
+    if median_range <= 0:
+        return False
+    return ny_range >= (median_range * 1.16)
+
+
+def _trading_week_key(rome_day: Any) -> Optional[str]:
+    try:
+        d = datetime.fromisoformat(str(rome_day)).date()
+    except Exception:
+        return None
+    iso = d.isocalendar()
+    return f"{iso.year:04d}-W{iso.week:02d}"
+
+
+def _impact_direction_sign(value: Any) -> int:
+    text = str(value or "").strip().upper()
+    if not text:
+        return 0
+    if any(x in text for x in ("BULL", "UP", "LONG", "RISK_ON", "POSITIVE")):
+        return 1
+    if any(x in text for x in ("BEAR", "DOWN", "SHORT", "RISK_OFF", "NEGATIVE")):
+        return -1
+    return 0
+
+
+def _direction_sign_from_label(value: Any) -> int:
+    return _impact_direction_sign(value)
+
+
+def _asset_regime_sign(asset: str, regime_text: Any, vix_value: float) -> int:
+    regime = str(regime_text or "").strip().upper().replace("-", "_")
+    is_risk_off = regime == "RISK_OFF" or (vix_value >= 23.0 and vix_value > 0)
+    is_risk_on = regime == "RISK_ON" or (0 < vix_value <= 16.0)
+
+    if asset in ("NAS100", "SP500"):
+        return -1 if is_risk_off else (1 if is_risk_on else 0)
+    if asset == "XAUUSD":
+        return 1 if is_risk_off else (-1 if is_risk_on else 0)
+    if asset == "EURUSD":
+        return -1 if is_risk_off else (1 if is_risk_on else 0)
+    return 0
+
+
+def _breadth_direction_sign(breadth_row: Dict[str, Any]) -> int:
+    if not isinstance(breadth_row, dict):
+        return 0
+    ma50 = _safe_float(((breadth_row.get("above_ma50") or {}) if isinstance(breadth_row.get("above_ma50"), dict) else {}).get("pct"), float("nan"))
+    ma200 = _safe_float(((breadth_row.get("above_ma200") or {}) if isinstance(breadth_row.get("above_ma200"), dict) else {}).get("pct"), float("nan"))
+    if math.isfinite(ma50) and math.isfinite(ma200):
+        if ma50 >= 60.0 and ma200 >= 55.0:
+            return 1
+        if ma50 <= 40.0 and ma200 <= 45.0:
+            return -1
+    regime = str(breadth_row.get("breadth_regime", "")).lower()
+    if regime == "broad-bullish":
+        return 1
+    if regime == "broad-weakness":
+        return -1
+    return 0
+
+
+def _normalize_ohlc_frame(df, ticker: str):
+    try:
+        if hasattr(df, "columns") and hasattr(df.columns, "nlevels") and df.columns.nlevels > 1:
+            try:
+                level0 = set(df.columns.get_level_values(0))
+                if ticker in level0:
+                    df = df.xs(ticker, axis=1, level=0)
+                else:
+                    cols = [c[0] if isinstance(c, tuple) else c for c in df.columns.to_flat_index()]
+                    df = df.copy()
+                    df.columns = cols
+            except Exception:
+                pass
+        if "Close" not in df.columns and "Adj Close" in df.columns:
+            df = df.rename(columns={"Adj Close": "Close"})
+    except Exception:
+        return df
+    return df
+
+
+def _weighted_quantile(points: List[Dict[str, float]], q: float) -> Optional[float]:
+    if not points:
+        return None
+    qv = max(0.0, min(1.0, _safe_float(q, 0.5)))
+    ordered = sorted(
+        [{"price": _safe_float(p.get("price"), 0.0), "weight": max(0.0, _safe_float(p.get("weight"), 0.0))} for p in points],
+        key=lambda x: x["price"],
+    )
+    cleaned = [p for p in ordered if p["price"] > 0.0 and p["weight"] > 0.0]
+    if not cleaned:
+        return None
+    total = sum(p["weight"] for p in cleaned)
+    if total <= 0.0:
+        return None
+    target = total * qv
+    acc = 0.0
+    for p in cleaned:
+        acc += p["weight"]
+        if acc >= target:
+            return p["price"]
+    return cleaned[-1]["price"]
+
+
+def _build_svp_value_area(candles: List[Dict[str, Any]]) -> Dict[str, Any]:
+    points: List[Dict[str, float]] = []
+    for c in candles:
+        h = _safe_float(c.get("high"), 0.0)
+        l = _safe_float(c.get("low"), 0.0)
+        cl = _safe_float(c.get("close"), 0.0)
+        if h <= 0.0 or l <= 0.0 or cl <= 0.0:
+            continue
+        tp = (h + l + cl) / 3.0
+        vol = _safe_float(c.get("volume"), 0.0)
+        w = vol if vol > 0.0 else 1.0
+        points.append({"price": tp, "weight": w})
+
+    if not points:
+        return {
+            "va_low": None,
+            "va_high": None,
+            "va_mid": None,
+            "poc": None,
+            "range": 0.0,
+        }
+
+    va_low = _weighted_quantile(points, 0.15)
+    va_high = _weighted_quantile(points, 0.85)
+    poc = _weighted_quantile(points, 0.5)
+    if va_low is None or va_high is None or va_low <= 0.0 or va_high <= 0.0:
+        return {
+            "va_low": None,
+            "va_high": None,
+            "va_mid": None,
+            "poc": None,
+            "range": 0.0,
+        }
+    if va_high < va_low:
+        va_low, va_high = va_high, va_low
+    va_mid = (va_low + va_high) / 2.0
+    return {
+        "va_low": va_low,
+        "va_high": va_high,
+        "va_mid": va_mid,
+        "poc": poc if poc and poc > 0.0 else va_mid,
+        "range": max(va_high - va_low, 0.0),
+    }
+
+
+def _overlap_ratio(a_low: float, a_high: float, b_low: float, b_high: float) -> float:
+    lo = max(_safe_float(a_low, 0.0), _safe_float(b_low, 0.0))
+    hi = min(_safe_float(a_high, 0.0), _safe_float(b_high, 0.0))
+    inter = max(0.0, hi - lo)
+    span = max(_safe_float(a_high, 0.0) - _safe_float(a_low, 0.0), _safe_float(b_high, 0.0) - _safe_float(b_low, 0.0), 1e-9)
+    return max(0.0, min(1.0, inter / span))
+
+
+def build_price_action_context_map() -> Dict[str, Dict[str, Any]]:
+    """
+    Intraday price-action context:
+    - compression/expansion state vs recent daily ranges
+    - intraday impulse and close location
+    - rebalancing signals after one-sided intraday move
+    """
+    global _price_action_cache
+    now = datetime.now(timezone.utc)
+    if _price_action_cache["data"] and _price_action_cache["timestamp"]:
+        age = (now - _price_action_cache["timestamp"]).total_seconds()
+        if age < 3 * 60:
+            return _price_action_cache["data"]
+
+    out: Dict[str, Dict[str, Any]] = {}
+    symbols = {
+        "NAS100": "NQ=F",
+        "SP500": "ES=F",
+        "XAUUSD": "GC=F",
+        "EURUSD": "EURUSD=X",
+    }
+
+    try:
+        now_rome = datetime.now(ROME_TZ)
+        now_rome_day = now_rome.date().isoformat()
+
+        def _day_stats(candles: List[Dict[str, Any]]) -> Dict[str, Any]:
+            if not candles:
+                return {
+                    "open": 0.0,
+                    "close": 0.0,
+                    "high": 0.0,
+                    "low": 0.0,
+                    "range": 0.0,
+                    "move_pct": 0.0,
+                    "direction": 0,
+                    "close_location": 0.5,
+                }
+            o = _safe_float(candles[0].get("open"), 0.0)
+            c = _safe_float(candles[-1].get("close"), 0.0)
+            hi = max(_safe_float(x.get("high"), c) for x in candles)
+            lo = min(_safe_float(x.get("low"), c) for x in candles)
+            r = max(hi - lo, 1e-9)
+            move_pct = ((c - o) / o * 100.0) if o > 0 else 0.0
+            close_loc = (c - lo) / r
+            return {
+                "open": o,
+                "close": c,
+                "high": hi,
+                "low": lo,
+                "range": r,
+                "move_pct": move_pct,
+                "direction": 1 if c > o else (-1 if c < o else 0),
+                "close_location": max(0.0, min(1.0, close_loc)),
+            }
+
+        def _value_from_live_row(row: Dict[str, Any]) -> Dict[str, Any]:
+            low = _safe_float((row or {}).get("va_low"), 0.0)
+            high = _safe_float((row or {}).get("va_high"), 0.0)
+            mid = _safe_float((row or {}).get("va_mid"), 0.0)
+            poc = _safe_float((row or {}).get("poc"), 0.0)
+            if high < low:
+                low, high = high, low
+            rng = _safe_float((row or {}).get("range"), 0.0)
+            if rng <= 0.0 and high > 0.0 and low > 0.0:
+                rng = max(high - low, 0.0)
+            if mid <= 0.0 and high > 0.0 and low > 0.0:
+                mid = (high + low) / 2.0
+            if poc <= 0.0:
+                poc = mid
+            return {"va_low": low, "va_high": high, "va_mid": mid, "poc": poc, "range": rng}
+
+        for symbol, yf_symbol in symbols.items():
+            hist = get_yf_ticker_safe(yf_symbol, period="7d", interval="15m")
+            if hist is None or hist.empty:
+                continue
+            hist = _normalize_ohlc_frame(hist, yf_symbol)
+            if hist is None or hist.empty:
+                continue
+            if not all(col in hist.columns for col in ("Open", "High", "Low", "Close")):
+                continue
+            if hist.index.tz is None:
+                hist.index = hist.index.tz_localize("UTC")
+            else:
+                hist.index = hist.index.tz_convert("UTC")
+
+            candles: List[Dict[str, Any]] = []
+            for ts, row in hist.tail(500).iterrows():
+                try:
+                    ts_utc = ts.to_pydatetime().astimezone(timezone.utc)
+                except Exception:
+                    continue
+                candles.append(
+                    {
+                        "rome_day": ts_utc.astimezone(ROME_TZ).date().isoformat(),
+                        "open": _safe_float(row.get("Open"), 0.0),
+                        "high": _safe_float(row.get("High"), 0.0),
+                        "low": _safe_float(row.get("Low"), 0.0),
+                        "close": _safe_float(row.get("Close"), 0.0),
+                        "volume": _safe_float(row.get("Volume"), 0.0),
+                    }
+                )
+            if not candles:
+                continue
+
+            by_day: Dict[str, List[Dict[str, Any]]] = {}
+            for c in candles:
+                by_day.setdefault(str(c.get("rome_day")), []).append(c)
+            day_keys = sorted(by_day.keys())
+            if not day_keys:
+                continue
+
+            stats_by_day = {d: _day_stats(by_day.get(d, [])) for d in day_keys}
+            value_by_day = {d: _build_svp_value_area(by_day.get(d, [])) for d in day_keys}
+            target_day = now_rome_day if now_rome_day in stats_by_day else day_keys[-1]
+            target_idx = day_keys.index(target_day)
+            prev_day = day_keys[target_idx - 1] if target_idx > 0 else None
+
+            today_stats = stats_by_day.get(target_day, _day_stats([]))
+            prev_stats = stats_by_day.get(prev_day, _day_stats([])) if prev_day else _day_stats([])
+            today_value = value_by_day.get(target_day, {})
+            prev_value = value_by_day.get(prev_day, {}) if prev_day else {}
+
+            day_ranges = [s["range"] for d, s in stats_by_day.items() if d <= target_day and s["range"] > 0]
+            median_day_range = _median(day_ranges[-15:]) if day_ranges else 0.0
+            range_ratio = (today_stats["range"] / median_day_range) if median_day_range > 0 else 1.0
+
+            state = "BALANCED"
+            if range_ratio <= 0.78:
+                state = "COMPRESSION"
+            elif range_ratio >= 1.22:
+                state = "EXPANSION"
+
+            rebalancing_signal = "NEUTRAL"
+            move_pct = _safe_float(today_stats.get("move_pct"), 0.0)
+            close_loc = _safe_float(today_stats.get("close_location"), 0.5)
+            if move_pct <= -0.35 and close_loc >= 0.62:
+                rebalancing_signal = "LONG"
+            elif move_pct >= 0.35 and close_loc <= 0.38:
+                rebalancing_signal = "SHORT"
+
+            gap_pct = None
+            prev_close = _safe_float(prev_stats.get("close"), 0.0)
+            day_open = _safe_float(today_stats.get("open"), 0.0)
+            if prev_close > 0 and day_open > 0:
+                gap_pct = ((day_open - prev_close) / prev_close) * 100.0
+
+            day_num = now_rome.day
+            early_month = day_num <= 14
+            price_dp = 5 if symbol == "EURUSD" else 2
+
+            svp_source = "YF_PROXY"
+            svp_source_quality = "PROXY_ESTIMATE"
+            svp_source_note = "SVP stimato da OHLC 15m (proxy), non volume profile tick-level."
+            svp_live_last_update_utc = None
+            svp_live_target_day = None
+
+            try:
+                live_pair = get_live_svp_pair(symbol, target_rome_day=target_day, strict_target=True)
+            except Exception:
+                live_pair = None
+
+            if isinstance(live_pair, dict):
+                live_today = _value_from_live_row((live_pair.get("today") or {}))
+                if live_today.get("va_low", 0.0) > 0 and live_today.get("va_high", 0.0) > 0:
+                    today_value = live_today
+                    value_by_day[target_day] = live_today
+                    svp_source = "TV_WEBHOOK_LIVE"
+                    svp_source_quality = "REAL"
+                    svp_source_note = "SVP live dal feed TradingView."
+                    svp_live_last_update_utc = str(live_pair.get("last_update_utc") or "")
+                    svp_live_target_day = str(live_pair.get("target_day") or target_day)
+
+                    live_prev_raw = live_pair.get("prev")
+                    if isinstance(live_prev_raw, dict):
+                        live_prev = _value_from_live_row(live_prev_raw)
+                        if live_prev.get("va_low", 0.0) > 0 and live_prev.get("va_high", 0.0) > 0:
+                            prev_value = live_prev
+                            if prev_day:
+                                value_by_day[prev_day] = live_prev
+                        else:
+                            svp_source_quality = "REAL_TODAY_ONLY"
+                            svp_source_note = "SVP live disponibile solo per la sessione corrente."
+                    else:
+                        svp_source_quality = "REAL_TODAY_ONLY"
+                        svp_source_note = "SVP live disponibile solo per la sessione corrente."
+
+            svp_state = "UNDEFINED"
+            svp_expected_direction = 0
+            svp_expected_path = "NO_CLEAR_PATH"
+            svp_summary = "Struttura SVP in osservazione."
+            value_shift = "NA"
+            value_relation = "NA"
+            overlap = None
+            prev_upper30 = None
+            prev_lower30 = None
+            svp_fact_status = "UNAVAILABLE"
+
+            prev_mid = _safe_float((prev_value or {}).get("va_mid"), 0.0)
+            prev_low = _safe_float((prev_value or {}).get("va_low"), 0.0)
+            prev_high = _safe_float((prev_value or {}).get("va_high"), 0.0)
+            prev_va_range = _safe_float((prev_value or {}).get("range"), 0.0)
+            curr_mid = _safe_float((today_value or {}).get("va_mid"), 0.0)
+            curr_low = _safe_float((today_value or {}).get("va_low"), 0.0)
+            curr_high = _safe_float((today_value or {}).get("va_high"), 0.0)
+
+            if prev_mid > 0 and curr_mid > 0 and prev_low > 0 and prev_high > 0 and curr_low > 0 and curr_high > 0:
+                shift_threshold = max(prev_va_range, _safe_float(today_value.get("range"), 0.0), median_day_range * 0.35, 1e-9) * 0.08
+                if curr_mid >= prev_mid + shift_threshold:
+                    value_shift = "UP"
+                elif curr_mid <= prev_mid - shift_threshold:
+                    value_shift = "DOWN"
+                else:
+                    value_shift = "FLAT"
+
+                if curr_low >= prev_mid + (shift_threshold * 0.5):
+                    value_relation = "ABOVE_PREV"
+                elif curr_high <= prev_mid - (shift_threshold * 0.5):
+                    value_relation = "BELOW_PREV"
+                else:
+                    value_relation = "OVERLAP"
+
+                overlap = _overlap_ratio(curr_low, curr_high, prev_low, prev_high)
+                prev_upper30 = {
+                    "low": round(prev_high - (prev_va_range * 0.30), price_dp),
+                    "high": round(prev_high, price_dp),
+                }
+                prev_lower30 = {
+                    "low": round(prev_low, price_dp),
+                    "high": round(prev_low + (prev_va_range * 0.30), price_dp),
+                }
+                if value_relation in ("ABOVE_PREV", "BELOW_PREV"):
+                    svp_fact_status = "CONFIRMED"
+                elif value_relation == "OVERLAP":
+                    svp_fact_status = "MIXED"
+                else:
+                    svp_fact_status = "WEAK"
+
+            recent_keys = day_keys[max(0, target_idx - 4):target_idx + 1]
+            recent_mids = [
+                _safe_float((value_by_day.get(d) or {}).get("va_mid"), 0.0)
+                for d in recent_keys
+                if _safe_float((value_by_day.get(d) or {}).get("va_mid"), 0.0) > 0
+            ]
+            recent_ranges = [
+                _safe_float((value_by_day.get(d) or {}).get("range"), 0.0)
+                for d in recent_keys
+                if _safe_float((value_by_day.get(d) or {}).get("range"), 0.0) > 0
+            ]
+            cluster_active = False
+            if len(recent_mids) >= 3:
+                cluster_band = max(recent_mids) - min(recent_mids)
+                cluster_ref = _median(recent_ranges) if recent_ranges else max(median_day_range, 1e-9)
+                cluster_active = cluster_band <= (cluster_ref * 0.45)
+
+            prev_keys_for_cluster = day_keys[max(0, target_idx - 4):target_idx]
+            prev_cluster_mids = [
+                _safe_float((value_by_day.get(d) or {}).get("va_mid"), 0.0)
+                for d in prev_keys_for_cluster
+                if _safe_float((value_by_day.get(d) or {}).get("va_mid"), 0.0) > 0
+            ]
+            prev_cluster_ranges = [
+                _safe_float((value_by_day.get(d) or {}).get("range"), 0.0)
+                for d in prev_keys_for_cluster
+                if _safe_float((value_by_day.get(d) or {}).get("range"), 0.0) > 0
+            ]
+            cluster_prev_active = False
+            cluster_breakout_up = False
+            cluster_breakout_down = False
+            if len(prev_cluster_mids) >= 3 and curr_mid > 0:
+                prev_cluster_band = max(prev_cluster_mids) - min(prev_cluster_mids)
+                prev_cluster_ref = _median(prev_cluster_ranges) if prev_cluster_ranges else max(median_day_range, 1e-9)
+                cluster_prev_active = prev_cluster_band <= (prev_cluster_ref * 0.42)
+                cluster_breakout_up = cluster_prev_active and curr_mid > (max(prev_cluster_mids) + (prev_cluster_ref * 0.15))
+                cluster_breakout_down = cluster_prev_active and curr_mid < (min(prev_cluster_mids) - (prev_cluster_ref * 0.15))
+
+            if cluster_breakout_up:
+                svp_state = "POST_CLUSTER_EXPANSION_UP"
+                svp_expected_direction = 1
+                svp_expected_path = "BREAKOUT_REBALANCE_CONTINUATION_LONG"
+                svp_summary = (
+                    "Dopo cluster di valore in range, il 70% si e spostato sopra la fascia bloccata: "
+                    "attesa espansione con ribilanciamento tecnico e continuazione long."
+                )
+            elif cluster_breakout_down:
+                svp_state = "POST_CLUSTER_EXPANSION_DOWN"
+                svp_expected_direction = -1
+                svp_expected_path = "BREAKOUT_REBALANCE_CONTINUATION_SHORT"
+                svp_summary = (
+                    "Dopo cluster di valore in range, il 70% si e spostato sotto la fascia bloccata: "
+                    "attesa espansione con ribilanciamento tecnico e continuazione short."
+                )
+            elif value_relation == "ABOVE_PREV":
+                svp_state = "VALUE_MIGRATION_UP"
+                svp_expected_direction = 1
+                svp_expected_path = "REBALANCE_PREV_UPPER_30_THEN_LONG"
+                svp_summary = "Setup long probabile: valore del giorno sopra il precedente, con test atteso della fascia alta 30% di ieri prima della continuazione."
+            elif value_relation == "BELOW_PREV":
+                svp_state = "VALUE_MIGRATION_DOWN"
+                svp_expected_direction = -1
+                svp_expected_path = "REBALANCE_PREV_LOWER_30_THEN_SHORT"
+                svp_summary = "Setup short probabile: valore del giorno sotto il precedente, con test atteso della fascia bassa 30% di ieri prima della continuazione."
+            elif cluster_active:
+                svp_state = "VALUE_CLUSTER_RANGE"
+                svp_expected_direction = 0
+                svp_expected_path = "RANGE_ACCUMULATION_WAIT_BREAKOUT"
+                svp_summary = (
+                    "Valore sovrapposto su sessioni consecutive: fase di accumulo/range con liquidazioni brevi e senza bias pulita."
+                )
+                if early_month:
+                    svp_summary += " Coerente con statistica delle prime due settimane del mese."
+            elif value_shift == "UP":
+                svp_state = "VALUE_SHIFT_UP"
+                svp_expected_direction = 1
+                svp_expected_path = "VALUE_SHIFT_CONTINUATION_UP"
+                svp_summary = "Valore in salita senza piena separazione dal giorno precedente: bias rialzista ma necessita conferma sulla reazione ai pullback."
+            elif value_shift == "DOWN":
+                svp_state = "VALUE_SHIFT_DOWN"
+                svp_expected_direction = -1
+                svp_expected_path = "VALUE_SHIFT_CONTINUATION_DOWN"
+                svp_summary = "Valore in discesa senza piena separazione dal giorno precedente: bias ribassista ma necessita conferma sulla reazione ai rimbalzi."
+
+            is_target_today = (target_day == now_rome_day)
+            is_value_window_closed = (not is_target_today) or (now_rome.hour >= 22)
+            if is_target_today and not is_value_window_closed and svp_fact_status == "CONFIRMED":
+                svp_fact_status = "PROVISIONAL"
+            if is_target_today and not is_value_window_closed:
+                svp_summary = "Lettura intraday: " + svp_summary
+            if svp_source_quality == "PROXY_ESTIMATE":
+                svp_summary += " Fonte SVP proxy (OHLC), in attesa feed live."
+            elif svp_source_quality == "REAL_TODAY_ONLY":
+                svp_summary += " Fonte SVP live parziale: corrente live, storico precedente in proxy."
+
+            if rebalancing_signal == "LONG" and svp_expected_direction == 1:
+                svp_summary += " Il prezzo sta gia rientrando in modalita di ribilanciamento long."
+            elif rebalancing_signal == "SHORT" and svp_expected_direction == -1:
+                svp_summary += " Il prezzo sta gia rientrando in modalita di ribilanciamento short."
+
+            tv_visual = None
+            try:
+                tv_visual = get_latest_tv_screenshot(symbol)
+            except Exception:
+                tv_visual = None
+            tv_visual_recent = False
+            if isinstance(tv_visual, dict):
+                try:
+                    cap = datetime.fromisoformat(str(tv_visual.get("captured_at_utc", "")).replace("Z", "+00:00"))
+                    if cap.tzinfo is None:
+                        cap = cap.replace(tzinfo=timezone.utc)
+                    tv_visual_recent = (now - cap.astimezone(timezone.utc)).total_seconds() <= (3 * 60 * 60)
+                except Exception:
+                    tv_visual_recent = False
+
+            out[symbol] = {
+                "state": state,
+                "summary": svp_summary,
+                "impulse_sign": int(today_stats.get("direction", 0)),
+                "move_pct": round(move_pct, 3),
+                "close_location": round(close_loc, 3),
+                "range_ratio": round(range_ratio, 3),
+                "rebalancing_signal": rebalancing_signal,
+                "gap_pct": round(gap_pct, 3) if gap_pct is not None else None,
+                "reference_day": target_day,
+                "svp_state": svp_state,
+                "svp_expected_direction": svp_expected_direction,
+                "svp_expected_path": svp_expected_path,
+                "svp_value_shift": value_shift,
+                "svp_value_relation": value_relation,
+                "svp_overlap_ratio": round(overlap, 4) if overlap is not None else None,
+                "svp_cluster_active": bool(cluster_active),
+                "svp_cluster_prev_active": bool(cluster_prev_active),
+                "svp_cluster_breakout_up": bool(cluster_breakout_up),
+                "svp_cluster_breakout_down": bool(cluster_breakout_down),
+                "svp_fact_status": svp_fact_status,
+                "svp_value_window_closed": bool(is_value_window_closed),
+                "svp_source": svp_source,
+                "svp_source_quality": svp_source_quality,
+                "svp_source_note": svp_source_note,
+                "svp_live_last_update_utc": svp_live_last_update_utc,
+                "svp_live_target_day": svp_live_target_day,
+                "svp_current_70": {
+                    "low": round(curr_low, price_dp) if curr_low > 0 else None,
+                    "high": round(curr_high, price_dp) if curr_high > 0 else None,
+                    "mid": round(curr_mid, price_dp) if curr_mid > 0 else None,
+                },
+                "svp_previous_70": {
+                    "low": round(prev_low, price_dp) if prev_low > 0 else None,
+                    "high": round(prev_high, price_dp) if prev_high > 0 else None,
+                    "mid": round(prev_mid, price_dp) if prev_mid > 0 else None,
+                },
+                "svp_previous_upper_30": prev_upper30,
+                "svp_previous_lower_30": prev_lower30,
+                "svp_early_month_context": bool(early_month),
+                "tv_visual_last_capture_utc": (tv_visual or {}).get("captured_at_utc") if isinstance(tv_visual, dict) else None,
+                "tv_visual_last_path": (tv_visual or {}).get("path") if isinstance(tv_visual, dict) else None,
+                "tv_visual_source": (tv_visual or {}).get("source") if isinstance(tv_visual, dict) else None,
+                "tv_visual_recent": bool(tv_visual_recent),
+            }
+    except Exception as e:
+        logger.warning(f"Price-action context unavailable: {e}")
+
+    _price_action_cache["data"] = out
+    _price_action_cache["timestamp"] = now
+    return out
+
+
+def build_discretionary_context_map() -> Dict[str, Dict[str, Any]]:
+    """
+    Dynamic discretionary layer driven by session behavior memory:
+    - previous day state (range/expansion/liquidation)
+    - weekday expansion priors
+    - conditional pattern (two prior range days -> expansion day odds)
+    - reversal probability after expansion
+    """
+    global _session_discretionary_cache
+    now = datetime.now(timezone.utc)
+    if _session_discretionary_cache["data"] and _session_discretionary_cache["timestamp"]:
+        age = (now - _session_discretionary_cache["timestamp"]).total_seconds()
+        if age < 15 * 60:
+            return _session_discretionary_cache["data"]
+
+    out: Dict[str, Dict[str, Any]] = {}
+    try:
+        from session_forensics import _load_rows  # Local module with bootstrapped + historical session rows
+
+        raw_rows = _load_rows()
+        if not isinstance(raw_rows, list) or not raw_rows:
+            _session_discretionary_cache["data"] = out
+            _session_discretionary_cache["timestamp"] = now
+            return out
+
+        target_assets = ("NAS100", "SP500", "XAUUSD", "EURUSD")
+        by_asset: Dict[str, List[Dict[str, Any]]] = {a: [] for a in target_assets}
+        for row in raw_rows:
+            asset = str(row.get("asset", "")).upper()
+            if asset in by_asset and row.get("rome_day"):
+                by_asset[asset].append(row)
+        for asset in by_asset:
+            by_asset[asset].sort(key=lambda r: str(r.get("rome_day")))
+
+        now_rome = datetime.now(ROME_TZ)
+        today_weekday = now_rome.weekday()
+        if today_weekday > 4:
+            today_weekday = 0
+
+        for asset in target_assets:
+            rows = by_asset.get(asset, [])
+            if len(rows) < 40:
+                continue
+
+            median_range = _median([_safe_float(r.get("ny_range_pips"), 0.0) for r in rows[-240:]])
+            prev = rows[-1]
+            prev2 = rows[-2] if len(rows) >= 2 else None
+            prev_dir = _row_direction_sign(prev)
+            prev_is_range = _is_range_day(prev, median_range)
+            prev_is_expansion = _is_expansion_day(prev, median_range)
+            prev_is_liquidation = str(prev.get("scenario", "")).upper() == "D"
+            prev2_is_range = _is_range_day(prev2, median_range) if isinstance(prev2, dict) else False
+
+            # Weekday baseline expansion probability
+            weekday_rows = [r for r in rows if int(_safe_float(r.get("weekday_idx"), -1)) == today_weekday]
+            base_expansion_prob = None
+            if len(weekday_rows) >= 20:
+                base_expansion_prob = sum(1 for r in weekday_rows if _is_expansion_day(r, median_range)) / len(weekday_rows)
+
+            # Conditional: previous two sessions were range -> today's expansion odds
+            cond_total = 0
+            cond_exp = 0
+            for i in range(2, len(rows)):
+                cur = rows[i]
+                if int(_safe_float(cur.get("weekday_idx"), -1)) != today_weekday:
+                    continue
+                p1 = rows[i - 1]
+                p2 = rows[i - 2]
+                if _is_range_day(p1, median_range) and _is_range_day(p2, median_range):
+                    cond_total += 1
+                    if _is_expansion_day(cur, median_range):
+                        cond_exp += 1
+            conditional_expansion_prob = (cond_exp / cond_total) if cond_total >= 15 else None
+
+            # Reversal odds after expansion day
+            rev_total = 0
+            rev_hits = 0
+            for i in range(1, len(rows)):
+                p = rows[i - 1]
+                c = rows[i]
+                if not _is_expansion_day(p, median_range):
+                    continue
+                p_dir = _row_direction_sign(p)
+                c_dir = _row_direction_sign(c)
+                if p_dir == 0 or c_dir == 0:
+                    continue
+                    rev_total += 1
+                    if c_dir == -p_dir:
+                        rev_hits += 1
+            reversal_after_expansion_prob = (rev_hits / rev_total) if rev_total >= 20 else None
+
+            range_streak = 0
+            for row in reversed(rows):
+                if _is_range_day(row, median_range):
+                    range_streak += 1
+                else:
+                    break
+
+            week_bucket: Dict[str, Dict[int, Dict[str, Any]]] = {}
+            for row in rows:
+                week_key = _trading_week_key(row.get("rome_day"))
+                if not week_key:
+                    continue
+                w_idx = int(_safe_float(row.get("weekday_idx"), -1))
+                if w_idx < 0 or w_idx > 4:
+                    continue
+                week_bucket.setdefault(week_key, {})[w_idx] = row
+
+            friday_setup_total = 0
+            friday_setup_exp = 0
+            friday_setup_reversal = 0
+            for _, wk_rows in week_bucket.items():
+                tue = wk_rows.get(1)
+                thu = wk_rows.get(3)
+                fri = wk_rows.get(4)
+                if not tue or not thu or not fri:
+                    continue
+                if not (_is_range_day(tue, median_range) and _is_range_day(thu, median_range)):
+                    continue
+                friday_setup_total += 1
+                if _is_expansion_day(fri, median_range):
+                    friday_setup_exp += 1
+                th_dir = _row_direction_sign(thu)
+                fr_dir = _row_direction_sign(fri)
+                if th_dir != 0 and fr_dir != 0 and fr_dir == -th_dir:
+                    friday_setup_reversal += 1
+            friday_after_tue_thu_range_prob = (friday_setup_exp / friday_setup_total) if friday_setup_total >= 12 else None
+            friday_reversal_prob = (friday_setup_reversal / friday_setup_total) if friday_setup_total >= 12 else None
+
+            now_iso = now_rome.date().isocalendar()
+            current_week_key = f"{now_iso.year:04d}-W{now_iso.week:02d}"
+            current_week_rows = week_bucket.get(current_week_key, {})
+            tue_current = current_week_rows.get(1)
+            thu_current = current_week_rows.get(3)
+            friday_setup_active = bool(
+                today_weekday == 4
+                and tue_current
+                and thu_current
+                and _is_range_day(tue_current, median_range)
+                and _is_range_day(thu_current, median_range)
+            )
+
+            direction_adjustment = 0.0
+            confidence_penalty = 0.0
+            state = "BALANCED"
+            summary = "Contesto attuale: range, attendere squilibri."
+
+            if (
+                friday_setup_active
+                and friday_after_tue_thu_range_prob is not None
+                and friday_after_tue_thu_range_prob >= 0.56
+            ):
+                confidence_penalty += 6.0
+                state = "FRIDAY_EXPANSION_SETUP"
+                summary = (
+                    "Contesto attuale: compressione statistica (mar-gio in range). "
+                    "Attendere squilibrio iniziale e conferma della direzione finale."
+                )
+                if friday_reversal_prob is not None and friday_reversal_prob >= 0.54 and prev_dir != 0:
+                    direction_adjustment += (-0.10 * prev_dir)
+                    confidence_penalty += 2.0
+            elif prev_is_liquidation and prev_dir != 0:
+                # After a sweep/reversal day, next session often mean-reverts before continuation.
+                direction_adjustment += (-0.22 * prev_dir)
+                confidence_penalty += 8.0
+                state = "POST_LIQUIDATION_REBALANCE"
+                summary = "Contesto attuale: post-liquidazione. Attendere ribilanciamento prima della nuova direzione."
+            elif prev_is_expansion and prev_dir != 0 and reversal_after_expansion_prob is not None and reversal_after_expansion_prob >= 0.55:
+                strength = min(1.0, (reversal_after_expansion_prob - 0.5) / 0.25)
+                direction_adjustment += (-0.14 * strength * prev_dir)
+                confidence_penalty += 6.0 * strength
+                state = "POST_EXPANSION_MEAN_REVERT"
+                summary = "Contesto attuale: post-espansione. Probabile fase di riequilibrio prima della prossima spinta."
+            elif (
+                conditional_expansion_prob is not None
+                and base_expansion_prob is not None
+                and conditional_expansion_prob >= (base_expansion_prob + 0.08)
+                and (prev_is_range or (prev2_is_range and range_streak >= 1))
+            ):
+                confidence_penalty += 4.0
+                state = "RANGE_TO_EXPANSION_SETUP"
+                summary = (
+                    "Contesto attuale: range in compressione con probabilita di espansione in aumento. "
+                    "Attendere rottura confermata."
+                )
+            elif range_streak >= 2:
+                confidence_penalty += 3.0
+                state = "MULTI_RANGE_COMPRESSION"
+                summary = (
+                    "Contesto attuale: multi-range in compressione. "
+                    "Attendere squilibrio e follow-through del prezzo."
+                )
+
+            out[asset] = {
+                "state": state,
+                "summary": summary,
+                "direction_adjustment": round(direction_adjustment, 4),
+                "confidence_penalty": round(confidence_penalty, 2),
+                "base_expansion_prob": round(base_expansion_prob, 4) if base_expansion_prob is not None else None,
+                "conditional_expansion_prob": round(conditional_expansion_prob, 4) if conditional_expansion_prob is not None else None,
+                "reversal_after_expansion_prob": round(reversal_after_expansion_prob, 4) if reversal_after_expansion_prob is not None else None,
+                "friday_after_tue_thu_range_prob": round(friday_after_tue_thu_range_prob, 4) if friday_after_tue_thu_range_prob is not None else None,
+                "friday_reversal_prob": round(friday_reversal_prob, 4) if friday_reversal_prob is not None else None,
+                "range_streak": int(range_streak),
+                "friday_setup_active": bool(friday_setup_active),
+                "prev_day": {
+                    "rome_day": str(prev.get("rome_day")),
+                    "scenario": str(prev.get("scenario")),
+                    "is_range": bool(prev_is_range),
+                    "is_expansion": bool(prev_is_expansion),
+                    "is_liquidation": bool(prev_is_liquidation),
+                    "outcome_direction": str(prev.get("outcome_direction", "NEUTRAL")),
+                    "ny_range_pips": round(_safe_float(prev.get("ny_range_pips"), 0.0), 2),
+                },
+            }
+    except Exception as e:
+        logger.warning(f"Discretionary context unavailable: {e}")
+
+    _session_discretionary_cache["data"] = out
+    _session_discretionary_cache["timestamp"] = now
+    return out
+
+
+def build_confluence_overlay(
+    symbol: str,
+    analysis: Dict[str, Any],
+    context_row: Dict[str, Any],
+    price_row: Dict[str, Any],
+    cot_row: Dict[str, Any],
+    vix_data: Dict[str, Any],
+    regime: Any,
+    breadth_row: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Correlates price-action with the same analysis pillars used in dashboard tabs.
+    Returns an extra directional delta + confidence penalty based on confluence quality.
+    """
+    signals: List[Dict[str, Any]] = []
+
+    def push(name: str, sign: int, weight: float) -> None:
+        if sign == 0 or weight <= 0:
+            return
+        signals.append({"name": name, "sign": sign, "weight": float(weight)})
+
+    base_sign = _direction_sign_from_label(analysis.get("direction"))
+    push("Direzione motore", base_sign, 2.1)
+
+    hist_delta = _safe_float(context_row.get("direction_adjustment"), 0.0)
+    hist_sign = 1 if hist_delta > 0 else (-1 if hist_delta < 0 else 0)
+    push("Memoria sessionale", hist_sign, 1.2)
+
+    impulse_sign = int(_safe_float(price_row.get("impulse_sign"), 0.0))
+    rebalancing_sign = _direction_sign_from_label(price_row.get("rebalancing_signal"))
+    svp_expected_sign = int(_safe_float(price_row.get("svp_expected_direction"), 0.0))
+    svp_state = str(price_row.get("svp_state", ""))
+    push("Prezzo intraday", impulse_sign, 1.7)
+    push("Ribilanciamento prezzo", rebalancing_sign, 2.0)
+    if svp_expected_sign != 0:
+        svp_weight = 2.2 if any(k in svp_state for k in ("VALUE_MIGRATION", "POST_CLUSTER_EXPANSION")) else 1.6
+        push("Direzione SVP", svp_expected_sign, svp_weight)
+
+    cot_sign = 1 if _to_int(cot_row.get("net"), 0) > 0 else (-1 if _to_int(cot_row.get("net"), 0) < 0 else 0)
+    push("Posizionamento CFTC", cot_sign, 1.6)
+
+    regime_sign = _asset_regime_sign(symbol, regime or vix_data.get("regime"), _safe_float(vix_data.get("current"), 0.0))
+    push("Regime/VIX", regime_sign, 1.3)
+
+    push("Breadth MA50/MA200", _breadth_direction_sign(breadth_row), 1.6)
+
+    for d in (analysis.get("drivers") or []):
+        name = str(d.get("name", "")).lower()
+        sign = _impact_direction_sign(d.get("impact"))
+        if sign == 0:
+            continue
+        if "news" in name:
+            push("News flow", sign, 1.0)
+        elif "cot" in name:
+            continue
+        else:
+            push("Driver supporto", sign, 0.8)
+
+    long_weight = sum(float(s["weight"]) for s in signals if int(s["sign"]) > 0)
+    short_weight = sum(float(s["weight"]) for s in signals if int(s["sign"]) < 0)
+    total_weight = long_weight + short_weight
+    raw_balance = long_weight - short_weight
+    conflict = (min(long_weight, short_weight) / total_weight) if total_weight > 0 else 1.0
+    alignment = (abs(raw_balance) / total_weight) if total_weight > 0 else 0.0
+
+    raw_consensus_sign = 1 if raw_balance > 0.15 else (-1 if raw_balance < -0.15 else 0)
+    consensus_sign = raw_consensus_sign if alignment >= 0.16 else 0
+    delta = 0.0
+    if consensus_sign != 0 and alignment >= 0.16:
+        delta = consensus_sign * min(0.16, 0.16 * (alignment / 0.75))
+
+    penalty = 0.0
+    if conflict >= 0.42:
+        penalty += 7.0
+    elif conflict >= 0.30:
+        penalty += 4.0
+    elif conflict >= 0.22:
+        penalty += 2.0
+    if len(signals) < 3:
+        penalty += 3.0
+
+    if rebalancing_sign != 0 and base_sign != 0 and rebalancing_sign == -base_sign:
+        delta += 0.08 * rebalancing_sign
+        penalty += 2.0
+
+    state = "MIXED"
+    if alignment >= 0.55 and conflict <= 0.20:
+        state = "STRONG_CONFLUENCE"
+    elif conflict >= 0.40:
+        state = "HIGH_CONFLICT"
+
+    ranked = sorted(signals, key=lambda x: abs(_safe_float(x.get("weight"), 0.0)), reverse=True)
+    top = ranked[:3]
+    parts = []
+    for node in top:
+        tone = "rialzista" if int(node.get("sign", 0)) > 0 else "ribassista"
+        parts.append(f"{node.get('name')} {tone}")
+    summary = "Confluenze non sufficienti per una lettura stabile."
+    if parts:
+        if state == "HIGH_CONFLICT":
+            summary = "Confluenze in conflitto: " + ", ".join(parts) + "."
+        else:
+            summary = "Confluenze attive: " + ", ".join(parts) + "."
+
+    return {
+        "state": state,
+        "summary": summary,
+        "direction_adjustment": round(delta, 4),
+        "confidence_penalty": round(penalty, 2),
+        "alignment": round(alignment, 4),
+        "conflict": round(conflict, 4),
+        "consensus_sign": consensus_sign,
+        "signals": [
+            {
+                "name": s.get("name"),
+                "direction": "UP" if int(s.get("sign", 0)) > 0 else "DOWN",
+                "weight": round(_safe_float(s.get("weight"), 0.0), 2),
+            }
+            for s in ranked[:6]
+        ],
+    }
+
+
+def get_live_cot_snapshot() -> Dict[str, Any]:
+    """
+    Real COT snapshot from CFTC weekly reports (no simulated/random data).
+    Sources:
+    - Financial + Combined: FinComWk.txt
+    - Futures only (for Gold MM): deafut.txt
+    """
+    global _cot_live_cache
+    now = datetime.now(timezone.utc)
+    if _cot_live_cache["data"] and _cot_live_cache["timestamp"]:
+        age = (now - _cot_live_cache["timestamp"]).total_seconds()
+        if age < 30 * 60:
+            return _cot_live_cache["data"]
+
+    out: Dict[str, Any] = {"symbols": {}, "source": "CFTC", "updated_at": now.isoformat()}
+
+    try:
+        fin_text = requests.get("https://www.cftc.gov/dea/newcot/FinComWk.txt", timeout=20).text
+        fin_rows = list(csv.reader(fin_text.splitlines()))
+
+        # Financial report: use Asset Manager Long/Short (columns 11/12), OI (7)
+        fin_targets = {
+            "NAS100": lambda n: ("NASDAQ-100 CONSOLIDATED" in n) and ("MICRO" not in n) and ("MINI" not in n),
+            "SP500": lambda n: ("S&P 500 CONSOLIDATED" in n) and ("MICRO" not in n) and ("E-MINI" not in n),
+            "EURUSD": lambda n: n.startswith("EURO FX - CHICAGO MERCANTILE EXCHANGE"),
+        }
+        for symbol, matcher in fin_targets.items():
+            row = _find_cot_row(fin_rows, matcher)
+            if not row or len(row) < 13:
+                continue
+            open_interest = _to_int(row[7], 0)
+            am_long = _to_int(row[11], 0)
+            am_short = _to_int(row[12], 0)
+            net = am_long - am_short
+            net_pct_oi = (net / open_interest * 100.0) if open_interest > 0 else 0.0
+            out["symbols"][symbol] = {
+                "as_of_date": str(row[2]).strip(),
+                "open_interest": open_interest,
+                "long": am_long,
+                "short": am_short,
+                "net": net,
+                "net_pct_oi": round(net_pct_oi, 2),
+                "participant": "asset_manager",
+                "report": "FinComWk",
+            }
+    except Exception as e:
+        logger.warning(f"CFTC FinComWk fetch failed: {e}")
+
+    try:
+        # Gold: use Disaggregated futures (Managed Money Long/Short columns 14/15), OI (7)
+        fut_text = requests.get("https://www.cftc.gov/dea/newcot/deafut.txt", timeout=20).text
+        fut_rows = list(csv.reader(fut_text.splitlines()))
+        gold_row = _find_cot_row(
+            fut_rows,
+            lambda n: ("GOLD - COMMODITY EXCHANGE INC." in n) and ("MICRO GOLD" not in n),
+        )
+        if gold_row and len(gold_row) >= 16:
+            open_interest = _to_int(gold_row[7], 0)
+            mm_long = _to_int(gold_row[14], 0)
+            mm_short = _to_int(gold_row[15], 0)
+            net = mm_long - mm_short
+            net_pct_oi = (net / open_interest * 100.0) if open_interest > 0 else 0.0
+            out["symbols"]["XAUUSD"] = {
+                "as_of_date": str(gold_row[2]).strip(),
+                "open_interest": open_interest,
+                "long": mm_long,
+                "short": mm_short,
+                "net": net,
+                "net_pct_oi": round(net_pct_oi, 2),
+                "participant": "managed_money",
+                "report": "deafut",
+            }
+    except Exception as e:
+        logger.warning(f"CFTC deafut fetch failed: {e}")
+
+    _cot_live_cache["data"] = out
+    _cot_live_cache["timestamp"] = now
+    return out
 
 def get_yf_ticker_safe(symbol: str, period: str = "5d", interval: str = "1d"):
     """Safely fetch data from yfinance with error handling"""
@@ -2230,11 +3410,23 @@ async def get_api_health():
 
 
 @api_router.get("/engine/cards")
-async def get_engine_cards(current_user: str = Depends(get_current_user)):
+async def get_engine_cards():
     now = datetime.now(timezone.utc)
     multi = await get_multi_source_analysis()
     prices = await get_market_prices()
+    vix_data = await get_vix_data()
+    cot_snapshot = await asyncio.to_thread(get_live_cot_snapshot)
+    discretionary_context = await asyncio.to_thread(build_discretionary_context_map)
+    price_action_context = await asyncio.to_thread(build_price_action_context_map)
+    try:
+        breadth_payload = await get_market_breadth()
+    except Exception:
+        breadth_payload = {}
+
+    cot_symbols = cot_snapshot.get("symbols", {}) if isinstance(cot_snapshot, dict) else {}
     analyses = multi.get("analyses", {}) if isinstance(multi, dict) else {}
+    breadth_indices = breadth_payload.get("indices", {}) if isinstance(breadth_payload, dict) else {}
+    market_regime = multi.get("regime") if isinstance(multi, dict) else None
 
     cards: List[Dict[str, Any]] = []
     for symbol in ["XAUUSD", "NAS100", "SP500", "EURUSD"]:
@@ -2245,11 +3437,64 @@ async def get_engine_cards(current_user: str = Depends(get_current_user)):
         if price <= 0:
             continue
 
-        direction = _dashboard_card_direction(analysis.get("direction"))
         p_up = _safe_float(analysis.get("p_up", 50.0), 50.0)
-        probability = p_up if direction == "UP" else (100.0 - p_up if direction == "DOWN" else 50.0)
+        base_direction = _dashboard_card_direction(analysis.get("direction"))
+        context_row = discretionary_context.get(symbol, {}) if isinstance(discretionary_context, dict) else {}
+        price_row = price_action_context.get(symbol, {}) if isinstance(price_action_context, dict) else {}
+        cot_row = cot_symbols.get(symbol, {}) if isinstance(cot_symbols, dict) else {}
+        breadth_row = breadth_indices.get(symbol, {}) if isinstance(breadth_indices, dict) else {}
+
+        confluence_overlay = build_confluence_overlay(
+            symbol=symbol,
+            analysis=analysis if isinstance(analysis, dict) else {},
+            context_row=context_row if isinstance(context_row, dict) else {},
+            price_row=price_row if isinstance(price_row, dict) else {},
+            cot_row=cot_row if isinstance(cot_row, dict) else {},
+            vix_data=vix_data if isinstance(vix_data, dict) else {},
+            regime=market_regime,
+            breadth_row=breadth_row if isinstance(breadth_row, dict) else {},
+        )
+
+        base_delta = _safe_float(context_row.get("direction_adjustment", 0.0), 0.0)
+        overlay_delta = _safe_float(confluence_overlay.get("direction_adjustment", 0.0), 0.0)
+        direction_adjustment = max(-0.38, min(0.38, base_delta + overlay_delta))
+        adjusted_p_up = max(1.0, min(99.0, p_up + (direction_adjustment * 50.0)))
+        confluence_alignment = _safe_float(confluence_overlay.get("alignment", 0.0), 0.0)
+        confluence_conflict = _safe_float(confluence_overlay.get("conflict", 0.0), 0.0)
+        consensus_sign = int(_safe_float(confluence_overlay.get("consensus_sign", 0.0), 0.0))
+        if confluence_conflict >= 0.35:
+            damp = min(0.65, confluence_conflict)
+            adjusted_p_up = 50.0 + ((adjusted_p_up - 50.0) * (1.0 - damp))
+        elif consensus_sign != 0 and confluence_alignment >= 0.55 and confluence_conflict <= 0.22:
+            adjusted_p_up = adjusted_p_up + (consensus_sign * min(6.0, confluence_alignment * 8.0))
+        adjusted_p_up = max(1.0, min(99.0, adjusted_p_up))
+        if adjusted_p_up >= 58:
+            direction = "UP"
+        elif adjusted_p_up <= 42:
+            direction = "DOWN"
+        else:
+            direction = "NEUTRAL"
+        probability = adjusted_p_up if direction == "UP" else (100.0 - adjusted_p_up if direction == "DOWN" else 50.0)
         probability = max(1.0, min(99.0, probability))
         confidence = max(1.0, min(99.0, _safe_float(analysis.get("confidence", 50.0), 50.0)))
+        base_penalty = _safe_float(context_row.get("confidence_penalty", 0.0), 0.0)
+        overlay_penalty = _safe_float(confluence_overlay.get("confidence_penalty", 0.0), 0.0)
+        confidence = max(1.0, min(99.0, confidence - base_penalty - overlay_penalty))
+        vix_current = _safe_float(vix_data.get("current", 18.0), 18.0)
+        vix_change = _safe_float(vix_data.get("change", 0.0), 0.0)
+        vol_base = 25.0 + max(0.0, (vix_current - 12.0) * 4.0)
+        vol_momentum_penalty = max(0.0, vix_change) * 1.2
+        volatility_score = max(5.0, min(95.0, vol_base + vol_momentum_penalty))
+
+        cot_open_interest = _to_int(cot_row.get("open_interest"), 0)
+        cot_long = _to_int(cot_row.get("long"), 0)
+        cot_short = _to_int(cot_row.get("short"), 0)
+        cot_net = _to_int(cot_row.get("net"), cot_long - cot_short)
+        cot_net_pct_oi = _safe_float(cot_row.get("net_pct_oi"), 0.0)
+        has_live_positioning = cot_open_interest > 0 and (cot_long > 0 or cot_short > 0)
+        positioning_score = None
+        if has_live_positioning:
+            positioning_score = max(5.0, min(95.0, 50.0 + (math.tanh(cot_net_pct_oi / 25.0) * 35.0)))
 
         day_change_pct = _safe_float(price_data.get("change", 0.0), 0.0)
         day_change_points = price * (day_change_pct / 100.0)
@@ -2270,6 +3515,34 @@ async def get_engine_cards(current_user: str = Depends(get_current_user)):
             })
         if not driver_rows:
             driver_rows.append({"name": "Model Composite", "impact": "Neutral", "detail": "Sorgenti aggregate", "weight": 0.5})
+        if has_live_positioning:
+            pos_impact = "Bullish" if cot_net > 0 else "Bearish" if cot_net < 0 else "Neutral"
+            driver_rows.append({
+                "name": "CFTC Positioning",
+                "impact": pos_impact,
+                "detail": f"net {cot_net_pct_oi:+.2f}% OI ({cot_long:,}L/{cot_short:,}S)",
+                "weight": 0.7,
+            })
+        if isinstance(price_row, dict) and str(price_row.get("summary", "")).strip():
+            pa_sign = _direction_sign_from_label(price_row.get("rebalancing_signal"))
+            if pa_sign == 0:
+                pa_sign = int(_safe_float(price_row.get("impulse_sign"), 0.0))
+            pa_impact = "Bullish" if pa_sign > 0 else ("Bearish" if pa_sign < 0 else "Neutral")
+            driver_rows.append({
+                "name": "Price Action",
+                "impact": pa_impact,
+                "detail": str(price_row.get("summary", "")),
+                "weight": 0.8,
+            })
+        if isinstance(confluence_overlay, dict) and str(confluence_overlay.get("summary", "")).strip():
+            c_sign = int(_safe_float(confluence_overlay.get("consensus_sign"), 0.0))
+            c_impact = "Bullish" if c_sign > 0 else ("Bearish" if c_sign < 0 else "Neutral")
+            driver_rows.append({
+                "name": "Tab Confluence",
+                "impact": c_impact,
+                "detail": str(confluence_overlay.get("summary", "")),
+                "weight": 0.9,
+            })
 
         cards.append({
             "asset": symbol,
@@ -2285,8 +3558,37 @@ async def get_engine_cards(current_user: str = Depends(get_current_user)):
                 "confidence": round(confidence, 1),
                 "conviction": round((probability + confidence) / 2.0, 1),
                 "risk": round(100.0 - confidence, 1),
+                "volatility": round(volatility_score, 1),
+                "positioning": round(positioning_score, 1) if positioning_score is not None else None,
+                "positioning_net_contracts": cot_net if has_live_positioning else None,
+                "positioning_net_pct_oi": round(cot_net_pct_oi, 2) if has_live_positioning else None,
+                "positioning_open_interest": cot_open_interest if has_live_positioning else None,
+                "positioning_as_of": cot_row.get("as_of_date") if has_live_positioning else None,
+                "positioning_source": "CFTC",
+                "discretionary_delta": round(direction_adjustment, 4),
+                "discretionary_base_delta": round(base_delta, 4),
+                "discretionary_overlay_delta": round(overlay_delta, 4),
+                "discretionary_conf_penalty": round(base_penalty + overlay_penalty, 2),
+                "confluence_alignment": round(confluence_alignment, 4),
+                "confluence_conflict": round(confluence_conflict, 4),
             },
             "drivers": driver_rows,
+            "discretionary_context": {
+                "state": context_row.get("state", "BALANCED"),
+                "summary": context_row.get("summary", ""),
+                "base_expansion_prob": context_row.get("base_expansion_prob"),
+                "conditional_expansion_prob": context_row.get("conditional_expansion_prob"),
+                "reversal_after_expansion_prob": context_row.get("reversal_after_expansion_prob"),
+                "friday_after_tue_thu_range_prob": context_row.get("friday_after_tue_thu_range_prob"),
+                "friday_reversal_prob": context_row.get("friday_reversal_prob"),
+                "range_streak": context_row.get("range_streak"),
+                "friday_setup_active": context_row.get("friday_setup_active"),
+                "prev_day": context_row.get("prev_day", {}),
+                "price_action": price_row if isinstance(price_row, dict) else {},
+                "confluence": confluence_overlay if isinstance(confluence_overlay, dict) else {},
+                "base_direction": base_direction,
+                "adjusted_p_up": round(adjusted_p_up, 2),
+            },
             "atr": round(price * (0.0015 if symbol == "EURUSD" else 0.004), 5 if symbol == "EURUSD" else 2),
             "day_change_pct": round(day_change_pct, 3),
             "day_change_points": round(day_change_points, 5 if symbol == "EURUSD" else 2),
@@ -2311,7 +3613,7 @@ async def get_strategy_catalog(current_user: str = Depends(get_current_user)):
 @api_router.get("/strategy/projections")
 async def get_strategy_projections(strategy_ids: Optional[str] = None, current_user: str = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
-    cards = await get_engine_cards(current_user)
+    cards = await get_engine_cards()
     catalog = STRATEGY_CATALOG_COMPAT
 
     requested: Optional[set] = None
@@ -2929,6 +4231,58 @@ LEVELS = [
     {"name": "Market God", "min_xp": 5000, "icon": "crown"}
 ]
 
+VALID_PREFERENCE_ASSETS = {
+    "NAS100", "SP500", "XAUUSD", "EURUSD", "DOW", "US30", "GBPUSD", "USDJPY", "BTCUSD"
+}
+VALID_THEMES = {"dark", "light"}
+VALID_LANGUAGES = {"it", "en", "fr"}
+
+
+def _normalize_hex_color(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    color = str(value).strip()
+    if len(color) == 4 and color.startswith("#"):
+        # Expand short hex format (#0FA -> #00FFAA)
+        color = "#" + "".join(ch * 2 for ch in color[1:])
+    if len(color) != 7 or not color.startswith("#"):
+        return None
+    if any(ch not in "0123456789abcdefABCDEF" for ch in color[1:]):
+        return None
+    return color.upper()
+
+
+def _default_subscription_payload(current_user: dict) -> dict:
+    plan_slug = str(current_user.get("plan_slug", "essential")).strip().lower() or "essential"
+    plan_name = str(current_user.get("plan_name", "Essential")).strip() or "Essential"
+    return {
+        "status": "active",
+        "plan_slug": plan_slug,
+        "plan_name": plan_name,
+        "plan": {
+            "slug": plan_slug,
+            "name": plan_name.upper(),
+        },
+        "is_trial": False,
+        "renewal_date": None,
+    }
+
+
+def _default_preferences_payload(current_user: dict) -> dict:
+    theme = str(current_user.get("theme", "dark")).lower()
+    if theme not in VALID_THEMES:
+        theme = "dark"
+    language = str(current_user.get("language", "it")).lower()
+    if language not in VALID_LANGUAGES:
+        language = "it"
+    return {
+        "selected_asset": None,
+        "sync_enabled": False,
+        "chart_line_color": "#00D9A5",
+        "theme": theme,
+        "language": language,
+    }
+
 @api_router.get("/ascension/status")
 async def get_ascension_status(current_user: dict = Depends(get_current_user)):
     xp = current_user.get("xp", 0)
@@ -2955,6 +4309,116 @@ async def get_ascension_status(current_user: dict = Depends(get_current_user)):
     }
 
 # ==================== SETTINGS ====================
+
+@api_router.get("/subscription/status")
+async def get_subscription_status(current_user: dict = Depends(get_current_user)):
+    payload = _default_subscription_payload(current_user)
+    try:
+        doc = await db.user_subscriptions.find_one({"user_id": current_user["id"]}, {"_id": 0})
+    except Exception:
+        doc = None
+
+    if isinstance(doc, dict):
+        for key in ("status", "plan_slug", "plan_name", "is_trial", "renewal_date", "trial_ends_at"):
+            if doc.get(key) is not None:
+                payload[key] = doc[key]
+
+    payload["plan_slug"] = str(payload.get("plan_slug", "essential")).strip().lower() or "essential"
+    payload["plan_name"] = str(payload.get("plan_name", "Essential")).strip() or "Essential"
+    payload["plan"] = {
+        "slug": payload["plan_slug"],
+        "name": str(payload["plan_name"]).upper(),
+    }
+    payload["is_trial"] = bool(payload.get("is_trial", False))
+    return payload
+
+
+@api_router.get("/user/preferences")
+async def get_user_preferences(current_user: dict = Depends(get_current_user)):
+    payload = _default_preferences_payload(current_user)
+
+    try:
+        doc = await db.user_preferences.find_one({"user_id": current_user["id"]}, {"_id": 0})
+    except Exception:
+        doc = None
+
+    if isinstance(doc, dict):
+        selected_asset = str(doc.get("selected_asset", "")).strip().upper()
+        if selected_asset in VALID_PREFERENCE_ASSETS:
+            payload["selected_asset"] = selected_asset
+
+        if isinstance(doc.get("sync_enabled"), bool):
+            payload["sync_enabled"] = doc["sync_enabled"]
+
+        color = _normalize_hex_color(doc.get("chart_line_color"))
+        if color:
+            payload["chart_line_color"] = color
+
+        theme = str(doc.get("theme", "")).strip().lower()
+        if theme in VALID_THEMES:
+            payload["theme"] = theme
+
+        language = str(doc.get("language", "")).strip().lower()
+        if language in VALID_LANGUAGES:
+            payload["language"] = language
+
+    return payload
+
+
+@api_router.post("/user/preferences")
+async def upsert_user_preferences(data: UserPreferencesInput, current_user: dict = Depends(get_current_user)):
+    updates: Dict[str, Any] = {}
+
+    if data.selected_asset is not None:
+        selected_asset = str(data.selected_asset).strip().upper()
+        if selected_asset and selected_asset not in VALID_PREFERENCE_ASSETS:
+            raise HTTPException(status_code=400, detail="Invalid selected_asset")
+        updates["selected_asset"] = selected_asset or None
+
+    if data.sync_enabled is not None:
+        updates["sync_enabled"] = bool(data.sync_enabled)
+
+    if data.chart_line_color is not None:
+        color = _normalize_hex_color(data.chart_line_color)
+        if not color:
+            raise HTTPException(status_code=400, detail="Invalid chart_line_color")
+        updates["chart_line_color"] = color
+
+    if data.theme is not None:
+        theme = str(data.theme).strip().lower()
+        if theme not in VALID_THEMES:
+            raise HTTPException(status_code=400, detail="Invalid theme")
+        updates["theme"] = theme
+
+    if data.language is not None:
+        language = str(data.language).strip().lower()
+        if language not in VALID_LANGUAGES:
+            raise HTTPException(status_code=400, detail="Invalid language")
+        updates["language"] = language
+
+    if not updates:
+        return await get_user_preferences(current_user)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.user_preferences.update_one(
+        {"user_id": current_user["id"]},
+        {
+            "$set": {**updates, "updated_at": now_iso},
+            "$setOnInsert": {"user_id": current_user["id"], "created_at": now_iso},
+        },
+        upsert=True,
+    )
+
+    mirrored_user_fields = {}
+    if "theme" in updates:
+        mirrored_user_fields["theme"] = updates["theme"]
+    if "language" in updates:
+        mirrored_user_fields["language"] = updates["language"]
+    if mirrored_user_fields:
+        await db.users.update_one({"id": current_user["id"]}, {"$set": mirrored_user_fields})
+
+    return await get_user_preferences(current_user)
+
 
 @api_router.put("/settings/theme")
 async def update_theme(theme: str, current_user: dict = Depends(get_current_user)):
@@ -3666,6 +5130,8 @@ async def system_data_integrity(current_user: str = Depends(get_current_user)):
         "session_daily_rows": ROOT_DIR / "data_sessions" / "session_daily_rows.json",
         "session_daily_reports": ROOT_DIR / "data_sessions" / "session_reports.json",
         "session_ksh_history": ROOT_DIR / "data_sessions" / "ksh_history.json",
+        "svp_live_feed": ROOT_DIR / "data" / "svp_live_feed.json",
+        "tv_screenshots_index": ROOT_DIR / "data" / "tv_screenshots_index.json",
     }
     file_stats = {}
     for name, path in files.items():

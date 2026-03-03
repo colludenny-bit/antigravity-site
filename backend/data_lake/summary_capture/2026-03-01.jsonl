@@ -65,3 +65,13 @@
 {"ts_utc":"2026-03-01T22:12:31.646546+00:00","stream":"summary_capture","payload":{"result":{"status":"ok","saved_id":"sum-20260301221223","rome_slot":"23:12"}}}
 {"ts_utc":"2026-03-01T22:17:00.335692+00:00","stream":"summary_capture","payload":{"result":{"status":"skipped","reason":"unchanged_summary","rome_slot":"23:17"}}}
 {"ts_utc":"2026-03-01T22:32:00.744939+00:00","stream":"summary_capture","payload":{"result":{"status":"skipped","reason":"unchanged_summary","rome_slot":"23:32"}}}
+{"ts_utc":"2026-03-01T22:42:00.588651+00:00","stream":"summary_capture","payload":{"result":{"status":"skipped","reason":"unchanged_summary","rome_slot":"23:42"}}}
+{"ts_utc":"2026-03-01T22:47:00.925568+00:00","stream":"summary_capture","payload":{"result":{"status":"ok","saved_id":"sum-20260301224700","rome_slot":"23:47"}}}
+{"ts_utc":"2026-03-01T22:57:01.465838+00:00","stream":"summary_capture","payload":{"result":{"status":"skipped","reason":"unchanged_summary","rome_slot":"23:57"}}}
+{"ts_utc":"2026-03-01T23:02:01.193995+00:00","stream":"summary_capture","payload":{"result":{"status":"ok","saved_id":"sum-20260301230200","rome_slot":"00:02"}}}
+{"ts_utc":"2026-03-01T23:07:01.091053+00:00","stream":"summary_capture","payload":{"result":{"status":"skipped","reason":"unchanged_summary","rome_slot":"00:07"}}}
+{"ts_utc":"2026-03-01T23:12:01.591089+00:00","stream":"summary_capture","payload":{"result":{"status":"skipped","reason":"unchanged_summary","rome_slot":"00:12"}}}
+{"ts_utc":"2026-03-01T23:27:01.068393+00:00","stream":"summary_capture","payload":{"result":{"status":"ok","saved_id":"sum-20260301232700","rome_slot":"00:27"}}}
+{"ts_utc":"2026-03-01T23:47:01.240351+00:00","stream":"summary_capture","payload":{"result":{"status":"ok","saved_id":"sum-20260301234700","rome_slot":"00:47"}}}
+{"ts_utc":"2026-03-01T23:52:00.895922+00:00","stream":"summary_capture","payload":{"result":{"status":"skipped","reason":"unchanged_summary","rome_slot":"00:52"}}}
+{"ts_utc":"2026-03-01T23:57:00.801636+00:00","stream":"summary_capture","payload":{"result":{"status":"skipped","reason":"unchanged_summary","rome_slot":"00:57"}}}

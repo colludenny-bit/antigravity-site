@@ -1,0 +1,12 @@
+{
+  "asset": "XAUUSD",
+  "va_low": 0.0,
+  "va_high": 0.0,
+  "poc": 0.0,
+  "rome_day": "{{time | date: \"yyyy-MM-dd\"}}",
+  "timeframe": "5m",
+  "is_closed": false,
+  "session_name": "RTH",
+  "source": "TRADINGVIEW_WEBHOOK",
+  "secret": "SET_SVP_WEBHOOK_SECRET"
+}
