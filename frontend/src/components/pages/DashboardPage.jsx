@@ -651,6 +651,12 @@ const AssetChartPanel = ({
   const [syncEnabled, setSyncEnabled] = useState(() => localStorage.getItem('dashboard_syncEnabled') === 'true');
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
   const isMobile = useIsMobile();
+  const safeAssets = useMemo(
+    () => (Array.isArray(assets)
+      ? assets.filter((asset) => asset && typeof asset === 'object' && typeof asset.symbol === 'string' && asset.symbol.trim() !== '')
+      : []),
+    [assets]
+  );
 
   // Load Cloud Preferences on Mount
   useEffect(() => {
@@ -668,6 +674,14 @@ const AssetChartPanel = ({
     };
     loadPrefs();
   }, []);
+
+  useEffect(() => {
+    if (safeAssets.length === 0) return;
+    const hasSelected = selectedAsset && safeAssets.some((asset) => asset.symbol === selectedAsset);
+    if (!hasSelected) {
+      setSelectedAsset(safeAssets[0].symbol);
+    }
+  }, [safeAssets, selectedAsset]);
 
   // Sync Preferences to Cloud
   useEffect(() => {
@@ -722,7 +736,10 @@ const AssetChartPanel = ({
   }, [chartLineColor]);
 
   // Filter to show only favorite charts in grid
-  const visibleAssets = assets.filter(a => favoriteCharts.includes(a.symbol));
+  const visibleAssets = useMemo(() => {
+    const favorites = safeAssets.filter((asset) => favoriteCharts.includes(asset.symbol));
+    return favorites.length > 0 ? favorites : safeAssets.slice(0, 3);
+  }, [safeAssets, favoriteCharts]);
 
   const toggleFavorite = (symbol) => {
     if (!favoriteCharts.includes(symbol)) {
@@ -782,7 +799,9 @@ const AssetChartPanel = ({
     return { conclusion, conclusionType, outlookLines: lines };
   };
 
-  const currentAsset = selectedAsset ? assets.find(a => a.symbol === selectedAsset) : assets[0];
+  const currentAsset = selectedAsset
+    ? safeAssets.find((asset) => asset.symbol === selectedAsset) || safeAssets[0]
+    : safeAssets[0];
   const dailyOutlook = currentAsset ? getDailyOutlook(currentAsset) : null;
   const now = new Date();
   const weekNum = Math.min(4, Math.floor((now.getDate() - 1) / 7) + 1);
@@ -918,7 +937,7 @@ const AssetChartPanel = ({
     return `${line1}\n${line2}\n${line3}`;
   })();
   const deepInsightNarrative = useMemo(() => {
-    const deepAsset = currentAsset || assets.find((a) => a?.symbol === 'NAS100');
+    const deepAsset = currentAsset || safeAssets.find((a) => a?.symbol === 'NAS100');
     if (!deepAsset) return 'Analisi Deep Insight in aggiornamento.';
 
     const symbol = deepAsset.symbol || 'NAS100';
@@ -1115,7 +1134,7 @@ const AssetChartPanel = ({
 
     let correlationLine = '';
     if (symbol === 'NAS100') {
-      const goldAsset = assets.find((asset) => asset?.symbol === 'XAUUSD');
+      const goldAsset = safeAssets.find((asset) => asset?.symbol === 'XAUUSD');
       if (goldAsset) {
         const sameDirection = goldAsset.direction && deepAsset.direction && goldAsset.direction === deepAsset.direction;
         correlationLine = sameDirection
@@ -1140,7 +1159,7 @@ Driver intraday essenziali: ${optionsLine} ${gexLine} Quadro attuale a ${converg
 ${weeklyStatsLine}
 ${statsLine}
 ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
-  }, [assets, currentAsset, cotData, breadthData, optionsData, newsEvents, newsSentiment, nextEvent, vix?.current, regime, weekRule?.description, dayRule?.note]);
+  }, [safeAssets, currentAsset, cotData, breadthData, optionsData, newsEvents, newsSentiment, nextEvent, vix?.current, regime, weekRule?.description, dayRule?.note]);
 
   const screeningFocusNarrative = useMemo(() => {
     const source = String(deepInsightNarrative || '')
@@ -1179,12 +1198,84 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
     return compactLines.join('\n');
   }, [deepInsightNarrative, screeningFocusFallbackNarrative]);
 
+  const quickMetrics = useMemo(() => {
+    const biasFromText = (raw) => {
+      const txt = String(raw || '').toUpperCase();
+      if (txt.includes('BULL')) return 'rialzista';
+      if (txt.includes('BEAR')) return 'ribassista';
+      return 'neutrale';
+    };
+
+    const optionsNode = currentAsset ? (optionsData?.[currentAsset.symbol] || null) : null;
+    const gexProfile = Array.isArray(optionsNode?.gex_profile) ? optionsNode.gex_profile : [];
+    const gexNet = gexProfile.reduce((acc, row) => acc + toFiniteNumber(row?.net, 0), 0);
+
+    const optionsBias = optionsNode ? biasFromText(optionsNode?.bias) : null;
+    const gexBias = gexProfile.length > 0 ? (gexNet > 0 ? 'rialzista' : gexNet < 0 ? 'ribassista' : 'neutrale') : null;
+
+    const context = (() => {
+      if (optionsBias && gexBias) {
+        if (optionsBias === gexBias && optionsBias !== 'neutrale') return `Opzioni e GEX ${optionsBias}`;
+        return `Opzioni ${optionsBias} · GEX ${gexBias}`;
+      }
+      const regimeKey = String(regime || '').toLowerCase();
+      if (regimeKey === 'risk-on') return 'Risk-on';
+      if (regimeKey === 'risk-off') return 'Risk-off';
+      return 'In sviluppo';
+    })();
+
+    const volatility = (() => {
+      const volScore = Number(currentAsset?.scores?.volatility);
+      if (Number.isFinite(volScore)) {
+        if (volScore >= 65) return 'Alta';
+        if (volScore >= 45) return 'Media';
+        return 'Bassa';
+      }
+      const vixValue = Number(vix?.current);
+      if (Number.isFinite(vixValue)) {
+        if (vixValue >= 24) return 'Alta';
+        if (vixValue >= 18) return 'Media';
+        return 'Bassa';
+      }
+      return 'Bassa';
+    })();
+
+    const impulse = (() => {
+      const direction = String(currentAsset?.direction || '').toLowerCase();
+      if (direction === 'up' || direction === 'down') return 'Prosegue';
+      return 'Neutro';
+    })();
+
+    const regimeLabel = (() => {
+      const direction = String(currentAsset?.direction || '').toLowerCase();
+      return direction === 'up' || direction === 'down' ? 'Trend' : 'Range';
+    })();
+
+    return { context, volatility, impulse, regime: regimeLabel };
+  }, [currentAsset, optionsData, regime, vix?.current]);
+
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
   const handleFocusAsset = (symbol) => {
     setSelectedAsset(symbol);
     setViewMode('focus');
   };
+
+  if (!currentAsset) {
+    return (
+      <TechCard className={cn(
+        "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 pb-[20px] relative w-full transition-all duration-300 min-h-[616px]",
+        className
+      )}>
+        <div className="h-full min-h-[560px] rounded-2xl border border-white/10 bg-[#0B0F17]/80 flex items-center justify-center">
+          <div className="text-center space-y-2">
+            <Activity className="w-6 h-6 text-[#00D9A5] animate-pulse mx-auto" />
+            <p className="text-sm text-white/60">Screening in aggiornamento...</p>
+          </div>
+        </div>
+      </TechCard>
+    );
+  }
 
   return (
     <TechCard className={cn(
@@ -1351,7 +1442,7 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest dark:text-white/30">Seleziona Asset</span>
                       </div>
                       <div className="space-y-1 mb-4">
-                        {assets.map((a) => (
+                        {safeAssets.map((a) => (
                           <button
                             key={a.symbol}
                             onClick={() => toggleFavorite(a.symbol)}
@@ -1409,16 +1500,16 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
               {isMobile ? (
                 <div className="relative">
                   {/* Navigation arrows */}
-                  {assets.length > 1 && (
+                  {safeAssets.length > 1 && (
                     <div className="flex items-center justify-between mb-3">
                       <button
-                        onClick={() => setMobileChartIndex((prev) => (prev - 1 + assets.length) % assets.length)}
+                        onClick={() => setMobileChartIndex((prev) => (prev - 1 + safeAssets.length) % safeAssets.length)}
                         className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all"
                       >
                         <ChevronLeft className="w-4 h-4" />
                       </button>
                       <div className="flex items-center gap-1.5">
-                        {assets.map((_, i) => (
+                        {safeAssets.map((_, i) => (
                           <button
                             key={i}
                             onClick={() => setMobileChartIndex(i)}
@@ -1430,7 +1521,7 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
                         ))}
                       </div>
                       <button
-                        onClick={() => setMobileChartIndex((prev) => (prev + 1) % assets.length)}
+                        onClick={() => setMobileChartIndex((prev) => (prev + 1) % safeAssets.length)}
                         className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-all"
                       >
                         <ChevronRight className="w-4 h-4" />
@@ -1439,7 +1530,9 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
                   )}
                   {/* Single chart card — zoomed */}
                   {(() => {
-                    const asset = assets[mobileChartIndex % assets.length];
+                    if (safeAssets.length === 0) return null;
+                    const safeIndex = ((mobileChartIndex % safeAssets.length) + safeAssets.length) % safeAssets.length;
+                    const asset = safeAssets[safeIndex];
                     if (!asset) return null;
                     const color = chartColors[mobileChartIndex % chartColors.length];
                     return (
@@ -1594,31 +1687,37 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
 		                    <p className="text-[16px] font-medium text-white/95 leading-relaxed tracking-[0.01em] whitespace-pre-line">
 		                      <TypewriterText text={screeningFocusNarrative} speed={18} delay={400} />
 		                    </p>
-	                    <div className="min-w-[170px] font-apple justify-self-end">
-	                      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-white/95 mb-2">
-	                        Metriche rapide
-	                      </p>
-	                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-	                        <div>
-	                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Volatilita</p>
-	                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
-	                            {atrProgress >= 70 ? 'Alta' : atrProgress >= 40 ? 'Media' : 'Bassa'}
-	                          </p>
-	                        </div>
-	                        <div>
-	                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Impulso</p>
-	                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
-	                            {dailyOutlook?.conclusionType === 'bullish' || dailyOutlook?.conclusionType === 'bearish' ? 'Prosegue' : 'Neutro'}
-	                          </p>
-	                        </div>
-	                        <div>
-	                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Regime</p>
-	                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
-	                            {dailyOutlook?.conclusionType === 'neutral' ? 'Range' : 'Trend'}
-	                          </p>
-	                        </div>
-		                      </div>
-		                    </div>
+		                    <div className="min-w-[170px] font-apple justify-self-end">
+		                      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-white/95 mb-2">
+		                        Metriche rapide
+		                      </p>
+		                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                        <div className="col-span-2">
+                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Contesto</p>
+                          <p className="text-[13px] leading-snug font-semibold text-[#00D9A5]">
+                            {quickMetrics.context}
+                          </p>
+                        </div>
+		                        <div>
+		                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Volatilita</p>
+		                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
+		                            {quickMetrics.volatility}
+		                          </p>
+		                        </div>
+		                        <div>
+		                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Impulso</p>
+		                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
+		                            {quickMetrics.impulse}
+		                          </p>
+		                        </div>
+		                        <div>
+		                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Regime</p>
+		                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
+		                            {quickMetrics.regime}
+		                          </p>
+		                        </div>
+			                      </div>
+			                    </div>
 		                  </div>
 		                  <button
 		                    type="button"
@@ -3281,6 +3380,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
   const grossPremium = currentData.call_million + currentData.put_million;
   const dominantSide = ratioSpread >= 6 ? 'CALL' : ratioSpread <= -6 ? 'PUT' : 'BALANCED';
   const netTone = currentData.net_million >= 0 ? 'pro-risk' : 'risk-off';
+  const isNetFlowPositive = currentData.net_million >= 0;
   const signedPct = (value) => `${value >= 0 ? '+' : ''}${Number(value).toFixed(1)}%`;
   const signedMillion = (value) => `${value >= 0 ? '+' : ''}${Math.round(value)}M`;
 
@@ -3509,7 +3609,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
                   value={currentData.net_flow}
                   size="100%"
                   strokeWidth={8}
-                  color={currentData.bias === 'bearish' ? "#EF4444" : "#00D9A5"}
+                  color={isNetFlowPositive ? "#00D9A5" : "#EF4444"}
                   showValue={false}
                 />
               )}
@@ -3523,7 +3623,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
                   </span>
                   <span className={cn(
                     "text-lg sm:text-xl lg:text-2xl font-bold",
-                    currentData.bias === 'bearish' ? "text-red-400" : "text-[#00D9A5]"
+                    isNetFlowPositive ? "text-[#00D9A5]" : "text-red-400"
                   )}>
                     <CountUp value={currentData.net_million} prefix={currentData.net_million > 0 ? '+' : ''} suffix="M" duration={1800} delay={500} />
                   </span>
@@ -4959,13 +5059,13 @@ export default function DashboardPage() {
           : 'MEDIUM_RISK';
 
       const candidateSymbols = Array.from(new Set([
-        ...(engineData || []).map((a) => a.asset || a.symbol).filter(Boolean),
+        ...(engineData || []).map((a) => a?.asset || a?.symbol).filter(Boolean),
         ...(favoriteCharts || [])
       ]));
       if (candidateSymbols.length === 0) return;
 
       for (const symbol of candidateSymbols) {
-        const assetEngineData = (engineData || []).find((a) => (a.asset || a.symbol) === symbol) || {};
+        const assetEngineData = (engineData || []).find((a) => (a?.asset || a?.symbol) === symbol) || {};
         const breadthNode = marketBreadth?.indices?.[symbol];
         const aboveMa50Pct = breadthNode?.above_ma50?.pct;
         const aboveMa200Pct = breadthNode?.above_ma200?.pct;
@@ -5041,20 +5141,21 @@ export default function DashboardPage() {
 
   // Build assets array for chart tabs (no VIX)
   const assetsList = useMemo(() => Object.entries(analysesData).map(([symbol, data]) => {
+    const safeData = data && typeof data === 'object' ? data : {};
     // Find engine data for this symbol
-    const assetEngineData = engineData?.find(card => card.asset === symbol);
+    const assetEngineData = engineData?.find((card) => card?.asset === symbol || card?.symbol === symbol);
     const live = livePrices?.[symbol];
 
     return {
       symbol,
-      analysisPrice: data.price,
-      analysisChange: data.change ?? 0,
-      price: live?.price ?? data.price,
-      change: live?.change ?? data.change ?? 0,
-      direction: assetEngineData?.direction === 'UP' ? 'Up' : assetEngineData?.direction === 'DOWN' ? 'Down' : data.direction,
-      confidence: assetEngineData?.probability ?? data.confidence,
-      impulse: assetEngineData?.impulse ?? data.impulse,
-      explanation: data.drivers?.map(d => `${d.name}: ${d.impact}`).join('. '),
+      analysisPrice: safeData.price,
+      analysisChange: safeData.change ?? 0,
+      price: live?.price ?? safeData.price,
+      change: live?.change ?? safeData.change ?? 0,
+      direction: assetEngineData?.direction === 'UP' ? 'Up' : assetEngineData?.direction === 'DOWN' ? 'Down' : safeData.direction,
+      confidence: assetEngineData?.probability ?? safeData.confidence,
+      impulse: assetEngineData?.impulse ?? safeData.impulse,
+      explanation: Array.isArray(safeData.drivers) ? safeData.drivers.map((d) => `${d?.name}: ${d?.impact}`).join('. ') : '',
       scores: assetEngineData?.scores || {},
       drivers: assetEngineData?.drivers || [],
       discretionaryContext: assetEngineData?.discretionary_context || null,

@@ -72,7 +72,7 @@ export default function ResearchPage() {
     const [sessionsData, setSessionsData] = useState(null);
     const [pipelineData, setPipelineData] = useState(null);
     const [selectedPipelineAsset, setSelectedPipelineAsset] = useState('EURUSD');
-    const [sessionsInnerTab, setSessionsInnerTab] = useState('storico');
+    const [sessionsInnerTab, setSessionsInnerTab] = useState('pipeline');
     const [smartMoneyData, setSmartMoneyData] = useState(null);
 
     // UI State
@@ -142,6 +142,12 @@ export default function ResearchPage() {
             .then((data) => setPipelineData(data))
             .catch(() => null);
     }, [activeTab, forensicsSubTab, selectedPipelineAsset]);
+
+    useEffect(() => {
+        if (forensicsSubTab === 'sessioni') {
+            setSessionsInnerTab('pipeline');
+        }
+    }, [forensicsSubTab]);
 
     useEffect(() => {
         if (activeTab !== 'deepResearch') return;
