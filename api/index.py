@@ -27,6 +27,10 @@ from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import requests
 try:
+    import yfinance as yf
+except Exception:
+    yf = None
+try:
     from .market_intelligence import (
         STRATEGY_CATALOG,
         build_cot_snapshot,
@@ -252,6 +256,25 @@ _intelligence_cache = {
 INTELLIGENCE_CACHE_TTL = 45  # seconds
 _breadth_cache = {"data": None, "timestamp": None}
 ALLOWED_MARKET_HOSTS = {"www.barchart.com", "query1.finance.yahoo.com"}
+
+NEW_YORK_TZ = ZoneInfo("America/New_York")
+OPTIONS_FLOW_CACHE_TTL_SECONDS = 60
+OPTIONS_MIN_NOTIONAL_MILLION = 0.5
+OPTIONS_PROXY_MAP = {
+    "XAUUSD": "GLD",
+    "NAS100": "QQQ",
+    "SP500": "SPY",
+    "EURUSD": "FXE",
+    "BTCUSD": "IBIT",
+}
+OPTIONS_SPOT_REF_MAP = {
+    "XAUUSD": "GC=F",
+    "NAS100": "NQ=F",
+    "SP500": "ES=F",
+    "EURUSD": "EURUSD=X",
+    "BTCUSD": "BTC-USD",
+}
+_options_flow_cache = {"data": None, "timestamp": None, "session_baseline": {}}
 
 
 def _validated_external_url(url: str, allowed_hosts: set) -> str:
@@ -881,6 +904,405 @@ def _get_intelligence_bundle():
     return fresh
 
 
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_pct_delta(current: float, previous: Optional[float]) -> float:
+    if previous is None:
+        return 0.0
+    prev_abs = abs(previous)
+    if prev_abs < 1e-9:
+        if abs(current) < 1e-9:
+            return 0.0
+        return 100.0 if current > 0 else -100.0
+    return ((current - previous) / prev_abs) * 100.0
+
+
+def _norm_pdf(value: float) -> float:
+    return math.exp(-0.5 * value * value) / math.sqrt(2.0 * math.pi)
+
+
+def _bs_gamma(spot: float, strike: float, years_to_expiry: float, iv: float) -> float:
+    if spot <= 0 or strike <= 0 or years_to_expiry <= 0 or iv <= 0:
+        return 0.0
+    denom = iv * math.sqrt(years_to_expiry)
+    if denom <= 0:
+        return 0.0
+    d1 = (math.log(spot / strike) + (0.5 * iv * iv * years_to_expiry)) / denom
+    return _norm_pdf(d1) / (spot * denom)
+
+
+def _pick_primary_expiry(expiries: List[str]) -> Optional[str]:
+    if not expiries:
+        return None
+    today = datetime.now(timezone.utc).date()
+    parsed = []
+    for item in expiries:
+        try:
+            parsed.append(datetime.strptime(item, "%Y-%m-%d").date())
+        except Exception:
+            continue
+    if not parsed:
+        return None
+    future = sorted([d for d in parsed if d >= today])
+    chosen = future[0] if future else sorted(parsed)[-1]
+    return chosen.isoformat()
+
+
+def _options_bias_from_flow(
+    flow_shift_to_puts: float,
+    net_million: float,
+    call_ratio: float,
+    put_ratio: float,
+    call_change: float,
+    put_change: float,
+) -> str:
+    ratio_skew = put_ratio - call_ratio
+    momentum_skew = put_change - call_change
+    gross_million = abs(net_million)
+
+    if flow_shift_to_puts >= 3.0 or momentum_skew >= 3.0:
+        return "bearish"
+    if flow_shift_to_puts <= -3.0 or momentum_skew <= -3.0:
+        return "bullish"
+    if ratio_skew >= 8.0:
+        return "bearish"
+    if ratio_skew <= -8.0:
+        return "bullish"
+    if net_million <= -2.0 and ratio_skew >= -4.0:
+        return "bearish"
+    if net_million >= 2.0 and ratio_skew <= 4.0:
+        return "bullish"
+    if gross_million < 1.0 and abs(ratio_skew) < 6.0:
+        return "neutral"
+    return "neutral"
+
+
+def _compute_options_snapshot_row(
+    symbol: str,
+    proxy_ticker: str,
+    target_spot: Optional[float] = None,
+    previous: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    if yf is None:
+        return None
+
+    ticker = yf.Ticker(proxy_ticker)
+    spot_hist = ticker.history(period="5d", interval="1d")
+    if spot_hist is None or spot_hist.empty:
+        return None
+    spot = _safe_float(spot_hist["Close"].iloc[-1], 0.0)
+    if spot <= 0:
+        return None
+    strike_scale = (target_spot / spot) if (target_spot and target_spot > 0 and spot > 0) else 1.0
+
+    expiries = list(ticker.options or [])
+    expiry = _pick_primary_expiry(expiries)
+    if not expiry:
+        return None
+
+    chain = ticker.option_chain(expiry)
+    calls = chain.calls
+    puts = chain.puts
+    if calls is None or puts is None or calls.empty or puts.empty:
+        return None
+
+    call_volume = _safe_float(calls["volume"].fillna(0).sum(), 0.0)
+    put_volume = _safe_float(puts["volume"].fillna(0).sum(), 0.0)
+    call_oi_total = _safe_float(calls["openInterest"].fillna(0).sum(), 0.0)
+    put_oi_total = _safe_float(puts["openInterest"].fillna(0).sum(), 0.0)
+
+    call_activity = call_volume if call_volume > 0 else call_oi_total
+    put_activity = put_volume if put_volume > 0 else put_oi_total
+    total_activity = max(call_activity + put_activity, 1.0)
+    call_ratio = (call_activity / total_activity) * 100.0
+    put_ratio = 100.0 - call_ratio
+
+    call_notional = _safe_float((calls["lastPrice"].fillna(0) * calls["volume"].fillna(0) * 100).sum(), 0.0)
+    put_notional = _safe_float((puts["lastPrice"].fillna(0) * puts["volume"].fillna(0) * 100).sum(), 0.0)
+    if call_notional <= 0 and call_oi_total > 0:
+        call_notional = _safe_float((calls["lastPrice"].fillna(0) * calls["openInterest"].fillna(0) * 20).sum(), 0.0)
+    if put_notional <= 0 and put_oi_total > 0:
+        put_notional = _safe_float((puts["lastPrice"].fillna(0) * puts["openInterest"].fillna(0) * 20).sum(), 0.0)
+
+    call_million = call_notional / 1_000_000.0
+    put_million = put_notional / 1_000_000.0
+    net_million = call_million - put_million
+
+    has_previous = isinstance(previous, dict) and bool(previous)
+    prev_call = _safe_float((previous or {}).get("call_million"), 0.0) if has_previous else None
+    prev_put = _safe_float((previous or {}).get("put_million"), 0.0) if has_previous else None
+    prev_net = _safe_float((previous or {}).get("net_million"), 0.0) if has_previous else None
+
+    if has_previous:
+        call_change = 0.0 if max(abs(call_million), abs(prev_call or 0.0)) < OPTIONS_MIN_NOTIONAL_MILLION else _safe_pct_delta(call_million, prev_call)
+        put_change = 0.0 if max(abs(put_million), abs(prev_put or 0.0)) < OPTIONS_MIN_NOTIONAL_MILLION else _safe_pct_delta(put_million, prev_put)
+        net_change = 0.0 if max(abs(net_million), abs(prev_net or 0.0)) < OPTIONS_MIN_NOTIONAL_MILLION else _safe_pct_delta(net_million, prev_net)
+        flow_shift_to_puts = put_change - call_change
+    else:
+        total_notional = max(abs(call_million) + abs(put_million), 1e-9)
+        call_share = (abs(call_million) / total_notional) * 100.0
+        put_share = 100.0 - call_share
+        imbalance_pct = ((put_million - call_million) / total_notional) * 100.0
+        call_change = max(-99.0, min(99.0, (call_share - 50.0) * 2.0))
+        put_change = max(-99.0, min(99.0, (put_share - 50.0) * 2.0))
+        net_change = max(-99.0, min(99.0, imbalance_pct))
+        flow_shift_to_puts = imbalance_pct
+
+    options_bias = _options_bias_from_flow(
+        flow_shift_to_puts=flow_shift_to_puts,
+        net_million=net_million,
+        call_ratio=call_ratio,
+        put_ratio=put_ratio,
+        call_change=call_change,
+        put_change=put_change,
+    )
+    net_flow_score = max(0.0, min(100.0, 50.0 + ((call_ratio - put_ratio) * 0.5)))
+
+    expiry_date = datetime.strptime(expiry, "%Y-%m-%d").date()
+    raw_dte_days = (expiry_date - datetime.now(timezone.utc).date()).days
+    dte_days = max(1, raw_dte_days)
+    years_to_expiry = max(dte_days / 365.0, 1.0 / 365.0)
+
+    call_by_strike = {}
+    for _, row in calls.iterrows():
+        strike = _safe_float(row.get("strike"), 0.0)
+        if strike <= 0:
+            continue
+        call_by_strike[strike] = {
+            "oi": max(_safe_float(row.get("openInterest"), 0.0), 0.0),
+            "iv": max(_safe_float(row.get("impliedVolatility"), 0.0), 0.0),
+        }
+
+    put_by_strike = {}
+    for _, row in puts.iterrows():
+        strike = _safe_float(row.get("strike"), 0.0)
+        if strike <= 0:
+            continue
+        put_by_strike[strike] = {
+            "oi": max(_safe_float(row.get("openInterest"), 0.0), 0.0),
+            "iv": max(_safe_float(row.get("impliedVolatility"), 0.0), 0.0),
+        }
+
+    all_strikes = sorted(set(call_by_strike.keys()) | set(put_by_strike.keys()))
+    if not all_strikes:
+        return None
+
+    strike_window = [s for s in all_strikes if (spot * 0.80) <= s <= (spot * 1.20)]
+    if len(strike_window) < 8:
+        strike_window = sorted(all_strikes, key=lambda s: abs(s - spot))[:12]
+        strike_window = sorted(strike_window)
+
+    profile = []
+    total_call_raw = 0.0
+    total_put_raw = 0.0
+    total_net_raw = 0.0
+
+    for strike in strike_window:
+        call_row = call_by_strike.get(strike, {})
+        put_row = put_by_strike.get(strike, {})
+        call_oi = call_row.get("oi", 0.0)
+        put_oi = put_row.get("oi", 0.0)
+        call_iv = call_row.get("iv", 0.0) or 0.25
+        put_iv = put_row.get("iv", 0.0) or 0.25
+
+        call_gamma = _bs_gamma(spot, strike, years_to_expiry, call_iv)
+        put_gamma = _bs_gamma(spot, strike, years_to_expiry, put_iv)
+
+        call_gex_raw = call_gamma * call_oi * 100.0 * spot * spot * 0.01
+        put_gex_raw = -put_gamma * put_oi * 100.0 * spot * spot * 0.01
+        net_gex_raw = call_gex_raw + put_gex_raw
+
+        total_call_raw += abs(call_gex_raw)
+        total_put_raw += abs(put_gex_raw)
+        total_net_raw += net_gex_raw
+
+        profile.append(
+            {
+                "strike": round(strike * strike_scale, 4 if symbol == "EURUSD" else 2),
+                "put": round(put_gex_raw / 1000.0, 1),
+                "call": round(call_gex_raw / 1000.0, 1),
+                "net": round(net_gex_raw / 1000.0, 1),
+            }
+        )
+
+    sorted_profile = sorted(profile, key=lambda row: float(row["strike"]))
+    gamma_flip = None
+    for idx in range(len(sorted_profile) - 1):
+        current = _safe_float(sorted_profile[idx].get("net"), 0.0)
+        nxt = _safe_float(sorted_profile[idx + 1].get("net"), 0.0)
+        if current == 0:
+            gamma_flip = sorted_profile[idx]["strike"]
+            break
+        if (current > 0 and nxt < 0) or (current < 0 and nxt > 0):
+            w = abs(current) / max(abs(current) + abs(nxt), 1e-9)
+            left = _safe_float(sorted_profile[idx].get("strike"), 0.0)
+            right = _safe_float(sorted_profile[idx + 1].get("strike"), left)
+            gamma_flip = left + ((right - left) * w)
+            break
+    if gamma_flip is None and sorted_profile:
+        closest = min(sorted_profile, key=lambda row: abs(_safe_float(row.get("net"), 0.0)))
+        gamma_flip = closest.get("strike")
+
+    magnitude = max(total_call_raw + total_put_raw, 1e-9)
+    gamma_exposure = max(0.0, min(100.0, (abs(total_net_raw) / magnitude) * 100.0))
+    gamma_billion = total_net_raw / 1_000_000_000.0
+
+    return {
+        "symbol": symbol,
+        "proxy": proxy_ticker,
+        "expiry": expiry,
+        "is_0dte": raw_dte_days == 0,
+        "dte_days": max(raw_dte_days, 0),
+        "spot": round(target_spot if (target_spot and target_spot > 0) else spot, 5 if symbol == "EURUSD" else 2),
+        "proxy_spot": round(spot, 4),
+        "call_ratio": round(call_ratio, 1),
+        "put_ratio": round(put_ratio, 1),
+        "net_flow": round(net_flow_score, 1),
+        "bias": options_bias,
+        "call_million": round(call_million, 1),
+        "put_million": round(put_million, 1),
+        "net_million": round(net_million, 1),
+        "call_change": round(call_change, 1),
+        "put_change": round(put_change, 1),
+        "net_change": round(net_change, 1),
+        "flow_shift_to_puts": round(flow_shift_to_puts, 1),
+        "ratio_skew": round(put_ratio - call_ratio, 1),
+        "gamma_exposure": round(gamma_exposure, 1),
+        "gamma_billion": round(gamma_billion, 3),
+        "gamma_flip": round(_safe_float(gamma_flip, 0.0), 4 if symbol == "EURUSD" else 2),
+        "gex_profile": sorted(profile, key=lambda row: float(row["strike"]), reverse=True)[:12],
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "source": "yfinance_option_chain",
+    }
+
+
+def _build_live_options_flow_payload() -> Dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    if _options_flow_cache["data"] and _options_flow_cache["timestamp"]:
+        age = (now - _options_flow_cache["timestamp"]).total_seconds()
+        if age < OPTIONS_FLOW_CACHE_TTL_SECONDS:
+            return _options_flow_cache["data"]
+
+    prev_data = (_options_flow_cache.get("data") or {}).get("data", {})
+    baseline_store = _options_flow_cache.setdefault("session_baseline", {})
+    session_day = now.astimezone(NEW_YORK_TZ).date().isoformat()
+    analyses = (_get_intelligence_bundle().get("multi") or {}).get("analyses", {})
+
+    payload = {
+        "data": {},
+        "updated_at": now.isoformat(),
+        "source": "yfinance_option_chain" if yf else "fallback_no_yfinance",
+        "refresh_seconds": OPTIONS_FLOW_CACHE_TTL_SECONDS,
+        "warnings": [],
+    }
+
+    for symbol, proxy in OPTIONS_PROXY_MAP.items():
+        try:
+            target_spot = _safe_float((analyses.get(symbol) or {}).get("price"), 0.0)
+            if target_spot <= 0 and yf is not None:
+                ref_ticker = OPTIONS_SPOT_REF_MAP.get(symbol)
+                if ref_ticker:
+                    ref_hist = yf.Ticker(ref_ticker).history(period="5d", interval="1d")
+                    if ref_hist is not None and not ref_hist.empty:
+                        target_spot = _safe_float(ref_hist["Close"].iloc[-1], 0.0)
+
+            row = _compute_options_snapshot_row(
+                symbol,
+                proxy,
+                target_spot=target_spot if target_spot > 0 else None,
+                previous=prev_data.get(symbol),
+            )
+
+            if not row:
+                direction = str((analyses.get(symbol) or {}).get("direction", "Neutral")).lower()
+                if direction == "up":
+                    call_ratio, put_ratio = 56.0, 44.0
+                elif direction == "down":
+                    call_ratio, put_ratio = 44.0, 56.0
+                else:
+                    call_ratio, put_ratio = 50.0, 50.0
+                row = {
+                    "symbol": symbol,
+                    "proxy": proxy,
+                    "expiry": now.date().isoformat(),
+                    "is_0dte": True,
+                    "dte_days": 0,
+                    "spot": round(target_spot, 5 if symbol == "EURUSD" else 2),
+                    "proxy_spot": round(target_spot, 5 if symbol == "EURUSD" else 2),
+                    "call_ratio": call_ratio,
+                    "put_ratio": put_ratio,
+                    "net_flow": round(50.0 + ((call_ratio - put_ratio) * 0.5), 1),
+                    "bias": "bullish" if direction == "up" else "bearish" if direction == "down" else "neutral",
+                    "call_million": 0.0,
+                    "put_million": 0.0,
+                    "net_million": 0.0,
+                    "call_change": 0.0,
+                    "put_change": 0.0,
+                    "net_change": 0.0,
+                    "flow_shift_to_puts": 0.0,
+                    "ratio_skew": round(put_ratio - call_ratio, 1),
+                    "gamma_exposure": 0.0,
+                    "gamma_billion": 0.0,
+                    "gamma_flip": round(target_spot, 5 if symbol == "EURUSD" else 2),
+                    "gex_profile": [],
+                    "updated_at": now.isoformat(),
+                    "source": "fallback_analysis_proxy",
+                }
+                payload["warnings"].append(f"{symbol}: options chain unavailable, fallback active")
+
+            baseline = baseline_store.get(symbol)
+            if not baseline or baseline.get("session_day") != session_day:
+                baseline = {
+                    "session_day": session_day,
+                    "call_million": _safe_float(row.get("call_million"), 0.0),
+                    "put_million": _safe_float(row.get("put_million"), 0.0),
+                    "net_million": _safe_float(row.get("net_million"), 0.0),
+                }
+                baseline_store[symbol] = baseline
+
+            baseline_call = _safe_float(baseline.get("call_million"), 0.0)
+            baseline_put = _safe_float(baseline.get("put_million"), 0.0)
+            baseline_net = _safe_float(baseline.get("net_million"), 0.0)
+            current_call = _safe_float(row.get("call_million"), 0.0)
+            current_put = _safe_float(row.get("put_million"), 0.0)
+            current_net = _safe_float(row.get("net_million"), 0.0)
+
+            session_call_change = 0.0 if max(abs(current_call), abs(baseline_call)) < OPTIONS_MIN_NOTIONAL_MILLION else _safe_pct_delta(current_call, baseline_call)
+            session_put_change = 0.0 if max(abs(current_put), abs(baseline_put)) < OPTIONS_MIN_NOTIONAL_MILLION else _safe_pct_delta(current_put, baseline_put)
+            session_net_change = 0.0 if max(abs(current_net), abs(baseline_net)) < OPTIONS_MIN_NOTIONAL_MILLION else _safe_pct_delta(current_net, baseline_net)
+            session_shift_to_puts = session_put_change - session_call_change
+
+            row["call_change_tick"] = row.get("call_change", 0.0)
+            row["put_change_tick"] = row.get("put_change", 0.0)
+            row["net_change_tick"] = row.get("net_change", 0.0)
+            row["flow_shift_to_puts_tick"] = row.get("flow_shift_to_puts", 0.0)
+            row["call_change"] = round(session_call_change, 1)
+            row["put_change"] = round(session_put_change, 1)
+            row["net_change"] = round(session_net_change, 1)
+            row["flow_shift_to_puts"] = round(session_shift_to_puts, 1)
+            row["bias"] = _options_bias_from_flow(
+                flow_shift_to_puts=session_shift_to_puts,
+                net_million=current_net,
+                call_ratio=_safe_float(row.get("call_ratio"), 50.0),
+                put_ratio=_safe_float(row.get("put_ratio"), 50.0),
+                call_change=session_call_change,
+                put_change=session_put_change,
+            )
+            row["session_day"] = session_day
+            payload["data"][symbol] = row
+        except Exception as exc:
+            payload["warnings"].append(f"{symbol}: {exc}")
+
+    _options_flow_cache["data"] = payload
+    _options_flow_cache["timestamp"] = now
+    return payload
+
+
 @app.get("/api/analysis/multi-source")
 async def get_multi_source_analysis():
     return _get_intelligence_bundle()["multi"]
@@ -924,7 +1346,23 @@ async def get_engine_cards():
 
 @app.get("/api/news/briefing")
 async def get_news_briefing():
-    return _get_intelligence_bundle()["news"]
+    briefing = dict(_get_intelligence_bundle()["news"])
+    events = briefing.get("events") or []
+    high_impact = sum(1 for item in events if str(item.get("impact", "")).lower() == "high")
+    medium_impact = sum(1 for item in events if str(item.get("impact", "")).lower() == "medium")
+    sentiment = "NEUTRAL"
+    if high_impact >= 2:
+        sentiment = "BEARISH"
+    elif high_impact == 0 and medium_impact <= 1:
+        sentiment = "BULLISH"
+    briefing["sentiment"] = sentiment
+    briefing["updated_at"] = briefing.get("generated_at")
+    return briefing
+
+
+@app.get("/api/market/options-flow")
+async def get_market_options_flow():
+    return await asyncio.to_thread(_build_live_options_flow_payload)
 
 
 @app.get("/api/strategy/catalog")
