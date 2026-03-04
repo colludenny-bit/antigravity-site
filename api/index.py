@@ -1205,6 +1205,50 @@ def _compute_options_snapshot_row(
     }
 
 
+def _build_options_fallback_row(
+    symbol: str,
+    proxy: str,
+    target_spot: float,
+    analyses: Dict[str, Any],
+    now: datetime,
+) -> Dict[str, Any]:
+    direction = str((analyses.get(symbol) or {}).get("direction", "Neutral")).lower()
+    if direction == "up":
+        call_ratio, put_ratio = 56.0, 44.0
+    elif direction == "down":
+        call_ratio, put_ratio = 44.0, 56.0
+    else:
+        call_ratio, put_ratio = 50.0, 50.0
+    spot = max(_safe_float(target_spot, 0.0), 0.0)
+    return {
+        "symbol": symbol,
+        "proxy": proxy,
+        "expiry": now.date().isoformat(),
+        "is_0dte": True,
+        "dte_days": 0,
+        "spot": round(spot, 5 if symbol == "EURUSD" else 2),
+        "proxy_spot": round(spot, 5 if symbol == "EURUSD" else 2),
+        "call_ratio": call_ratio,
+        "put_ratio": put_ratio,
+        "net_flow": round(50.0 + ((call_ratio - put_ratio) * 0.5), 1),
+        "bias": "bullish" if direction == "up" else "bearish" if direction == "down" else "neutral",
+        "call_million": 0.0,
+        "put_million": 0.0,
+        "net_million": 0.0,
+        "call_change": 0.0,
+        "put_change": 0.0,
+        "net_change": 0.0,
+        "flow_shift_to_puts": 0.0,
+        "ratio_skew": round(put_ratio - call_ratio, 1),
+        "gamma_exposure": 0.0,
+        "gamma_billion": 0.0,
+        "gamma_flip": round(spot, 5 if symbol == "EURUSD" else 2),
+        "gex_profile": [],
+        "updated_at": now.isoformat(),
+        "source": "fallback_analysis_proxy",
+    }
+
+
 def _build_live_options_flow_payload() -> Dict[str, Any]:
     now = datetime.now(timezone.utc)
     if _options_flow_cache["data"] and _options_flow_cache["timestamp"]:
@@ -1239,40 +1283,13 @@ def _build_live_options_flow_payload() -> Dict[str, Any]:
             )
 
             if not row:
-                direction = str((analyses.get(symbol) or {}).get("direction", "Neutral")).lower()
-                if direction == "up":
-                    call_ratio, put_ratio = 56.0, 44.0
-                elif direction == "down":
-                    call_ratio, put_ratio = 44.0, 56.0
-                else:
-                    call_ratio, put_ratio = 50.0, 50.0
-                row = {
-                    "symbol": symbol,
-                    "proxy": proxy,
-                    "expiry": now.date().isoformat(),
-                    "is_0dte": True,
-                    "dte_days": 0,
-                    "spot": round(target_spot, 5 if symbol == "EURUSD" else 2),
-                    "proxy_spot": round(target_spot, 5 if symbol == "EURUSD" else 2),
-                    "call_ratio": call_ratio,
-                    "put_ratio": put_ratio,
-                    "net_flow": round(50.0 + ((call_ratio - put_ratio) * 0.5), 1),
-                    "bias": "bullish" if direction == "up" else "bearish" if direction == "down" else "neutral",
-                    "call_million": 0.0,
-                    "put_million": 0.0,
-                    "net_million": 0.0,
-                    "call_change": 0.0,
-                    "put_change": 0.0,
-                    "net_change": 0.0,
-                    "flow_shift_to_puts": 0.0,
-                    "ratio_skew": round(put_ratio - call_ratio, 1),
-                    "gamma_exposure": 0.0,
-                    "gamma_billion": 0.0,
-                    "gamma_flip": round(target_spot, 5 if symbol == "EURUSD" else 2),
-                    "gex_profile": [],
-                    "updated_at": now.isoformat(),
-                    "source": "fallback_analysis_proxy",
-                }
+                row = _build_options_fallback_row(
+                    symbol=symbol,
+                    proxy=proxy,
+                    target_spot=target_spot,
+                    analyses=analyses,
+                    now=now,
+                )
                 payload["warnings"].append(f"{symbol}: options chain unavailable, fallback active")
 
             baseline = baseline_store.get(symbol)
@@ -1317,6 +1334,16 @@ def _build_live_options_flow_payload() -> Dict[str, Any]:
             payload["data"][symbol] = row
         except Exception as exc:
             payload["warnings"].append(f"{symbol}: {exc}")
+            target_spot = _safe_float((analyses.get(symbol) or {}).get("price"), 0.0)
+            if target_spot <= 0:
+                target_spot = _safe_float((analyses.get(symbol) or {}).get("analysisPrice"), 0.0)
+            payload["data"][symbol] = _build_options_fallback_row(
+                symbol=symbol,
+                proxy=proxy,
+                target_spot=target_spot,
+                analyses=analyses,
+                now=now,
+            )
 
     _options_flow_cache["data"] = payload
     _options_flow_cache["timestamp"] = now

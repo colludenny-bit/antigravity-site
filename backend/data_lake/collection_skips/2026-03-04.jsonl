@@ -498,3 +498,12 @@
 {"ts_utc":"2026-03-04T04:31:57.912039+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
 {"ts_utc":"2026-03-04T04:31:57.913240+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
 {"ts_utc":"2026-03-04T04:31:57.913571+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:36:57.953436+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:36:57.955755+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:36:57.956881+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:41:57.918629+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:41:57.921383+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:41:57.922071+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:46:57.914455+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:46:57.916593+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:46:57.917213+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}
