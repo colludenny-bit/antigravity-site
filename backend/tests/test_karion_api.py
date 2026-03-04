@@ -162,13 +162,11 @@ class TestCOTData:
         assert response.status_code == 200
         data = response.json()
         
-        # Check TFF report structure (NAS100, SP500, EURUSD)
+        # Check live CFTC report structure (NAS100, SP500, EURUSD)
         nas100 = data["data"]["NAS100"]
-        assert nas100["report_type"] == "TFF"
+        assert nas100["report_type"] == "CFTC"
         categories = nas100["categories"]
         assert "asset_manager" in categories
-        assert "leveraged" in categories
-        assert "dealer" in categories
         
         # Check category fields
         am = categories["asset_manager"]
@@ -179,13 +177,11 @@ class TestCOTData:
         assert "net_change" in am
         assert "percentile_52w" in am
         
-        # Check Disaggregated report structure (XAUUSD)
+        # Check CFTC report structure (XAUUSD)
         xau = data["data"]["XAUUSD"]
-        assert xau["report_type"] == "Disaggregated"
+        assert xau["report_type"] == "CFTC"
         xau_categories = xau["categories"]
         assert "managed_money" in xau_categories
-        assert "swap_dealers" in xau_categories
-        assert "producer" in xau_categories
     
     def test_cot_single_symbol(self):
         """Test /api/cot/{symbol} endpoint"""

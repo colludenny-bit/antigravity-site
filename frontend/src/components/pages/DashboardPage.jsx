@@ -146,6 +146,194 @@ const MARKET_BREADTH_CONFIG = {
   timeframeLabel: '4H'
 };
 
+const DEFAULT_BREADTH_THRESHOLDS = {
+  bullish_ma50_min: 70,
+  bullish_ma200_min: 60,
+  weak_ma50_max: 35,
+  weak_ma200_max: 40
+};
+
+const resolveBreadthThresholds = (breadthData) => {
+  const src = breadthData?.source?.thresholds || {};
+  const bullish_ma50_min = Number(src?.bullish_ma50_min);
+  const bullish_ma200_min = Number(src?.bullish_ma200_min);
+  const weak_ma50_max = Number(src?.weak_ma50_max);
+  const weak_ma200_max = Number(src?.weak_ma200_max);
+  return {
+    bullish_ma50_min: Number.isFinite(bullish_ma50_min) ? bullish_ma50_min : DEFAULT_BREADTH_THRESHOLDS.bullish_ma50_min,
+    bullish_ma200_min: Number.isFinite(bullish_ma200_min) ? bullish_ma200_min : DEFAULT_BREADTH_THRESHOLDS.bullish_ma200_min,
+    weak_ma50_max: Number.isFinite(weak_ma50_max) ? weak_ma50_max : DEFAULT_BREADTH_THRESHOLDS.weak_ma50_max,
+    weak_ma200_max: Number.isFinite(weak_ma200_max) ? weak_ma200_max : DEFAULT_BREADTH_THRESHOLDS.weak_ma200_max
+  };
+};
+
+const deriveBreadthBias = (breadthNode, thresholds = DEFAULT_BREADTH_THRESHOLDS) => {
+  if (!breadthNode || typeof breadthNode !== 'object') return 'UNKNOWN';
+
+  const aboveMa50Pct = Number(breadthNode?.above_ma50?.pct);
+  const aboveMa200Pct = Number(breadthNode?.above_ma200?.pct);
+  if (Number.isFinite(aboveMa50Pct) && Number.isFinite(aboveMa200Pct)) {
+    if (aboveMa50Pct >= thresholds.bullish_ma50_min && aboveMa200Pct >= thresholds.bullish_ma200_min) return 'BULLISH';
+    if (aboveMa50Pct <= thresholds.weak_ma50_max && aboveMa200Pct <= thresholds.weak_ma200_max) return 'BEARISH';
+    return 'NEUTRAL';
+  }
+
+  const regime = String(breadthNode?.breadth_regime || '').toLowerCase();
+  if (regime === 'broad-bullish') return 'BULLISH';
+  if (regime === 'broad-weakness') return 'BEARISH';
+  if (regime) return 'NEUTRAL';
+  return 'UNKNOWN';
+};
+
+const BREADTH_RISK_SCORING = {
+  vixSafeMaxExclusive: 15,
+  vixMediumMaxInclusive: 25,
+  ma50StrongMinExclusive: 60,
+  ma50MediumMinInclusive: 40,
+  ma50MediumMaxInclusive: 60,
+  ma200BonusMinExclusive: 70,
+  safeScoreMin: 4,
+  mediumScoreMin: 2
+};
+
+const BREADTH_DIVERGENCE_RULES = {
+  lookbackDays: 20,
+  declineSessions: 5,
+  minDropPctPoints: 5,
+  nearHighRatio: 0.99
+};
+
+const BREADTH_RISK_LEVEL_STYLE = {
+  SAFE: {
+    tone: 'SAFE',
+    className: 'border-emerald-400/60 bg-emerald-500/15 text-emerald-300 shadow-[0_0_26px_rgba(16,185,129,0.2)]'
+  },
+  MEDIUM: {
+    tone: 'MEDIUM',
+    className: 'border-yellow-300/60 bg-yellow-500/14 text-yellow-200 shadow-[0_0_26px_rgba(234,179,8,0.22)]'
+  },
+  HIGH: {
+    tone: 'HIGH',
+    className: 'border-red-400/60 bg-red-500/15 text-red-200 shadow-[0_0_26px_rgba(239,68,68,0.2)]'
+  }
+};
+
+const asFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const scoreBreadthVix = (vixValue) => {
+  if (!Number.isFinite(vixValue)) return 0;
+  if (vixValue < BREADTH_RISK_SCORING.vixSafeMaxExclusive) return 2;
+  if (vixValue <= BREADTH_RISK_SCORING.vixMediumMaxInclusive) return 1;
+  return 0;
+};
+
+const scoreBreadthMa50 = (ma50Value) => {
+  if (!Number.isFinite(ma50Value)) return 0;
+  if (ma50Value > BREADTH_RISK_SCORING.ma50StrongMinExclusive) return 2;
+  if (
+    ma50Value >= BREADTH_RISK_SCORING.ma50MediumMinInclusive
+    && ma50Value <= BREADTH_RISK_SCORING.ma50MediumMaxInclusive
+  ) return 1;
+  return 0;
+};
+
+const scoreBreadthMa200Bonus = (ma200Value) => {
+  if (!Number.isFinite(ma200Value)) return 0;
+  return ma200Value > BREADTH_RISK_SCORING.ma200BonusMinExclusive ? 1 : 0;
+};
+
+const extractDailyMa50Series = (indexData) => {
+  const historyRows = Array.isArray(indexData?.history) ? indexData.history : [];
+  const dailyMap = new Map();
+
+  historyRows.forEach((point) => {
+    const rawDate = String(point?.date || '');
+    const dayKey = rawDate.length >= 10 ? rawDate.slice(0, 10) : '';
+    if (!dayKey) return;
+
+    const price = asFiniteNumber(point?.price);
+    const ma50 = asFiniteNumber(point?.above_ma50_pct);
+    if (!Number.isFinite(price) || !Number.isFinite(ma50)) return;
+
+    dailyMap.set(dayKey, { dayKey, price, ma50 });
+  });
+
+  if (dailyMap.size === 0) {
+    const fallbackDay = String(indexData?.as_of_date || '').slice(0, 10);
+    const fallbackPrice = asFiniteNumber(indexData?.latest_price);
+    const fallbackMa50 = asFiniteNumber(indexData?.above_ma50?.pct);
+    if (fallbackDay && Number.isFinite(fallbackPrice) && Number.isFinite(fallbackMa50)) {
+      dailyMap.set(fallbackDay, { dayKey: fallbackDay, price: fallbackPrice, ma50: fallbackMa50 });
+    }
+  }
+
+  const ordered = Array.from(dailyMap.values()).slice(-BREADTH_DIVERGENCE_RULES.lookbackDays);
+  return ordered.map((row) => ({
+    ...row,
+    label: row.dayKey.length >= 10 ? `${row.dayKey.slice(8, 10)}/${row.dayKey.slice(5, 7)}` : row.dayKey
+  }));
+};
+
+const buildBreadthRiskSnapshot = (indexData, vixCurrent) => {
+  const vixValue = asFiniteNumber(vixCurrent);
+  const ma50Value = asFiniteNumber(indexData?.above_ma50?.pct);
+  const ma200Value = asFiniteNumber(indexData?.above_ma200?.pct);
+
+  const vixScore = scoreBreadthVix(vixValue);
+  const ma50Score = scoreBreadthMa50(ma50Value);
+  const ma200Bonus = scoreBreadthMa200Bonus(ma200Value);
+  const totalScore = vixScore + ma50Score + ma200Bonus;
+
+  const level = totalScore >= BREADTH_RISK_SCORING.safeScoreMin
+    ? 'SAFE'
+    : totalScore >= BREADTH_RISK_SCORING.mediumScoreMin
+      ? 'MEDIUM'
+      : 'HIGH';
+
+  const ma50Series = extractDailyMa50Series(indexData);
+  const ma50Values = ma50Series
+    .map((row) => asFiniteNumber(row?.ma50))
+    .filter((value) => Number.isFinite(value));
+  const priceValues = ma50Series
+    .map((row) => asFiniteNumber(row?.price))
+    .filter((value) => Number.isFinite(value));
+  const latestPrice = priceValues.length > 0
+    ? priceValues[priceValues.length - 1]
+    : asFiniteNumber(indexData?.latest_price);
+  const high20d = priceValues.length > 0 ? Math.max(...priceValues) : null;
+  const near20dHigh = Number.isFinite(latestPrice) && Number.isFinite(high20d)
+    ? latestPrice >= (high20d * BREADTH_DIVERGENCE_RULES.nearHighRatio)
+    : false;
+
+  const requiredPoints = BREADTH_DIVERGENCE_RULES.declineSessions + 1;
+  const recentMa50 = ma50Values.slice(-requiredPoints);
+  let breadthDecline = false;
+  if (recentMa50.length === requiredPoints) {
+    const consecutiveDrop = recentMa50.every((value, idx) => (
+      idx === 0 || (Number.isFinite(value) && Number.isFinite(recentMa50[idx - 1]) && value < recentMa50[idx - 1])
+    ));
+    const totalDrop = recentMa50[0] - recentMa50[recentMa50.length - 1];
+    breadthDecline = consecutiveDrop && totalDrop >= BREADTH_DIVERGENCE_RULES.minDropPctPoints;
+  }
+
+  return {
+    vixValue,
+    ma50Value,
+    ma200Value,
+    vixScore,
+    ma50Score,
+    ma200Bonus,
+    totalScore,
+    level,
+    levelStyle: BREADTH_RISK_LEVEL_STYLE[level] || BREADTH_RISK_LEVEL_STYLE.MEDIUM,
+    divergenceActive: near20dHigh && breadthDecline,
+    ma50Series
+  };
+};
+
 const PRICE_DECIMALS = {
   EURUSD: 5
 };
@@ -273,6 +461,25 @@ const STATIC_OPTIONS_DATA = {
   }
 };
 
+const EMPTY_OPTIONS_NODE = {
+  call_ratio: 50,
+  put_ratio: 50,
+  net_flow: 50,
+  bias: 'neutral',
+  call_million: 0,
+  put_million: 0,
+  net_million: 0,
+  call_change: 0,
+  put_change: 0,
+  net_change: 0,
+  flow_shift_to_puts: 0,
+  gamma_exposure: 0,
+  gamma_billion: 0,
+  gamma_flip: null,
+  gex_profile: [],
+  source: 'unavailable'
+};
+
 const COT_LEGACY_FALLBACK_URL = 'https://www.cftc.gov/dea/futures/deacmelf.htm';
 
 const getCotReleaseKey = (payload) => {
@@ -295,6 +502,14 @@ const parseNumericValue = (value) => {
     ? raw.replace(/\./g, '').replace(',', '.')
     : raw.replace(',', '.');
   return Number(normalized);
+};
+
+const getLiveOptionsNode = (optionsData, symbol) => {
+  const node = optionsData?.[symbol];
+  if (node && typeof node === 'object') {
+    return { ...EMPTY_OPTIONS_NODE, ...node, data_unavailable: false };
+  }
+  return { ...EMPTY_OPTIONS_NODE, symbol, data_unavailable: true };
 };
 
 const formatAssetPrice = (value, symbol) => {
@@ -409,13 +624,29 @@ const useIsMobile = () => {
 };
 
 // Asset Charts Grid (2-3 charts visible at once)
-const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsReady = false, onSyncAsset, vix, regime, className = '' }) => {
+const AssetChartPanel = ({
+  assets,
+  favoriteCharts,
+  onFavoriteChange,
+  animationsReady = false,
+  onSyncAsset,
+  vix,
+  regime,
+  cotData = null,
+  breadthData = null,
+  optionsData = null,
+  newsEvents = null,
+  newsSentiment = null,
+  nextEvent = null,
+  className = ''
+}) => {
   // State with LocalStorage Persistence
   const [viewMode, setViewMode] = useState('focus');
   const [selectedAsset, setSelectedAsset] = useState(() => localStorage.getItem('dashboard_selectedAsset') || null);
   const [showSelector, setShowSelector] = useState(false);
   const [showColorPalette, setShowColorPalette] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [showDeepInsight, setShowDeepInsight] = useState(false);
   const [chartLineColor, setChartLineColor] = useState(() => localStorage.getItem('dashboard_chartLineColor') || '#00D9A5');
   const [syncEnabled, setSyncEnabled] = useState(() => localStorage.getItem('dashboard_syncEnabled') === 'true');
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
@@ -559,7 +790,6 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
   const weekRule = SEASONALITY_RULES.weeks[weekNum] || {};
   const dayRule = SEASONALITY_RULES.days[dayKey] || {};
   const isIndex = currentAsset?.symbol === 'NAS100' || currentAsset?.symbol === 'SP500';
-  const monthlyBias = currentAsset?.symbol ? STAT_BIAS[currentAsset.symbol]?.monthly_bias : null;
   const toFiniteNumber = (value, fallback = 0) => {
     const parsed = typeof value === 'string' ? parseFloat(value.replace('%', '').trim()) : Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -596,7 +826,7 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
     ? `${dayRule.note.charAt(0).toLowerCase()}${dayRule.note.slice(1)}`
     : '—';
   const statisticalBiasSummary = isIndex
-    ? `Week ${weekNum} ${weekRule.description || '—'}, giornata statistica di ${dayBiasNormalized}, bias mensile ${monthlyBias || '—'}`
+    ? `Week ${weekNum} ${weekRule.description || '—'}, giornata statistica di ${dayBiasNormalized}`
     : `Seasonality ${seasonalityBias} • MTD ${formatPoints(monthMovePoints)} pts`;
   const currentSymbol = currentAsset?.symbol || null;
   const currentConfidence = Math.round(toFiniteNumber(currentAsset?.confidence, 0));
@@ -687,6 +917,229 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
 
     return `${line1}\n${line2}\n${line3}`;
   })();
+  const deepInsightNarrative = useMemo(() => {
+    const deepAsset = assets.find((a) => a?.symbol === 'NAS100') || currentAsset;
+    if (!deepAsset) return 'Analisi Deep Insight in aggiornamento.';
+
+    const symbol = deepAsset.symbol || 'NAS100';
+    const assetLabelMap = {
+      NAS100: 'Nasdaq',
+      SP500: 'S&P 500',
+      XAUUSD: 'Oro',
+      EURUSD: 'EUR/USD',
+      BTCUSD: 'Bitcoin'
+    };
+    const assetLabel = assetLabelMap[symbol] || symbol;
+
+    const normalizeBias = (raw) => {
+      const txt = String(raw || '').toUpperCase();
+      if (txt.includes('BULL')) return 'BULLISH';
+      if (txt.includes('BEAR')) return 'BEARISH';
+      if (txt.includes('RISK_ON')) return 'BULLISH';
+      if (txt.includes('RISK_OFF')) return 'BEARISH';
+      return 'NEUTRAL';
+    };
+    const biasScore = (bias) => (bias === 'BULLISH' ? 1 : bias === 'BEARISH' ? -1 : 0);
+    const biasToText = (bias) => (
+      bias === 'BULLISH' ? 'rialzista' : bias === 'BEARISH' ? 'ribassista' : 'neutrale'
+    );
+
+    const confidence = Math.round(toFiniteNumber(deepAsset?.confidence, 0));
+    const priceText = formatAssetPrice(deepAsset?.price, symbol);
+    const vixValue = Number(vix?.current);
+    const vixText = Number.isFinite(vixValue) ? vixValue.toFixed(2) : 'n/d';
+    const regimeKey = String(regime || 'neutral').toLowerCase();
+    const regimeText = regimeKey === 'risk-on'
+      ? 'risk-on'
+      : regimeKey === 'risk-off'
+        ? 'risk-off'
+        : 'neutrale';
+    const structuralRisk = Math.max(
+      Number.isFinite(vixValue) ? (vixValue >= 24 ? 78 : vixValue >= 20 ? 58 : vixValue >= 16 ? 42 : 30) : 0,
+      regimeKey === 'risk-off' ? 72 : regimeKey === 'risk-on' ? 36 : 48
+    );
+    const riskLabel = structuralRisk >= 70 ? 'elevato' : structuralRisk >= 50 ? 'moderato' : 'contenuto';
+    const riskBias = regimeKey === 'risk-off' || (Number.isFinite(vixValue) && vixValue >= 24)
+      ? 'BEARISH'
+      : (regimeKey === 'risk-on' && Number.isFinite(vixValue) && vixValue <= 16)
+        ? 'BULLISH'
+        : 'NEUTRAL';
+
+    const screeningBias = deepAsset.direction === 'Up' ? 'BULLISH' : deepAsset.direction === 'Down' ? 'BEARISH' : 'NEUTRAL';
+    const optionsNode = optionsData?.[symbol] || null;
+    const netM = Number(optionsNode?.net_million);
+    const callChange = Number(optionsNode?.call_change);
+    const putChange = Number(optionsNode?.put_change);
+    const ratioSkew = Number(optionsNode?.ratio_skew);
+    const flowShiftToPuts = Number.isFinite(Number(optionsNode?.flow_shift_to_puts))
+      ? Number(optionsNode?.flow_shift_to_puts)
+      : (Number.isFinite(putChange) && Number.isFinite(callChange) ? putChange - callChange : NaN);
+
+    const optionsBiasFromApi = normalizeBias(optionsNode?.bias);
+    let optionsBias = optionsBiasFromApi;
+    if (Number.isFinite(flowShiftToPuts)) {
+      if (flowShiftToPuts >= 3) optionsBias = 'BEARISH';
+      else if (flowShiftToPuts <= -3) optionsBias = 'BULLISH';
+      else if (Number.isFinite(ratioSkew) && ratioSkew >= 8) optionsBias = 'BEARISH';
+      else if (Number.isFinite(ratioSkew) && ratioSkew <= -8) optionsBias = 'BULLISH';
+      else if (optionsBiasFromApi !== 'NEUTRAL') optionsBias = optionsBiasFromApi;
+      else if (Number.isFinite(netM) && Math.abs(netM) >= 12) optionsBias = netM > 0 ? 'BULLISH' : 'BEARISH';
+      else optionsBias = 'NEUTRAL';
+    }
+
+    const gexProfile = Array.isArray(optionsNode?.gex_profile) ? optionsNode.gex_profile : [];
+    const gexNet = gexProfile.reduce((acc, row) => acc + toFiniteNumber(row?.net, 0), 0);
+    const gexBias = gexNet > 0 ? 'BULLISH' : gexNet < 0 ? 'BEARISH' : 'NEUTRAL';
+
+    const breadthNode = breadthData?.indices?.[symbol] || null;
+    const breadthThresholds = resolveBreadthThresholds(breadthData);
+    const breadthBiasRaw = deriveBreadthBias(breadthNode, breadthThresholds);
+    const breadthBias = breadthBiasRaw === 'UNKNOWN' ? 'NEUTRAL' : breadthBiasRaw;
+
+    const cotNode = cotData?.data?.[symbol] || null;
+    const cotBias = normalizeBias(cotNode?.bias);
+    const macroNewsBiasRaw = normalizeBias(newsSentiment || 'NEUTRAL');
+    const regimeMacroBias = normalizeBias(regime || 'NEUTRAL');
+    const macroBlendScore = (biasScore(macroNewsBiasRaw) * 0.7) + (biasScore(regimeMacroBias) * 0.3);
+    const macroBias = macroBlendScore >= 0.2 ? 'BULLISH' : macroBlendScore <= -0.2 ? 'BEARISH' : 'NEUTRAL';
+
+    const dailySignals = [screeningBias, optionsBias, gexBias, riskBias];
+    const dailyBull = dailySignals.filter((b) => b === 'BULLISH').length;
+    const dailyBear = dailySignals.filter((b) => b === 'BEARISH').length;
+    const dailyCompositeBias = dailyBull > dailyBear ? 'BULLISH' : dailyBear > dailyBull ? 'BEARISH' : 'NEUTRAL';
+    const dailyConvergence = Math.max(dailyBull, dailyBear);
+    const convergenceText = dailyConvergence >= 3 ? 'convergenza forte' : dailyConvergence === 2 ? 'convergenza parziale' : 'convergenza debole';
+
+    const generalScore = (biasScore(cotBias) * 0.5) + (biasScore(breadthBias) * 0.3) + (biasScore(macroBias) * 0.2);
+    const generalBias = generalScore >= 0.2 ? 'BULLISH' : generalScore <= -0.2 ? 'BEARISH' : 'NEUTRAL';
+
+    let timeframeBridge = 'lettura allineata tra intraday e struttura di settimana';
+    if (dailyCompositeBias === 'BEARISH' && generalBias === 'BULLISH') {
+      timeframeBridge = 'fase di correzione intraday dentro una struttura settimanale ancora rialzista';
+    } else if (dailyCompositeBias === 'BULLISH' && generalBias === 'BEARISH') {
+      timeframeBridge = 'fase di rimbalzo intraday contro una struttura settimanale ancora debole';
+    } else if (dailyCompositeBias === 'NEUTRAL' && generalBias !== 'NEUTRAL') {
+      timeframeBridge = 'intraday in ribilanciamento, con struttura di fondo ancora orientata';
+    }
+
+    let optionsLine = 'Il flusso opzioni non e disponibile in live: la lettura intraday pesa di piu su prezzo, rischio e gamma.';
+    if (optionsNode) {
+      const nearFlatShift = Number.isFinite(flowShiftToPuts) && Math.abs(flowShiftToPuts) < 0.5;
+      const nearFlatChanges = Number.isFinite(callChange) && Number.isFinite(putChange)
+        ? (Math.abs(callChange) < 0.5 && Math.abs(putChange) < 0.5)
+        : false;
+      const is0dte = Boolean(optionsNode?.is_0dte);
+      const dteDays = Number(optionsNode?.dte_days);
+      const expiryTag = is0dte
+        ? ' (focus 0DTE)'
+        : (Number.isFinite(dteDays) && dteDays > 0 && dteDays <= 3 ? ` (scadenza ${dteDays}g)` : '');
+
+      let optionsFlowState = 'flussi direzionali in evoluzione';
+      if (nearFlatShift && nearFlatChanges) {
+        optionsFlowState = 'flussi di sessione stabili';
+      } else if (Number.isFinite(flowShiftToPuts) && flowShiftToPuts >= 3) {
+        optionsFlowState = 'aumento di coperture lato PUT';
+      } else if (Number.isFinite(flowShiftToPuts) && flowShiftToPuts <= -3) {
+        optionsFlowState = 'aumento di esposizione lato CALL';
+      }
+
+      let participationState = '';
+      if (Number.isFinite(ratioSkew) && ratioSkew >= 8) participationState = ' con partecipazione sbilanciata sui PUT';
+      else if (Number.isFinite(ratioSkew) && ratioSkew <= -8) participationState = ' con partecipazione sbilanciata sui CALL';
+
+      let premiumState = '';
+      if (Number.isFinite(netM) && Math.abs(netM) >= 5) {
+        premiumState = netM > 0 ? ' e premio netto ancora in accumulo' : ' e premio netto in scarico/protezione';
+      }
+
+      optionsLine = `Il flusso opzioni${expiryTag} e ${biasToText(optionsBias)}: ${optionsFlowState}${participationState}${premiumState}.`;
+    }
+
+    let gexLine = 'GEX non disponibile sul feed attuale.';
+    if (gexProfile.length > 0) {
+      const regimeNote = gexNet >= 0
+        ? 'regime di compressione/mean reversion'
+        : 'regime di espansione con rischio di accelerazioni';
+      if (optionsBias !== 'NEUTRAL' && gexBias !== 'NEUTRAL' && optionsBias !== gexBias) {
+        gexLine = `GEX ${biasToText(gexBias)} (${regimeNote}) in divergenza con le opzioni: scenario piu tecnico e meno lineare.`;
+      } else {
+        gexLine = `GEX ${biasToText(gexBias)} (${regimeNote}) in coerenza con la lettura intraday dominante.`;
+      }
+    }
+
+    const weekText = weekRule?.description || 'n/d';
+    const dayText = dayRule?.note || 'n/d';
+    const statsLine = `Contesto statistico: settimana ${weekText.toLowerCase()}, giornata ${dayText.toLowerCase()}; prevale una dinamica di ribilanciamento con possibili falsi breakout prima della direzione piena.`;
+
+    const dateKey = (date) => {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+    const isReleasedEvent = (event) => {
+      const countdown = String(event?.countdown || '').toLowerCase();
+      const actual = String(event?.actual ?? '').trim();
+      return countdown.includes('uscito') || (actual && actual !== '-' && actual !== 'null');
+    };
+    const baseDate = new Date();
+    baseDate.setHours(0, 0, 0, 0);
+    const todayKey = dateKey(baseDate);
+    const normalizedEvents = (Array.isArray(newsEvents) ? newsEvents : [])
+      .map((event, idx) => {
+        const evDate = inferEventDate(event, baseDate, idx);
+        return { ...event, _dateKey: dateKey(evDate) };
+      });
+    const pendingHighToday = normalizedEvents
+      .filter((event) => String(event?.impact || '').toLowerCase() === 'high' && event._dateKey === todayKey && !isReleasedEvent(event));
+    const macroWindowCountdown = String(nextEvent?.countdown || '').trim().toLowerCase();
+    const macroHourMatch = macroWindowCountdown.match(/(\d+)\s*h/);
+    const macroMinuteMatch = macroWindowCountdown.match(/(\d+)\s*m/);
+    const nearMacroWindow = Boolean(macroMinuteMatch) || (macroHourMatch && Number(macroHourMatch[1]) <= 3);
+    const macroRiskWindow = pendingHighToday.length > 0 || nearMacroWindow;
+
+    let newsLine = 'Agenda macro senza trigger immediati ad alto impatto.';
+    if (pendingHighToday.length > 0) {
+      const topEvents = pendingHighToday.slice(0, 2).map((event) => String(event?.title || 'evento macro')).join(', ');
+      newsLine = `Agenda macro sensibile (${topEvents}): possibile aumento di volatilita e riclassificazione rapida della bias intraday.`;
+    } else if (nextEvent?.event) {
+      const nextCountdown = String(nextEvent?.countdown || '').trim();
+      const hourMatch = nextCountdown.toLowerCase().match(/(\d+)\s*h/);
+      const minMatch = nextCountdown.toLowerCase().match(/(\d+)\s*m/);
+      const isNear = Boolean(minMatch) || (hourMatch && Number(hourMatch[1]) <= 3);
+      newsLine = isNear
+        ? `Prossimo evento macro vicino (${nextEvent.event}): possibile volatilita tattica nel breve.`
+        : `Prossimo evento macro monitorato: ${nextEvent.event}.`;
+    }
+
+    let correlationLine = '';
+    if (symbol === 'NAS100') {
+      const goldAsset = assets.find((asset) => asset?.symbol === 'XAUUSD');
+      if (goldAsset) {
+        const sameDirection = goldAsset.direction && deepAsset.direction && goldAsset.direction === deepAsset.direction;
+        correlationLine = sameDirection
+          ? 'La correlazione Oro/Nasdaq (84%) conferma lo scenario corrente.'
+          : 'La correlazione Oro/Nasdaq (84%) e in divergenza, quindi serve conferma prezzo/flussi.';
+      }
+    }
+
+    let macroWeeklyLabel = biasToText(macroBias);
+    if (macroRiskWindow && macroBias === 'NEUTRAL') {
+      macroWeeklyLabel = 'finestra macro sensibile';
+    } else if (macroRiskWindow) {
+      macroWeeklyLabel = `${biasToText(macroBias)} con finestra macro sensibile`;
+    }
+    const weeklyStatsLine = `Statistica weekly COT/Breadth/Macro-News: COT ${biasToText(cotBias)}, breadth ${biasToText(breadthBias)}, macro-news ${macroWeeklyLabel}.`;
+
+    return `${assetLabel}: bias intraday ${biasToText(dailyCompositeBias)} al ${confidence}%, rischio ${riskLabel} (VIX ${vixText}, regime ${regimeText}). Bias settimanale ${biasToText(generalBias)}: ${timeframeBridge}.
+
+Driver intraday essenziali: ${optionsLine} ${gexLine} Quadro attuale a ${convergenceText} tra i driver di giornata.
+
+${weeklyStatsLine}
+${statsLine}
+${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
+  }, [assets, currentAsset, cotData, breadthData, optionsData, newsEvents, newsSentiment, nextEvent, vix?.current, regime, weekRule?.description, dayRule?.note]);
 
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
@@ -815,9 +1268,6 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                     <Info className="w-3 h-3 text-slate-800 dark:text-white" />
                   </button>
                 </div>
-                <p className="text-xs text-slate-400 dark:text-white/40 leading-none mt-1">
-                  Dettagli asset
-                </p>
               </div>
             </div>
           </div>
@@ -1083,7 +1533,11 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
               exit={{ opacity: 0, x: -10 }}
               className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms] min-h-[364px] lg:min-h-[403px]"
             >
-              <div className="space-y-3">
+		              <div className="relative">
+	                <div className={cn(
+	                  "space-y-3 transition-all duration-200",
+	                  showDeepInsight && "blur-[6px] opacity-25 pointer-events-none select-none"
+	                )}>
                 <div className="w-full aspect-[16/7] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
                   {animationsReady ? (
                     <TradingViewMiniChart
@@ -1097,34 +1551,113 @@ const AssetChartPanel = ({ assets, favoriteCharts, onFavoriteChange, animationsR
                   )}
                 </div>
 
-                <div className="relative rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3 space-y-1">
-                  <p className="font-apple text-[17px] font-medium text-white/95 leading-relaxed tracking-[0.01em] whitespace-pre-line pr-20">
-                    <TypewriterText text={screeningFocusNarrative} speed={18} delay={400} />
-                  </p>
-                  <button
-                    type="button"
-                    className="absolute right-4 bottom-3 inline-flex items-center justify-center h-7 min-w-[66px] px-3 rounded-[7px] border border-[#8B5CF6]/75 bg-[#23173D]/78 text-[#E5D9FF] text-[13px] font-semibold tracking-[0.01em] shadow-[0_0_12px_rgba(139,92,246,0.35)] hover:bg-[#2B1D4B]/85 transition-colors"
-                  >
-                    Deep
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </TechCard >
-  );
+			                <div className="relative rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3 font-apple">
+		                  <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-start">
+		                    <p className="text-[17px] font-medium text-white/95 leading-relaxed tracking-[0.01em] whitespace-pre-line">
+		                      <TypewriterText text={screeningFocusNarrative} speed={18} delay={400} />
+		                    </p>
+	                    <div className="min-w-[170px] font-apple justify-self-end">
+	                      <p className="text-[14px] font-semibold uppercase tracking-[0.14em] text-white/95 mb-2">
+	                        Metriche rapide
+	                      </p>
+	                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+	                        <div>
+	                          <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-white/95">Volatilita</p>
+	                          <p className="text-[18px] leading-none font-semibold text-[#00D9A5]">
+	                            {atrProgress >= 70 ? 'Alta' : atrProgress >= 40 ? 'Media' : 'Bassa'}
+	                          </p>
+	                        </div>
+	                        <div>
+	                          <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-white/95">Impulso</p>
+	                          <p className="text-[18px] leading-none font-semibold text-[#00D9A5]">
+	                            {dailyOutlook?.conclusionType === 'bullish' || dailyOutlook?.conclusionType === 'bearish' ? 'Prosegue' : 'Neutro'}
+	                          </p>
+	                        </div>
+	                        <div>
+	                          <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-white/95">Regime</p>
+	                          <p className="text-[18px] leading-none font-semibold text-[#00D9A5]">
+	                            {dailyOutlook?.conclusionType === 'neutral' ? 'Range' : 'Trend'}
+	                          </p>
+	                        </div>
+		                      </div>
+		                    </div>
+		                  </div>
+		                  <button
+		                    type="button"
+		                    onClick={() => setShowDeepInsight((prev) => !prev)}
+		                    className="relative z-10 mt-3 w-full inline-flex items-center justify-between h-8 px-3 rounded-[8px] border border-[#00D9A5]/45 bg-[#0E221F]/75 text-[#7EF8DB] text-[12px] font-semibold uppercase tracking-[0.12em] shadow-[0_0_14px_rgba(0,217,165,0.18)] hover:bg-[#12312C]/80 transition-colors"
+		                  >
+		                    <span>Deep Insight - Analisi Tecnica</span>
+		                    {showDeepInsight ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+		                  </button>
+			                </div>
+	                </div>
+			                <AnimatePresence>
+			                  {showDeepInsight && (
+			                    <motion.div
+			                      initial={dashboardInitial({ opacity: 0, y: 6 })}
+			                      animate={{ opacity: 1, y: 0 }}
+			                      exit={{ opacity: 0, y: 4 }}
+			                      className="absolute inset-0 z-30 rounded-2xl bg-[#05080D]/72 backdrop-blur-[8px] p-3"
+			                    >
+			                      <div className="h-full rounded-xl border border-[#00D9A5]/22 bg-[#0F1118]/98 px-4 py-3 overflow-y-auto font-apple text-[17px]">
+			                        <div className="mb-2 flex items-center justify-between">
+			                          <p className="text-[17px] font-semibold tracking-[0.01em] text-[#7EF8DB]">Deep Insight - Analisi Tecnica</p>
+			                          <button
+			                            type="button"
+			                            onClick={() => setShowDeepInsight(false)}
+			                            className="text-[17px] font-medium text-white/80 hover:text-white transition-colors"
+			                          >
+			                            Chiudi
+			                          </button>
+			                        </div>
+			                        <p className="text-[17px] font-medium text-white/92 leading-relaxed whitespace-pre-line tracking-[0.01em]">
+			                          {deepInsightNarrative}
+			                        </p>
+			                      </div>
+			                    </motion.div>
+			                  )}
+			                </AnimatePresence>
+		              </div>
+		            </motion.div>
+	          )}
+	        </AnimatePresence>
+	      </div>
+	    </TechCard >
+	  );
 };
 
-const MarketBreadthPanel = ({ breadthData, className = '' }) => {
+const MarketBreadthPanel = ({ breadthData, vix, className = '' }) => {
   const MA50_COLOR = '#00D9A5';
   const MA200_COLOR = '#E3C98A';
+  const APPLE_FONT_STACK = '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
   const [selectedIndex, setSelectedIndex] = useState('NAS100');
   const [showSelector, setShowSelector] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [showRiskBack, setShowRiskBack] = useState(false);
   const breadthIndices = useMemo(() => breadthData?.indices || {}, [breadthData]);
   const breadthTimestampIso = breadthData?.timestamp || null;
+
+  const rotateToNextFace = useCallback(() => {
+    setShowInfo(false);
+    setShowSelector(false);
+    setShowRiskBack((prev) => !prev);
+  }, []);
+
+  const handleFaceClick = useCallback((event) => {
+    const target = event?.target;
+    if (target && typeof target.closest === 'function' && target.closest('button,a,input,select,textarea,[role="button"]')) {
+      return;
+    }
+    rotateToNextFace();
+  }, [rotateToNextFace]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      rotateToNextFace();
+    }, 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [rotateToNextFace]);
 
   const formatBreadthPct = (value) => {
     const num = Number(value);
@@ -1182,6 +1715,24 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
   const selectedTone = getBreadthTone(selectedDataResolved);
   const selectedCfg = indexConfigs[selectedIndex] || indexConfigs.NAS100;
   const usePriceMALines = selectedIndex === 'XAUUSD' || selectedIndex === 'EURUSD';
+  const breadthRiskIndexData = breadthIndices.SP500 || selectedDataResolved || null;
+  const breadthRiskSnapshot = useMemo(
+    () => buildBreadthRiskSnapshot(breadthRiskIndexData, vix?.current),
+    [breadthRiskIndexData, vix?.current]
+  );
+  const breadthRiskMa50Label = Number.isFinite(breadthRiskSnapshot.ma50Value)
+    ? `${breadthRiskSnapshot.ma50Value.toFixed(1)}%`
+    : 'N/A';
+  const breadthRiskMa200Label = Number.isFinite(breadthRiskSnapshot.ma200Value)
+    ? `${breadthRiskSnapshot.ma200Value.toFixed(1)}%`
+    : 'N/A';
+  const breadthRiskMa50Pct = Number.isFinite(breadthRiskSnapshot.ma50Value)
+    ? Math.max(0, Math.min(100, breadthRiskSnapshot.ma50Value))
+    : 0;
+  const breadthRiskMa200Pct = Number.isFinite(breadthRiskSnapshot.ma200Value)
+    ? Math.max(0, Math.min(100, breadthRiskSnapshot.ma200Value))
+    : 0;
+  const breadthRiskAsOf = String(breadthRiskIndexData?.as_of_date || '').trim();
 
   const chartData = useMemo(() => {
     const history = Array.isArray(selectedDataResolved?.history) ? selectedDataResolved.history : [];
@@ -1331,326 +1882,481 @@ const MarketBreadthPanel = ({ breadthData, className = '' }) => {
 
   return (
     <TechCard className={cn(
-      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 min-h-[616px]",
+      "dashboard-panel-glass-boost font-apple glass-edge panel-left-edge fine-gray-border p-4 relative w-full transition-all duration-300 min-h-[616px] [perspective:1600px]",
       className
     )}>
-      <AnimatePresence>
-        {showInfo && (
+      <AnimatePresence mode="wait" initial={false}>
+        {!showRiskBack ? (
           <motion.div
-            initial={dashboardInitial({ opacity: 0, scale: 0, y: -20 })}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0, y: -20 }}
-            transition={{
-              type: "spring",
-              stiffness: 350,
-              damping: 25,
-              mass: 0.6
-            }}
-            style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
-            className="absolute inset-3 z-50 bg-[#0B0E14]/74 backdrop-blur-[10px] rounded-[24px]"
+            key="breadth-front"
+            initial={dashboardInitial({ opacity: 0, rotateY: -85, scale: 0.985 })}
+            animate={{ opacity: 1, rotateY: 0, scale: 1 }}
+            exit={{ opacity: 0, rotateY: 85, scale: 0.985 }}
+            transition={{ duration: 0.52, ease: [0.22, 1, 0.36, 1] }}
+            style={{ transformStyle: 'preserve-3d', willChange: 'transform, opacity' }}
+            className="relative min-h-[584px]"
+            onClick={handleFaceClick}
           >
-            <div className="relative px-8 py-6 bg-[#0A0D12]/86 border border-[#00D9A5]/30 rounded-[24px] shadow-2xl w-full h-full overflow-y-auto scrollbar-thin font-apple">
-              <div className="flex items-center justify-between mb-5">
-                <h4 className="text-xl font-bold text-white uppercase tracking-[0.15em]">Guida Market Breadth</h4>
-                <button onClick={() => setShowInfo(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
-                  <X className="w-5 h-5 text-white/50" />
-                </button>
-              </div>
-              <div className="space-y-5 text-left">
-                <p className="text-lg text-white leading-relaxed font-normal">
-                  Il <span className="text-[#00D9A5] font-semibold">Market Breadth</span> misura la partecipazione interna del mercato:
-                  quante azioni sono sopra MA50 e MA200 mentre l'indice si muove.
-                </p>
-                <ul className="space-y-4 text-left">
-                  <li className="flex items-start gap-3">
-                    <div className="mt-2.5 w-2 h-2 rounded-full bg-[#67D8FF] shadow-[0_0_8px_#67D8FF] flex-shrink-0" />
-                    <p className="text-lg text-white leading-relaxed font-normal">
-                      <span className="font-semibold text-[#67D8FF]">Linea prezzo</span>: andamento dell'asset selezionato (NAS, SPX, XAU, EURUSD).
-                    </p>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <div className="mt-2.5 w-2 h-2 rounded-full bg-[#00D9A5] shadow-[0_0_8px_#00D9A5] flex-shrink-0" />
-                    <p className="text-lg text-white leading-relaxed font-normal">
-                      <span className="font-semibold text-[#00D9A5]">% sopra MA50</span>: ampiezza di breve/medio periodo.
-                    </p>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <div className="mt-2.5 w-2 h-2 rounded-full bg-[#E3C98A] shadow-[0_0_8px_#E3C98A] flex-shrink-0" />
-                    <p className="text-lg text-white leading-relaxed font-normal">
-                      <span className="font-semibold text-[#E3C98A]">% sopra MA200</span>: solidita strutturale del trend.
-                    </p>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <div className="mt-2.5 w-2 h-2 rounded-full bg-white/70 shadow-[0_0_8px_rgba(255,255,255,0.4)] flex-shrink-0" />
-                    <p className="text-lg text-white leading-relaxed font-normal">
-                      <span className="font-semibold text-white">Delta Prezzo</span>: variazione percentuale tra primo e ultimo punto della serie visibile.
-                    </p>
-                  </li>
-                </ul>
-                <div className="mt-1 rounded-xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-sm font-black uppercase tracking-[0.16em] text-white/60 mb-2">Dettagli Tab</p>
-                  <div className="space-y-1.5 text-[15px] text-white/90 leading-relaxed">
-                    <p><span className="text-white/60">Tempistiche aggiornamento tab:</span> {MARKET_BREADTH_CONFIG.updateCadenceLabel}</p>
-                    <p><span className="text-white/60">Timeframe grafico:</span> {MARKET_BREADTH_CONFIG.timeframeLabel}</p>
+            <AnimatePresence>
+              {showInfo && (
+                <motion.div
+                  initial={dashboardInitial({ opacity: 0, scale: 0, y: -20 })}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0, y: -20 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 350,
+                    damping: 25,
+                    mass: 0.6
+                  }}
+                  style={{ transformOrigin: 'top left', willChange: 'transform, opacity, filter' }}
+                  className="absolute inset-3 z-50 bg-[#0B0E14]/74 backdrop-blur-[10px] rounded-[24px]"
+                >
+                  <div className="relative px-8 py-6 bg-[#0A0D12]/86 border border-[#00D9A5]/30 rounded-[24px] shadow-2xl w-full h-full overflow-y-auto scrollbar-thin font-apple">
+                    <div className="flex items-center justify-between mb-5">
+                      <h4 className="text-xl font-bold text-white uppercase tracking-[0.15em]">Guida Market Breadth</h4>
+                      <button onClick={() => setShowInfo(false)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
+                        <X className="w-5 h-5 text-white/50" />
+                      </button>
+                    </div>
+                    <div className="space-y-5 text-left">
+                      <p className="text-lg text-white leading-relaxed font-normal">
+                        Il <span className="text-[#00D9A5] font-semibold">Market Breadth</span> misura la partecipazione interna del mercato:
+                        quante azioni sono sopra MA50 e MA200 mentre l'indice si muove.
+                      </p>
+                      <ul className="space-y-4 text-left">
+                        <li className="flex items-start gap-3">
+                          <div className="mt-2.5 w-2 h-2 rounded-full bg-[#67D8FF] shadow-[0_0_8px_#67D8FF] flex-shrink-0" />
+                          <p className="text-lg text-white leading-relaxed font-normal">
+                            <span className="font-semibold text-[#67D8FF]">Linea prezzo</span>: andamento dell'asset selezionato (NAS, SPX, XAU, EURUSD).
+                          </p>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <div className="mt-2.5 w-2 h-2 rounded-full bg-[#00D9A5] shadow-[0_0_8px_#00D9A5] flex-shrink-0" />
+                          <p className="text-lg text-white leading-relaxed font-normal">
+                            <span className="font-semibold text-[#00D9A5]">% sopra MA50</span>: ampiezza di breve/medio periodo.
+                          </p>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <div className="mt-2.5 w-2 h-2 rounded-full bg-[#E3C98A] shadow-[0_0_8px_#E3C98A] flex-shrink-0" />
+                          <p className="text-lg text-white leading-relaxed font-normal">
+                            <span className="font-semibold text-[#E3C98A]">% sopra MA200</span>: solidita strutturale del trend.
+                          </p>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <div className="mt-2.5 w-2 h-2 rounded-full bg-white/70 shadow-[0_0_8px_rgba(255,255,255,0.4)] flex-shrink-0" />
+                          <p className="text-lg text-white leading-relaxed font-normal">
+                            <span className="font-semibold text-white">Delta Prezzo</span>: variazione percentuale tra primo e ultimo punto della serie visibile.
+                          </p>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </motion.div >
+              )}
+            </AnimatePresence>
+
+            <div className={cn(
+              "transition-all duration-200",
+              showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
+            )}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-start gap-2.5">
+                  <Layers className="w-5 h-5 text-[#00D9A5] mt-[1px]" />
+                  <div>
+                    <div className="inline-flex items-center gap-2">
+                      <h4 className="font-medium text-base text-white/90 leading-none">Market Breadth</h4>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setShowInfo((prev) => !prev);
+                        }}
+                        className="p-1 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
+                        aria-label="Informazioni Market Breadth"
+                        title="Informazioni Market Breadth"
+                        aria-expanded={showInfo}
+                      >
+                        <Info className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-1 rounded-xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-sm font-black uppercase tracking-[0.16em] text-white/60 mb-2">Consigli Lettura</p>
-                  <ul className="space-y-2 text-[15px] text-white/85 leading-relaxed">
-                    <li>Delta positivo + Spread MA positivo: rialzo con partecipazione interna solida.</li>
-                    <li>Delta positivo + Spread MA in calo/negativo: rialzo fragile, rischio di perdita momentum.</li>
-                    <li>Delta negativo + Spread MA in miglioramento: debolezza prezzo ma struttura interna che si sta stabilizzando.</li>
-                    <li>Copertura bassa: leggi ogni segnale con prudenza, perche il campione di titoli validi e ridotto.</li>
-                    <li>Confronta sempre MA50 e MA200: se entrambe migliorano insieme, il segnale e piu affidabile.</li>
+                <div className="flex items-center gap-2">
+                  <span className={cn("px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.15em]", selectedTone.className)}>
+                    {selectedTone.label}
+                  </span>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setShowSelector((prev) => !prev);
+                      }}
+                      className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
+                      aria-label="Seleziona asset market breadth"
+                      aria-expanded={showSelector}
+                    >
+                      <Eye className="w-4 h-4 text-white" />
+                    </button>
+                    <AnimatePresence>
+                      {showSelector && (
+                        <motion.div
+                          initial={dashboardInitial({ opacity: 0, y: -6, scale: 0.96 })}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                          transition={{ duration: 0.16 }}
+                          className="absolute right-0 top-full mt-1 z-40 min-w-[124px] rounded-xl border border-white/15 bg-[#0F1319]/95 p-1.5 shadow-2xl"
+                        >
+                          {selectorIndexKeys.map((key) => {
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedIndex(key);
+                                  setShowSelector(false);
+                                }}
+                                className={cn(
+                                  "w-full text-left px-2 py-1.5 rounded-md text-[10px] font-black uppercase tracking-[0.13em] transition-colors",
+                                  selectedIndex === key
+                                    ? "bg-[#00D9A5]/20 text-[#00D9A5]"
+                                    : "text-white/75 hover:bg-white/10 hover:text-white"
+                                )}
+                              >
+                                {indexConfigs[key].short}
+                              </button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      rotateToNextFace();
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#8A70FF]/55 bg-[#211836]/70 text-[#DCCFFF] text-[10px] font-black uppercase tracking-[0.12em] hover:bg-[#2A2142]/80 transition-all"
+                    title="Apri Market Breadth Risk"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Risk
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span
+                    className="-translate-y-[4px] text-[20px] md:text-[21px] font-semibold uppercase tracking-[-0.015em] leading-none text-white/90"
+                    style={{ fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
+                  >
+                    {selectedIndex}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center gap-2 rounded-md border border-[#00D9A5]/50 bg-[#00D9A5]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#00D9A5]">
+                      MA50
+                      <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma50BadgeValue}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-md border border-[#67D8FF]/50 bg-[#67D8FF]/12 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#67D8FF]">
+                      Prezzo
+                      <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{formatPrice(latestPoint?.price)}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-md border border-[#E3C98A]/50 bg-[#E3C98A]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#E3C98A]">
+                      MA200
+                      <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma200BadgeValue}</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="relative h-[274px] w-full rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.015)_100%)] p-2 overflow-hidden">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 8, right: 8, left: 2, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
+                      <XAxis
+                        dataKey="dateLabel"
+                        tick={{ fill: 'rgba(255,255,255,0.52)', fontSize: 11, fontWeight: 700, fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
+                        axisLine={false}
+                        tickLine={false}
+                        minTickGap={22}
+                      />
+                      <YAxis
+                        yAxisId="price"
+                        orientation="left"
+                        hide={!hasPriceSeries}
+                        width={56}
+                        tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700, fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
+                        axisLine={false}
+                        tickLine={false}
+                        domain={['auto', 'auto']}
+                        tickFormatter={(value) => formatPrice(value)}
+                      />
+                      <YAxis
+                        yAxisId="breadth"
+                        orientation="right"
+                        width={46}
+                        hide={usePriceMALines}
+                        domain={[0, 100]}
+                        tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700, fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(value) => `${Math.round(value)}%`}
+                      />
+                      {!usePriceMALines && (
+                        <ReferenceLine yAxisId="breadth" y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="5 5" />
+                      )}
+                      {hasPriceSeries && Number.isFinite(latestPriceValue) && (
+                        <ReferenceLine
+                          yAxisId="price"
+                          y={latestPriceValue}
+                          ifOverflow="extendDomain"
+                          stroke="rgba(103, 216, 255, 0.25)"
+                          strokeDasharray="3 4"
+                        />
+                      )}
+                      <Tooltip content={renderTooltip} />
+                      <Line
+                        yAxisId="price"
+                        dataKey="price"
+                        type="monotone"
+                        stroke={selectedCfg.priceColor}
+                        strokeWidth={2.2}
+                        dot={false}
+                        connectNulls
+                        isAnimationActive={false}
+                        activeDot={{ r: 4, strokeWidth: 2, stroke: selectedCfg.priceColor, fill: '#0F1319' }}
+                      />
+                      <Line
+                        yAxisId={usePriceMALines ? "price" : "breadth"}
+                        dataKey={usePriceMALines ? "ma50Price" : "ma50"}
+                        type="monotone"
+                        stroke={MA50_COLOR}
+                        strokeWidth={2.1}
+                        dot={false}
+                        connectNulls
+                        isAnimationActive={false}
+                        activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA50_COLOR, fill: '#0F1319' }}
+                      />
+                      <Line
+                        yAxisId={usePriceMALines ? "price" : "breadth"}
+                        dataKey={usePriceMALines ? "ma200Price" : "ma200"}
+                        type="monotone"
+                        stroke={MA200_COLOR}
+                        strokeWidth={2.1}
+                        dot={false}
+                        connectNulls
+                        isAnimationActive={false}
+                        activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA200_COLOR, fill: '#0F1319' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div
+                  className="grid grid-cols-3 gap-2 mt-3"
+                  style={{ fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
+                >
+                  <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Copertura</p>
+                      <p className="whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] text-white leading-none tabular-nums">
+                        {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Spread</p>
+                      <p className={cn(
+                        "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
+                        Number.isFinite(breadthSpread)
+                          ? breadthSpread >= 0 ? "text-[#00D9A5]" : "text-red-300"
+                          : "text-white"
+                      )}>
+                        {Number.isFinite(breadthSpread) ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)} pp` : '—'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Delta</p>
+                      <p className={cn(
+                        "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
+                        Number.isFinite(priceDeltaPct)
+                          ? priceDeltaPct >= 0 ? "" : "text-red-300"
+                          : "text-white"
+                      )} style={Number.isFinite(priceDeltaPct) && priceDeltaPct >= 0 ? { color: selectedCfg.priceColor } : undefined}>
+                        {Number.isFinite(priceDeltaPct) ? `${priceDeltaPct > 0 ? '+' : ''}${priceDeltaPct.toFixed(2)}%` : '—'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 min-h-[146px] rounded-xl bg-white/5 border border-white/10 p-4 flex flex-col justify-between">
+                  <ul className="space-y-1.5 text-base text-white/90">
+                    <li className="flex items-start gap-2">
+                      <span className="text-[#00D9A5] mt-0.5">•</span>
+                      <span>{summaryLine}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-[#00D9A5] mt-0.5">•</span>
+                      <span>Copertura: {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-[#00D9A5] mt-0.5">•</span>
+                      <span>
+                        Spread: {Number.isFinite(breadthSpread)
+                          ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)}${usePriceMALines ? '' : ' pp'}`
+                          : '—'}.
+                      </span>
+                    </li>
                   </ul>
                 </div>
               </div>
             </div>
-          </motion.div >
-        )}
-      </AnimatePresence >
-
-      <div className={cn(
-        "transition-all duration-200",
-        showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
-      )}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-start gap-2.5">
-            <Layers className="w-5 h-5 text-[#00D9A5] mt-[1px]" />
-            <div>
-              <div className="inline-flex items-center gap-2">
-                <h4 className="font-medium text-base text-white/90 leading-none">Market Breadth</h4>
-                <button
-                  type="button"
-                  onClick={() => setShowInfo((prev) => !prev)}
-                  className="p-1 rounded-lg bg-white/[0.14] border border-white/[0.28] backdrop-blur-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_8px_20px_rgba(0,0,0,0.28)] hover:bg-white/[0.2] transition-all opacity-55 hover:opacity-100"
-                  aria-label="Informazioni Market Breadth"
-                  title="Informazioni Market Breadth"
-                  aria-expanded={showInfo}
-                >
-                  <Info className="w-3 h-3 text-white" />
-                </button>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="breadth-risk"
+            initial={dashboardInitial({ opacity: 0, rotateY: 85, scale: 0.985 })}
+            animate={{ opacity: 1, rotateY: 0, scale: 1 }}
+            exit={{ opacity: 0, rotateY: -85, scale: 0.985 }}
+            transition={{ duration: 0.52, ease: [0.22, 1, 0.36, 1] }}
+            style={{ transformStyle: 'preserve-3d', willChange: 'transform, opacity', fontFamily: APPLE_FONT_STACK }}
+            className="min-h-[584px] flex flex-col font-apple"
+            onClick={handleFaceClick}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-start gap-2.5">
+                <Shield className="w-5 h-5 text-[#8A70FF] mt-[1px]" />
+                <div>
+                  <h4 className="font-semibold text-[18px] tracking-[-0.015em] text-white/92 leading-none">Market Breadth Risk</h4>
+                  <p className="text-[12px] tracking-[0.02em] text-white/60 mt-1">Auto-rotate 60s loop</p>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={cn("px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.15em]", selectedTone.className)}>
-              {selectedTone.label}
-            </span>
-            <div className="relative">
               <button
                 type="button"
-                onClick={() => setShowSelector((prev) => !prev)}
-                className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
-                aria-label="Seleziona asset market breadth"
-                aria-expanded={showSelector}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  rotateToNextFace();
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#8A70FF]/55 bg-[#211836]/70 text-[#DCCFFF] text-[12px] font-semibold tracking-[0.01em] hover:bg-[#2A2142]/80 transition-all"
+                title="Torna a Market Breadth"
               >
-                <Eye className="w-4 h-4 text-white" />
+                <RefreshCw className="w-3.5 h-3.5" />
+                Breadth
               </button>
-              <AnimatePresence>
-                {showSelector && (
-                  <motion.div
-                    initial={dashboardInitial({ opacity: 0, y: -6, scale: 0.96 })}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                    transition={{ duration: 0.16 }}
-                    className="absolute right-0 top-full mt-1 z-40 min-w-[124px] rounded-xl border border-white/15 bg-[#0F1319]/95 p-1.5 shadow-2xl"
-                  >
-                    {selectorIndexKeys.map((key) => {
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => {
-                            setSelectedIndex(key);
-                            setShowSelector(false);
-                          }}
-                          className={cn(
-                            "w-full text-left px-2 py-1.5 rounded-md text-[10px] font-black uppercase tracking-[0.13em] transition-colors",
-                            selectedIndex === key
-                              ? "bg-[#00D9A5]/20 text-[#00D9A5]"
-                              : "text-white/75 hover:bg-white/10 hover:text-white"
-                          )}
-                        >
-                          {indexConfigs[key].short}
-                        </button>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
-          </div>
-        </div>
 
-        <div>
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <span
-              className="-translate-y-[4px] text-[20px] md:text-[21px] font-semibold uppercase tracking-[-0.015em] leading-none text-white/90"
-              style={{ fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
-            >
-              {selectedIndex}
-            </span>
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-2 rounded-md border border-[#00D9A5]/50 bg-[#00D9A5]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#00D9A5]">
-                MA50
-                <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma50BadgeValue}</span>
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-md border border-[#67D8FF]/50 bg-[#67D8FF]/12 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#67D8FF]">
-                Prezzo
-                <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{formatPrice(latestPoint?.price)}</span>
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-md border border-[#E3C98A]/50 bg-[#E3C98A]/10 px-3 py-1.5 text-[12px] font-black uppercase tracking-[0.07em] text-[#E3C98A]">
-                MA200
-                <span className="font-extrabold tracking-normal normal-case text-[13px] leading-none">{ma200BadgeValue}</span>
-              </span>
-            </div>
-          </div>
-          <div className="relative h-[274px] w-full rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.015)_100%)] p-2 overflow-hidden">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 8, right: 8, left: 2, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
-                <XAxis
-                  dataKey="dateLabel"
-                  tick={{ fill: 'rgba(255,255,255,0.52)', fontSize: 10, fontWeight: 700 }}
-                  axisLine={false}
-                  tickLine={false}
-                  minTickGap={22}
-                />
-                <YAxis
-                  yAxisId="price"
-                  orientation="left"
-                  hide={!hasPriceSeries}
-                  width={56}
-                  tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700 }}
-                  axisLine={false}
-                  tickLine={false}
-                  domain={['auto', 'auto']}
-                  tickFormatter={(value) => formatPrice(value)}
-                />
-                <YAxis
-                  yAxisId="breadth"
-                  orientation="right"
-                  width={46}
-                  hide={usePriceMALines}
-                  domain={[0, 100]}
-                  tick={{ fill: 'rgba(255,255,255,0.42)', fontSize: 10, fontWeight: 700 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(value) => `${Math.round(value)}%`}
-                />
-                {!usePriceMALines && (
-                  <ReferenceLine yAxisId="breadth" y={50} stroke="rgba(255,255,255,0.2)" strokeDasharray="5 5" />
-                )}
-                {hasPriceSeries && Number.isFinite(latestPriceValue) && (
-                  <ReferenceLine
-                    yAxisId="price"
-                    y={latestPriceValue}
-                    ifOverflow="extendDomain"
-                    stroke="rgba(103, 216, 255, 0.25)"
-                    strokeDasharray="3 4"
-                  />
-                )}
-                <Tooltip content={renderTooltip} />
-                <Line
-                  yAxisId="price"
-                  dataKey="price"
-                  type="monotone"
-                  stroke={selectedCfg.priceColor}
-                  strokeWidth={2.2}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                  activeDot={{ r: 4, strokeWidth: 2, stroke: selectedCfg.priceColor, fill: '#0F1319' }}
-                />
-                <Line
-                  yAxisId={usePriceMALines ? "price" : "breadth"}
-                  dataKey={usePriceMALines ? "ma50Price" : "ma50"}
-                  type="monotone"
-                  stroke={MA50_COLOR}
-                  strokeWidth={2.1}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                  activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA50_COLOR, fill: '#0F1319' }}
-                />
-                <Line
-                  yAxisId={usePriceMALines ? "price" : "breadth"}
-                  dataKey={usePriceMALines ? "ma200Price" : "ma200"}
-                  type="monotone"
-                  stroke={MA200_COLOR}
-                  strokeWidth={2.1}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                  activeDot={{ r: 3.5, strokeWidth: 1.8, stroke: MA200_COLOR, fill: '#0F1319' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div
-            className="grid grid-cols-3 gap-2 mt-3"
-            style={{ fontFamily: '"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}
-          >
-            <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
-              <div className="flex items-center justify-between gap-1.5">
-                <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Copertura</p>
-                <p className="whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] text-white leading-none tabular-nums">
-                  {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}
-                </p>
-              </div>
-            </div>
-            <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
-              <div className="flex items-center justify-between gap-1.5">
-                <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Spread</p>
-                <p className={cn(
-                  "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
-                  Number.isFinite(breadthSpread)
-                    ? breadthSpread >= 0 ? "text-[#00D9A5]" : "text-red-300"
-                    : "text-white"
+            <div className="rounded-xl border border-white/12 bg-[linear-gradient(180deg,rgba(6,10,14,0.96)_0%,rgba(4,7,10,0.92)_100%)] px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[17px] tracking-[-0.015em] text-white/78 font-semibold">Composite Risk Level</p>
+                  <p className="text-[17px] tracking-[-0.01em] text-white/86 mt-0.5">VIX + partecipazione sopra MA50/MA200 (SP500)</p>
+                </div>
+                <div className={cn(
+                  "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5",
+                  breadthRiskSnapshot.levelStyle.className
                 )}>
-                  {Number.isFinite(breadthSpread) ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)} pp` : '—'}
-                </p>
+                  <span className="text-[13px] font-semibold tracking-[0.04em]">{breadthRiskSnapshot.levelStyle.tone}</span>
+                  <span className="text-[16px] font-extrabold">{breadthRiskSnapshot.totalScore}/5</span>
+                </div>
               </div>
-            </div>
-            <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5">
-              <div className="flex items-center justify-between gap-1.5">
-                <p className="truncate pr-1 text-[14px] md:text-[15px] tracking-[-0.01em] text-white/75 font-semibold">Delta</p>
-                <p className={cn(
-                  "whitespace-nowrap text-right text-[clamp(13px,1.6vw,18px)] font-semibold tracking-[-0.03em] leading-none tabular-nums",
-                  Number.isFinite(priceDeltaPct)
-                    ? priceDeltaPct >= 0 ? "" : "text-red-300"
-                    : "text-white"
-                )} style={Number.isFinite(priceDeltaPct) && priceDeltaPct >= 0 ? { color: selectedCfg.priceColor } : undefined}>
-                  {Number.isFinite(priceDeltaPct) ? `${priceDeltaPct > 0 ? '+' : ''}${priceDeltaPct.toFixed(2)}%` : '—'}
-                </p>
-              </div>
-            </div>
-          </div>
 
-          <div className="mt-3 min-h-[146px] rounded-xl bg-white/5 border border-white/10 p-4 flex flex-col justify-between">
-            <ul className="space-y-1.5 text-base text-white/90">
-              <li className="flex items-start gap-2">
-                <span className="text-[#00D9A5] mt-0.5">•</span>
-                <span>{summaryLine}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[#00D9A5] mt-0.5">•</span>
-                <span>Copertura: {Number.isFinite(coverageNow) ? `${coverageNow.toFixed(1)}%` : '—'}.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[#00D9A5] mt-0.5">•</span>
-                <span>
-                  Spread: {Number.isFinite(breadthSpread)
-                    ? `${breadthSpread > 0 ? '+' : ''}${breadthSpread.toFixed(1)}${usePriceMALines ? '' : ' pp'}`
-                    : '—'}.
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-md border border-[#8A70FF]/55 bg-[#8A70FF]/12 px-3 py-1.5 text-[14px] font-semibold tracking-[0.01em] text-[#C7B4FF]">
+                  Punti VIX
+                  <span className="font-extrabold tracking-normal normal-case text-[15px] leading-none">{breadthRiskSnapshot.vixScore}/2</span>
                 </span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+                <span className="inline-flex items-center gap-2 rounded-md border border-[#00D9A5]/50 bg-[#00D9A5]/10 px-3 py-1.5 text-[14px] font-semibold tracking-[0.01em] text-[#00D9A5]">
+                  Punti MA50
+                  <span className="font-extrabold tracking-normal normal-case text-[15px] leading-none">{breadthRiskSnapshot.ma50Score}/2</span>
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-md border border-[#E3C98A]/50 bg-[#E3C98A]/10 px-3 py-1.5 text-[14px] font-semibold tracking-[0.01em] text-[#E3C98A]">
+                  Bonus MA200
+                  <span className="font-extrabold tracking-normal normal-case text-[15px] leading-none">{breadthRiskSnapshot.ma200Bonus}/1</span>
+                </span>
+              </div>
+
+              {breadthRiskSnapshot.divergenceActive && (
+                <div className="mt-3 rounded-lg border border-orange-300/45 bg-orange-500/14 px-3 py-2.5 text-[15px] leading-relaxed text-orange-100">
+                  Divergenza di Breadth rilevata - il prezzo sale ma la partecipazione del mercato si sta indebolendo.
+                </div>
+              )}
+
+              <div className="mt-3 h-[178px] w-full rounded-lg border border-white/10 bg-black/25 px-1 py-1.5">
+                {breadthRiskSnapshot.ma50Series.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={breadthRiskSnapshot.ma50Series} margin={{ top: 6, right: 6, left: 6, bottom: 4 }}>
+                      <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="2 3" />
+                      <XAxis dataKey="label" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600, fontFamily: APPLE_FONT_STACK }} axisLine={false} tickLine={false} />
+                      <YAxis hide domain={['dataMin - 2', 'dataMax + 2']} />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload || payload.length === 0) return null;
+                          return (
+                            <div className="rounded-md border border-white/15 bg-[#0F1319]/95 px-2.5 py-1.5 shadow-xl">
+                              <p className="text-[12px] tracking-[0.01em] text-white/70 font-semibold">{label || '-'}</p>
+                              <p className="text-[14px] text-white mt-0.5 tracking-[-0.005em]">
+                                % &gt; MA50: <span className="font-semibold text-[#00D9A5]">{Number(payload[0]?.value).toFixed(1)}%</span>
+                              </p>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="ma50"
+                        stroke="#00D9A5"
+                        strokeWidth={2.1}
+                        dot={false}
+                        isAnimationActive={false}
+                        activeDot={{ r: 3.2, strokeWidth: 1.5, stroke: '#00D9A5', fill: '#0F1319' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-[14px] text-white/52">
+                    Sparkline in attesa di storico MA50.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 space-y-2.5">
+                <div>
+                  <div className="flex items-center justify-between text-[15px] font-semibold tracking-[-0.01em] text-white/84">
+                    <span>Titoli sopra MA50</span>
+                    <span className="text-[#00D9A5]">{breadthRiskMa50Label}</span>
+                  </div>
+                  <div className="mt-1.5 h-2 w-full rounded-full bg-white/12 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[#00D9A5] shadow-[0_0_12px_rgba(0,217,165,0.45)] transition-all duration-500"
+                      style={{ width: `${breadthRiskMa50Pct}%` }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-[15px] font-semibold tracking-[-0.01em] text-white/84">
+                    <span>Titoli sopra MA200</span>
+                    <span className="text-[#E3C98A]">{breadthRiskMa200Label}</span>
+                  </div>
+                  <div className="mt-1.5 h-2 w-full rounded-full bg-white/12 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[#E3C98A] shadow-[0_0_12px_rgba(227,201,138,0.42)] transition-all duration-500"
+                      style={{ width: `${breadthRiskMa200Pct}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <p className="mt-2 text-[12px] tracking-[0.02em] text-white/50">
+                {breadthRiskAsOf ? `As of ${breadthRiskAsOf}` : 'As of live feed'}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </TechCard >
   );
 };
@@ -2511,7 +3217,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
 
 
 // Options Flow Panel - Enhanced Interactive
-const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propAsset, onAssetChange, className = '' }) => {
+const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propAsset, onAssetChange, optionsData = null, className = '' }) => {
   const [showSelector, setShowSelector] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [internalSelectedAsset, setInternalSelectedAsset] = useState('XAUUSD');
@@ -2526,9 +3232,13 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
     setShowSelector(false);
   };
 
-  const availableAssets = ['XAUUSD', 'NAS100', 'SP500', 'EURUSD', 'BTCUSD'];
+  const availableAssets = Array.from(new Set([
+    'XAUUSD', 'NAS100', 'SP500', 'EURUSD', 'BTCUSD',
+    ...Object.keys(optionsData || {})
+  ]));
 
-  const currentData = STATIC_OPTIONS_DATA[selectedAsset] || STATIC_OPTIONS_DATA.XAUUSD;
+  const currentData = getLiveOptionsNode(optionsData, selectedAsset);
+  const hasLiveOptions = !currentData.data_unavailable;
   const ratioSpread = currentData.call_ratio - currentData.put_ratio;
   const grossPremium = currentData.call_million + currentData.put_million;
   const dominantSide = ratioSpread >= 6 ? 'CALL' : ratioSpread <= -6 ? 'PUT' : 'BALANCED';
@@ -2537,6 +3247,14 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
   const signedMillion = (value) => `${value >= 0 ? '+' : ''}${Math.round(value)}M`;
 
   const flowBullets = useMemo(() => {
+    if (!hasLiveOptions) {
+      return [
+        'Feed opzioni live non disponibile per questo asset in questo momento.',
+        'Il pannello resta in modalita neutrale fino al prossimo aggiornamento del feed.',
+        'Verificare disponibilita chain/expiry o attendere il refresh automatico.'
+      ];
+    }
+
     const momentumLine = currentData.net_change >= 6
       ? 'Momentum intraday in accelerazione sul lato dominante.'
       : currentData.net_change <= -6
@@ -2557,6 +3275,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
       directionalLine
     ];
   }, [
+    hasLiveOptions,
     currentData.bias,
     currentData.call_change,
     currentData.net_change,
@@ -2806,11 +3525,13 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
 
         {/* Summary Line */}
         <p className="text-xs text-white/50 text-center mb-3 italic">
-          {currentData.bias === 'bullish'
-            ? 'Flussi istituzionali favorevoli al rialzo'
-            : currentData.bias === 'bearish'
-              ? 'Pressione ribassista sui derivati'
-              : 'Equilibrio tra opzioni call e put'}
+          {!hasLiveOptions
+            ? 'Feed opzioni live temporaneamente non disponibile'
+            : currentData.bias === 'bullish'
+              ? 'Flussi istituzionali favorevoli al rialzo'
+              : currentData.bias === 'bearish'
+                ? 'Pressione ribassista sui derivati'
+                : 'Equilibrio tra opzioni call e put'}
         </p>
 
         <div className="grid grid-cols-3 gap-2 mb-3">
@@ -2857,7 +3578,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
   );
 });
 
-const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange, compact = false }) => {
+const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange, optionsData = null, compact = false }) => {
   const [showSelector, setShowSelector] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [internalSelectedAsset, setInternalSelectedAsset] = useState('XAUUSD');
@@ -2872,8 +3593,11 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
     setShowSelector(false);
   };
 
-  const availableAssets = ['XAUUSD', 'NAS100', 'SP500', 'EURUSD', 'BTCUSD'];
-  const currentData = STATIC_OPTIONS_DATA[selectedAsset] || STATIC_OPTIONS_DATA.XAUUSD;
+  const availableAssets = Array.from(new Set([
+    'XAUUSD', 'NAS100', 'SP500', 'EURUSD', 'BTCUSD',
+    ...Object.keys(optionsData || {})
+  ]));
+  const currentData = getLiveOptionsNode(optionsData, selectedAsset);
   const gexProfile = useMemo(() => currentData.gex_profile || [], [currentData]);
   const normalizedProfile = useMemo(
     () => gexProfile
@@ -4053,6 +4777,7 @@ export default function DashboardPage() {
   const [engineData, setEngineData] = useState([]);
   const [livePrices, setLivePrices] = useState({});
   const [marketBreadth, setMarketBreadth] = useState(null);
+  const [optionsFlowData, setOptionsFlowData] = useState(null);
   const [strategyProjections, setStrategyProjections] = useState([]);
   const [strategiesCatalog, setStrategiesCatalog] = useState([]);
   const [newsBriefing, setNewsBriefing] = useState(null);
@@ -4081,12 +4806,13 @@ export default function DashboardPage() {
       const token = localStorage.getItem('token');
       const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const [multiRes, engineRes, strategyRes, strategyCatalogRes, newsRes] = await Promise.all([
+      const [multiRes, engineRes, strategyRes, strategyCatalogRes, newsRes, optionsFlowRes] = await Promise.all([
         axios.get(`${API}/analysis/multi-source`),
         axios.get(`${API}/engine/cards`, { headers: authHeader }).catch(() => ({ data: null })),
         axios.get(`${API}/strategy/projections`, { headers: authHeader }).catch(() => ({ data: null })),
         axios.get(`${API}/strategy/catalog`, { headers: authHeader }).catch(() => ({ data: null })),
         axios.get(`${API}/news/briefing`, { headers: authHeader }).catch(() => ({ data: null })),
+        axios.get(`${API}/market/options-flow`, { headers: authHeader }).catch(() => ({ data: null })),
       ]);
 
       setMultiSourceData(multiRes.data);
@@ -4097,6 +4823,7 @@ export default function DashboardPage() {
       const directNews = newsRes.data || null;
       const fallbackNews = strategyRes.data?.events ? strategyRes.data : null;
       setNewsBriefing(directNews || fallbackNews);
+      setOptionsFlowData(optionsFlowRes?.data?.data || null);
 
       setLastUpdate(new Date());
     } catch (error) {
@@ -4117,18 +4844,9 @@ export default function DashboardPage() {
       const response = await axios.get(`${API}/cot/data`);
       const payload = response?.data;
       if (!payload || typeof payload !== 'object') return;
-
-      const nextReleaseKey = getCotReleaseKey(payload);
-      if (cotReleaseKeyRef.current === null) {
-        cotReleaseKeyRef.current = nextReleaseKey || 'initial-load';
-        setCotSummary(payload);
-        return;
-      }
-
-      if (nextReleaseKey && nextReleaseKey !== cotReleaseKeyRef.current) {
-        cotReleaseKeyRef.current = nextReleaseKey;
-        setCotSummary(payload);
-      }
+      const nextReleaseKey = getCotReleaseKey(payload) || 'unknown-release';
+      cotReleaseKeyRef.current = nextReleaseKey;
+      setCotSummary(payload);
     } catch (error) {
       console.error('Error fetching COT data:', error);
     }
@@ -4213,23 +4931,12 @@ export default function DashboardPage() {
         const breadthNode = marketBreadth?.indices?.[symbol];
         const aboveMa50Pct = breadthNode?.above_ma50?.pct;
         const aboveMa200Pct = breadthNode?.above_ma200?.pct;
-
-        let screeningBias = 'UNKNOWN';
-        if (typeof aboveMa50Pct === 'number' && typeof aboveMa200Pct === 'number') {
-          if (aboveMa50Pct >= 60 && aboveMa200Pct >= 55) screeningBias = 'BULLISH';
-          else if (aboveMa50Pct <= 40 && aboveMa200Pct <= 45) screeningBias = 'BEARISH';
-          else screeningBias = 'NEUTRAL';
-        } else if (breadthNode?.breadth_regime === 'broad-bullish') {
-          screeningBias = 'BULLISH';
-        } else if (breadthNode?.breadth_regime === 'broad-weakness') {
-          screeningBias = 'BEARISH';
-        } else if (breadthNode?.breadth_regime) {
-          screeningBias = 'NEUTRAL';
-        }
+        const breadthThresholds = resolveBreadthThresholds(marketBreadth);
+        const screeningBias = deriveBreadthBias(breadthNode, breadthThresholds);
 
         const cotBiasLive = cotSummary?.data?.[symbol]?.bias;
         const cotBias = normalizeBias(cotBiasLive, STAT_BIAS[symbol]?.weekly_bias || 'NEUTRAL');
-        const optionsBias = normalizeBias(STATIC_OPTIONS_DATA[symbol]?.bias || 'NEUTRAL');
+        const optionsBias = normalizeBias(optionsFlowData?.[symbol]?.bias || 'NEUTRAL');
         const newsBias = normalizeBias(newsBriefing?.sentiment || 'NEUTRAL');
         const marketBias = normalizeBias(multiSourceData?.regime || 'NEUTRAL');
         const technicalBias = normalizeBias(
@@ -4286,7 +4993,7 @@ export default function DashboardPage() {
     }
     const interval = setInterval(broadcastMatrixSnapshot, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [engineData, favoriteCharts, newsBriefing, livePrices, marketBreadth, multiSourceData, cotSummary]);
+  }, [engineData, favoriteCharts, newsBriefing, livePrices, marketBreadth, multiSourceData, cotSummary, optionsFlowData]);
 
 
 
@@ -4509,20 +5216,27 @@ export default function DashboardPage() {
           {/* CENTER: Charts + COT + Market Breadth */}
           <div className="lg:col-span-8 flex flex-col gap-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-start lg:gap-4">
-              <AssetChartPanel
-                assets={assetsList}
-                favoriteCharts={favoriteCharts}
-                onFavoriteChange={setFavoriteCharts}
-                animationsReady={headerHidden}
-                onSyncAsset={handleSyncAsset}
-                vix={vix}
-                regime={regime}
-                className="lg:w-[calc(44%+1px)]"
-              />
+	              <AssetChartPanel
+	                assets={assetsList}
+	                favoriteCharts={favoriteCharts}
+	                onFavoriteChange={setFavoriteCharts}
+	                animationsReady={headerHidden}
+	                onSyncAsset={handleSyncAsset}
+	                vix={vix}
+	                regime={regime}
+	                cotData={cotDataToUse}
+	                breadthData={marketBreadth}
+	                optionsData={optionsFlowData}
+	                newsEvents={newsBriefing?.events}
+	                newsSentiment={newsBriefing?.sentiment}
+	                nextEvent={next_event}
+	                className="lg:w-[calc(44%+1px)]"
+	              />
               <div className="lg:w-[calc(40%+1px)] lg:-ml-[4px]">
                 <GammaExposurePanel
                   selectedAsset={optionsSelectedAsset}
                   onAssetChange={setOptionsSelectedAsset}
+                  optionsData={optionsFlowData}
                   compact
                 />
               </div>
@@ -4537,6 +5251,7 @@ export default function DashboardPage() {
                   animationsReady={headerHidden}
                   selectedAsset={optionsSelectedAsset}
                   onAssetChange={setOptionsSelectedAsset}
+                  optionsData={optionsFlowData}
                   className="lg:mt-0"
                 />
               </div>
@@ -4554,7 +5269,7 @@ export default function DashboardPage() {
                   compact
                 />
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                  <MarketBreadthPanel breadthData={marketBreadth} className="lg:w-full lg:mt-[1px]" />
+                  <MarketBreadthPanel breadthData={marketBreadth} vix={vix} className="lg:w-full lg:mt-[1px]" />
                 </div>
               </div>
             </div>

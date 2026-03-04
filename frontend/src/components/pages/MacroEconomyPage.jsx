@@ -12,6 +12,17 @@ import {
 import { useMarket } from '../../contexts/MarketContext';
 import { AIService } from '../../services/AIService';
 import { MacroService } from '../../services/MacroService';
+
+const safeParseStorageObject = (key) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+};
 import { toast } from 'sonner';
 
 // Simplified MacroCard without heavy borders
@@ -94,7 +105,7 @@ export default function MacroEconomyPage() {
   const runAIAnalysis = async () => {
     setAnalyzing(true);
     try {
-      const keys = JSON.parse(localStorage.getItem('karion_api_keys') || '{}');
+      const keys = safeParseStorageObject('karion_api_keys');
       const analysis = await AIService.analyzeMarket({
         context: "Macro & Indices",
         spx: indices.SPX,

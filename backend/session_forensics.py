@@ -252,6 +252,18 @@ def _minute_of_day(dt_rome: datetime) -> int:
     return (dt_rome.hour * 60) + dt_rome.minute
 
 
+def _last_closed_rome_day(now_rome: Optional[datetime] = None) -> date:
+    ref = now_rome or datetime.now(ROME_TZ)
+    day = ref.date()
+    # Until NY close, consider the previous closed market day.
+    if _minute_of_day(ref) < SESSION_WINDOWS["ny"][1]:
+        day = day - timedelta(days=1)
+    # Avoid weekend placeholder reports (Sat/Sun).
+    while day.weekday() >= 5:
+        day = day - timedelta(days=1)
+    return day
+
+
 def _slice_session(candles: List[Dict[str, Any]], session_name: str) -> List[Dict[str, Any]]:
     start_m, end_m = SESSION_WINDOWS[session_name]
     return [c for c in candles if start_m <= _minute_of_day(c["ts_rome"]) < end_m]
@@ -1026,9 +1038,6 @@ def _update_weights(rows: List[Dict[str, Any]], rome_day: str) -> Tuple[Dict[str
 
 def _base_feature_rows(rome_day: str) -> List[Dict[str, Any]]:
     day_rows = _summaries_for_day(rome_day)
-    if not day_rows:
-        return []
-
     candles_by_asset = _build_candles_by_asset(day_rows)
     card_day, card_day_asset = _load_daily_card_accuracy()
     r_day, r_day_asset = _load_daily_r_scores()
@@ -1948,7 +1957,7 @@ def run_daily_session_cycle(target_rome_day: Optional[str] = None) -> Dict[str, 
     if target_rome_day:
         day = datetime.fromisoformat(target_rome_day).date()
     else:
-        day = now_rome.date()
+        day = _last_closed_rome_day(now_rome)
     rome_day = day.isoformat()
 
     rows_today = _base_feature_rows(rome_day)
@@ -2012,27 +2021,41 @@ def run_daily_session_cycle(target_rome_day: Optional[str] = None) -> Dict[str, 
     return payload
 
 
+def _enrich_report_payload(report: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(report, dict):
+        return report
+    historical = report.get("historical_stats")
+    needs_backfill = (
+        not isinstance(historical, dict)
+        or not isinstance(historical.get("windows"), dict)
+        or len(historical.get("windows") or {}) == 0
+        or _to_float(((historical.get("windows") or {}).get("all") or {}).get("samples"), 0.0) < 120.0
+    )
+    if needs_backfill:
+        rows = _load_rows()
+        report["historical_stats"] = _build_historical_stats(rows)
+        report["operational_playbook"] = _build_operational_playbook(rows, str(report.get("rome_day") or datetime.now(ROME_TZ).date().isoformat()))
+    elif "operational_playbook" not in report:
+        rows = _load_rows()
+        report["operational_playbook"] = _build_operational_playbook(rows, str(report.get("rome_day") or datetime.now(ROME_TZ).date().isoformat()))
+    return report
+
+
 def get_latest_session_report() -> Dict[str, Any]:
     reports = _read_json(REPORTS_FILE, [])
     if isinstance(reports, list) and reports:
-        latest = sorted(reports, key=lambda item: str(item.get("rome_day")), reverse=True)[0]
+        ordered = sorted(reports, key=lambda item: str(item.get("rome_day")), reverse=True)
+        for item in ordered:
+            if isinstance(item, dict) and str(item.get("status", "")).lower() == "active":
+                return _enrich_report_payload(item)
+        # No active report available: try rebuilding latest closed day before returning collecting.
+        rebuilt = run_daily_session_cycle(_last_closed_rome_day().isoformat())
+        if isinstance(rebuilt, dict):
+            return _enrich_report_payload(rebuilt)
+        latest = ordered[0]
         if isinstance(latest, dict):
-            historical = latest.get("historical_stats")
-            needs_backfill = (
-                not isinstance(historical, dict)
-                or not isinstance(historical.get("windows"), dict)
-                or len(historical.get("windows") or {}) == 0
-                or _to_float(((historical.get("windows") or {}).get("all") or {}).get("samples"), 0.0) < 120.0
-            )
-            if needs_backfill:
-                rows = _load_rows()
-                latest["historical_stats"] = _build_historical_stats(rows)
-                latest["operational_playbook"] = _build_operational_playbook(rows, str(latest.get("rome_day") or datetime.now(ROME_TZ).date().isoformat()))
-            elif "operational_playbook" not in latest:
-                rows = _load_rows()
-                latest["operational_playbook"] = _build_operational_playbook(rows, str(latest.get("rome_day") or datetime.now(ROME_TZ).date().isoformat()))
-            return latest
-    # Fallback: build for current day.
+            return _enrich_report_payload(latest)
+    # Fallback: build for latest closed day.
     return run_daily_session_cycle()
 
 
@@ -2043,3 +2066,31 @@ def get_session_report_history(limit: int = 30) -> List[Dict[str, Any]]:
     safe = max(1, min(int(limit or 30), 365))
     ordered = sorted(reports, key=lambda item: str(item.get("rome_day")), reverse=True)
     return ordered[:safe]
+
+
+def run_recent_session_backfill(days: int = 3) -> Dict[str, Any]:
+    safe_days = max(1, min(int(days or 3), 14))
+    end_day = _last_closed_rome_day()
+    results: List[Dict[str, Any]] = []
+    for offset in reversed(range(safe_days)):
+        day = end_day - timedelta(days=offset)
+        if day.weekday() >= 5:
+            continue
+        payload = run_daily_session_cycle(day.isoformat())
+        rows = ((payload.get("daily_report") or {}).get("rows") or []) if isinstance(payload, dict) else []
+        results.append(
+            {
+                "rome_day": day.isoformat(),
+                "status": str((payload or {}).get("status", "error")),
+                "rows": len(rows),
+                "message": str((payload or {}).get("message") or ""),
+            }
+        )
+    return {
+        "status": "ok",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "end_day": end_day.isoformat(),
+        "days_requested": safe_days,
+        "processed": len(results),
+        "results": results,
+    }

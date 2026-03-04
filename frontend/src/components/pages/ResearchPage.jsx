@@ -233,6 +233,28 @@ export default function ResearchPage() {
         return Number.isFinite(i) && map[i] ? map[i] : 'N/A';
     };
 
+    const severityOrder = { HIGH: 0, MEDIUM: 1, WATCH: 2, LOW: 3 };
+
+    const normalizeTemporalBuckets = (row, mode = 'weekly') => {
+        const allBuckets = Array.isArray(row?.all_buckets) ? row.all_buckets : [];
+        if (allBuckets.length) {
+            return allBuckets.map((bucket) => ({
+                ...bucket,
+                win_rate: Number(bucket?.win_rate) || 0,
+            }));
+        }
+
+        const table = Array.isArray(row?.table) ? row.table : [];
+        if (!table.length) return [];
+
+        return table.map((entry) => ({
+            day: mode === 'weekly' ? (entry?.day ?? entry?.bucket) : undefined,
+            month: mode === 'monthly' ? (entry?.month ?? entry?.bucket) : undefined,
+            bucket: entry?.bucket,
+            win_rate: Number(entry?.win_rate) || 0,
+        }));
+    };
+
     const sessionsRows = Array.isArray(sessionsData?.daily_report?.rows) ? sessionsData.daily_report.rows : [];
     const sessionsSummary = sessionsData?.daily_report?.summary || {};
     const sessionsInsights = Array.isArray(sessionsData?.auto_analysis?.insights) ? sessionsData.auto_analysis.insights : [];
@@ -880,14 +902,14 @@ export default function ResearchPage() {
     const deepResearchIntroText = 'Stack statistico avanzato: selezione automatica delle migliori confluenze probabilistiche, overlay macro/risk/news/seasonality, modelli di copertura decorrelata e guida dinamica all\'esposizione. La mappa retroattiva resta separata e minimale.';
 
     return (
-        <div className="research-apple-scope p-6 lg:p-8 w-full space-y-8 font-sans" >
+        <div className="research-apple-scope p-4 lg:p-6 w-full space-y-6 font-sans" >
             {/* ═══ HEADER & TABS ═══ */}
-            <div className="space-y-6 sticky top-0 bg-[#0A0E12]/95 backdrop-blur-xl z-20 pt-2 pb-4 border-b border-white/5">
+            <div className="space-y-4 sticky top-0 bg-[#0A0E12]/95 backdrop-blur-xl z-20 pt-2 pb-3 border-b border-white/5">
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                     className="flex items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-semibold flex items-center gap-3 text-white tracking-tight">
-                            <Microscope className="w-8 h-8 text-[#00D9A5]" />
+                        <h1 className="text-2xl lg:text-[1.8rem] font-semibold flex items-center gap-2.5 text-white tracking-tight">
+                            <Microscope className="w-6 h-6 text-[#00D9A5]" />
                             Institutional Research
                         </h1>
                         <p className="text-white/60 mt-1 text-sm">
@@ -906,13 +928,13 @@ export default function ResearchPage() {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={cn(
-                                        "px-5 py-3 rounded-xl flex items-center gap-2.5 font-semibold text-base transition-all whitespace-nowrap",
+                                        "px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-semibold text-xs md:text-sm transition-all whitespace-nowrap",
                                         isActive
                                             ? "bg-[#00D9A5] text-black shadow-[0_0_15px_rgba(0,217,165,0.2)]"
                                             : "bg-white/5 text-white/80 hover:bg-white/10 hover:text-white"
                                     )}
                                 >
-                                    <Icon className="w-4 h-4" />
+                                    <Icon className="w-3 h-3 md:w-3.5 md:h-3.5" />
                                     {tab.label}
                                 </button>
                             );
@@ -929,9 +951,9 @@ export default function ResearchPage() {
                             </div>
                         )}
 
-                        <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-black/40 border border-white/10 shadow-lg shrink-0">
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-black/40 border border-white/10 shadow-lg shrink-0">
                             <div className={cn("w-2.5 h-2.5 rounded-full", stats?.status === 'active' ? "bg-[#00D9A5] animate-pulse" : "bg-yellow-500 animate-pulse shadow-[0_0_10px_#eab308]")} />
-                            <span className="text-lg font-mono font-semibold tracking-wide" style={{ color: stats?.status === 'active' ? '#00D9A5' : '#EAB308' }}>
+                            <span className="text-xs md:text-sm font-mono font-semibold tracking-wide" style={{ color: stats?.status === 'active' ? '#00D9A5' : '#EAB308' }}>
                                 {stats?.status === 'active' ? 'LIVE DATA ACTIVE' : 'COLLECTING DATA'}
                             </span>
                         </div>
@@ -947,136 +969,372 @@ export default function ResearchPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -15 }}
                     transition={{ duration: 0.15 }}
-                    className="min-h-[500px]"
+                    className="min-h-[440px]"
                 >
 
                     {/* ===== TAB: OVERVIEW ===== */}
                     {activeTab === 'overview' && (
-                        <div className="space-y-6">
+                        <div className="space-y-3">
 
-                            <TechCard className="p-6 border-[#00D9A5]/30 bg-gradient-to-br from-[#00D9A5]/5 to-transparent relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1.5 h-full bg-[#00D9A5]" />
-                                <h2 className="text-xl font-semibold text-white flex items-center gap-2 mb-4">
-                                    <BrainCircuit className="w-5 h-5 text-[#00D9A5]" />
-                                    Come i dati vengono correlati in Karion
-                                </h2>
-                                <p className="text-lg text-white/85 leading-relaxed mb-6 max-w-5xl">
-                                    In questa piattaforma visualizziamo due flussi di dati indipendenti che vengono uniti per darti un vantaggio statistico reale:
-                                </p>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                                    <div className="p-5 bg-black/40 border border-white/10 rounded-xl relative">
-                                        <div className="absolute top-5 -right-5 z-10 hidden md:block text-white/10">
-                                            <ArrowRight className="w-8 h-8" />
+                            {/* ── SPECTACULAR HEADER ── */}
+                            <div className="relative p-3 lg:p-4 rounded-xl bg-gradient-to-br from-[#0A0E12] to-black border border-white/10 overflow-hidden shadow-[0_0_40px_-10px_rgba(0,0,0,0.5)]">
+                                <div className="absolute top-0 right-[-10%] w-96 h-96 bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none" />
+                                <div className="absolute bottom-0 left-[-10%] w-96 h-96 bg-purple-500/10 rounded-full blur-[100px] pointer-events-none" />
+                                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-2">
+                                            <Activity className="w-4 h-4 text-cyan-400" />
+                                            <h1 className="text-base md:text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-white/90 to-white/40 tracking-tight">
+                                                GLOBAL TACTIC CONTROL
+                                            </h1>
                                         </div>
-                                        <Database className="w-6 h-6 text-blue-400 mb-3" />
-                                        <h3 className="text-lg font-semibold text-white mb-1.5">1. Ingestione Istituzionale</h3>
-                                        <p className="text-lg text-white/85 leading-relaxed">Karion analizza i VERI report in PDF di JP Morgan, FED, ECB ecc. per estrarne il <strong>Bias Direzionale</strong> globale.</p>
+                                        <p className="text-xs md:text-sm lg:text-base text-white/80 max-w-4xl leading-relaxed font-medium tracking-wide">
+                                            Sintesi probabilistica unificata dell'intero portafoglio. Monitoraggio in tempo reale di segnali, coperture, flussi Smart Money e profilazione del rischio macro. Un hub direzionale progettato per decisioni istantanee e massima lucidità operativa.
+                                        </p>
                                     </div>
-
-                                    <div className="p-5 bg-black/40 border border-white/10 rounded-xl relative">
-                                        <div className="absolute top-5 -right-5 z-10 hidden md:block text-white/10">
-                                            <ArrowRight className="w-8 h-8" />
+                                    <div className="shrink-0 flex items-center gap-2.5 bg-black/40 px-3 py-2 rounded-xl border border-white/10">
+                                        <div className="text-right">
+                                            <div className="text-xs uppercase tracking-widest text-white/50 mb-1 font-bold">System Status</div>
+                                            <div className="flex items-center gap-2 justify-end">
+                                                <span className="relative flex h-3 w-3">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+                                                </span>
+                                                <span className="text-xs font-mono font-black text-cyan-400">OPTIMAL</span>
+                                            </div>
                                         </div>
-                                        <Activity className="w-6 h-6 text-purple-400 mb-3" />
-                                        <h3 className="text-lg font-semibold text-white mb-1.5">2. Analisi Retroattiva</h3>
-                                        <p className="text-lg text-white/85 leading-relaxed">Il motore quantitativo processa le deviazioni direzionali temporali, elaborando pattern di efficienza asimmetrica tramite validazione retroattiva continua.</p>
-                                    </div>
-
-                                    <div className="p-5 bg-[#00D9A5]/10 border border-[#00D9A5]/30 rounded-xl relative">
-                                        <Shield className="w-6 h-6 text-[#00D9A5] mb-3" />
-                                        <h3 className="text-lg font-semibold text-[#00D9A5] mb-1.5">3. Vantaggio Quantitativo</h3>
-                                        <p className="text-sm text-[#00D9A5]/80 leading-relaxed">Sincronizzando i gradienti di probabilità algoritmici con le fasi di accumulazione/distribuzione occulte. La convergenza vettoriale di questi fattori abbatte il coefficiente di rischio in modo esponenziale.</p>
                                     </div>
                                 </div>
-                            </TechCard>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                {/* Win Rate */}
-                                <TechCard className="p-6 hover:border-[#00D9A5]/30 transition-all group overflow-hidden relative">
-                                    <div className="absolute -right-6 -top-6 text-white/5 group-hover:text-[#00D9A5]/5 transition-colors">
-                                        <Activity className="w-40 h-40" />
-                                    </div>
-                                    <div className="relative z-10 flex flex-col h-full place-content-between">
-                                        <div className="text-lg text-white/90 font-semibold uppercase tracking-wide mb-4">Win Rate Reale (Ultime 48h)</div>
-                                        {stats?.status === 'active' ? (
-                                            <div>
-                                                <div className="text-[1.85rem] font-semibold text-white tracking-tighter mb-2">{stats.win_rate}%</div>
-                                                <div className="text-lg text-white/85 font-medium">
-                                                    Su <strong className="text-white">{stats.total_predictions}</strong> valutazioni
-                                                    <div className="mt-1">
-                                                        <span className="text-[#00D9A5]">{stats.hits} Hits</span> / <span className="text-red-400">{stats.misses} Misses</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div>
-                                                <div className="text-[2.4rem] font-semibold text-white/20 tracking-tighter mb-2">—</div>
-                                                <div className="text-sm text-white/30 font-medium">{stats?.message || 'In raccolta...'}</div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </TechCard>
-
-                                {/* Institutional Bias Consensus */}
-                                <TechCard className="p-6 hover:border-[#00D9A5]/30 transition-all group overflow-hidden relative">
-                                    <div className="absolute -right-6 -top-6 text-white/5 group-hover:text-[#00D9A5]/5 transition-colors">
-                                        <BrainCircuit className="w-40 h-40" />
-                                    </div>
-                                    <div className="relative z-10 flex flex-col h-full place-content-between">
-                                        <div className="text-lg text-white/90 font-semibold uppercase tracking-wide mb-4">Bias Istituzionale Globale</div>
-                                        {biasData.dominant ? (
-                                            <div>
-                                                <div className={cn("text-[1.55rem] font-semibold tracking-tighter flex items-center gap-2 mb-2",
-                                                    biasData.dominant === 'BULLISH' ? 'text-[#00D9A5]' : biasData.dominant === 'BEARISH' ? 'text-red-400' : 'text-yellow-500'
-                                                )}>
-                                                    {biasData.dominant === 'BULLISH' && <TrendingUp className="w-8 h-8" />}
-                                                    {biasData.dominant === 'BEARISH' && <TrendingDown className="w-8 h-8" />}
-                                                    {biasData.dominant === 'NEUTRAL' && <Minus className="w-8 h-8" />}
-                                                    {biasData.dominant}
-                                                </div>
-                                                <div className="text-lg text-white/85">
-                                                    Basato su {vaultDocs.length} documenti emessi:
-                                                    <div className="mt-1">
-                                                        <span className="text-[#00D9A5]">{biasData.bull} Bull</span> • <span className="text-red-400">{biasData.bear} Bear</span> • <span className="text-yellow-500">{biasData.neutral} Neut.</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div>
-                                                <div className="text-[2.4rem] font-semibold text-white/20 tracking-tighter mb-2">—</div>
-                                                <div className="text-sm text-white/30">Nessun report analizzato</div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </TechCard>
-
-                                {/* Asset Breakdown */}
-                                <TechCard className="p-6 hover:border-[#00D9A5]/30 transition-all overflow-hidden flex flex-col h-full justify-center">
-                                    <div className="text-lg text-white/90 font-semibold uppercase tracking-wide mb-4">Win Rate (per Asset)</div>
-                                    <div className="space-y-3.5">
-                                        {stats?.asset_breakdown ? (
-                                            Object.entries(stats.asset_breakdown).map(([asset, data]) => (
-                                                <div key={asset} className="flex justify-between items-center group">
-                                                    <span className="text-lg font-semibold font-mono text-white/70 group-hover:text-white transition-colors">{asset}</span>
-                                                    <div className="flex items-center gap-3 w-3/5">
-                                                        <div className="flex-1 bg-white/5 rounded-full h-2 overflow-hidden">
-                                                            <div className={cn("h-full rounded-full transition-all",
-                                                                data.win_rate >= 60 ? "bg-[#00D9A5]" : data.win_rate >= 40 ? "bg-yellow-500" : "bg-red-500"
-                                                            )} style={{ width: `${data.win_rate}%` }} />
-                                                        </div>
-                                                        <span className="text-sm font-semibold text-white w-10 text-right">{data.win_rate}%</span>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="text-sm text-white/30 flex h-full items-center">Calibrazione del cluster vettoriale in corso...</div>
-                                        )}
-                                    </div>
-                                </TechCard>
                             </div>
+
+                            {/* ── TOP KPI RIBBON ── */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
+                                {[
+                                    {
+                                        label: 'Win Rate 48h',
+                                        value: stats?.status === 'active' ? `${stats.win_rate}%` : '—',
+                                        sub: stats?.status === 'active' ? `${stats.hits}H / ${stats.misses}M` : 'In raccolta',
+                                        color: stats?.win_rate >= 60 ? '#00E5FF' : stats?.win_rate >= 40 ? '#FBBF24' : '#F87171',
+                                        icon: <Activity className="w-3.5 h-3.5" />,
+                                    },
+                                    {
+                                        label: 'Bias Globale',
+                                        value: biasData.dominant || '—',
+                                        sub: biasData.dominant ? `${biasData.bull}B • ${biasData.bear}Be • ${biasData.neutral}N` : `${vaultDocs.length} docs`,
+                                        color: biasData.dominant === 'BULLISH' ? '#00E5FF' : biasData.dominant === 'BEARISH' ? '#F87171' : '#FBBF24',
+                                        icon: biasData.dominant === 'BULLISH' ? <TrendingUp className="w-3.5 h-3.5" /> : biasData.dominant === 'BEARISH' ? <TrendingDown className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />,
+                                    },
+                                    {
+                                        label: 'Smart Pulse',
+                                        value: smartAlerts?.global_risk || '—',
+                                        sub: smartSummary?.state || 'N/A',
+                                        color: smartAlerts?.global_risk === 'HIGH' ? '#F87171' : smartAlerts?.global_risk === 'MEDIUM' ? '#FBBF24' : '#00E5FF',
+                                        icon: <BrainCircuit className="w-3.5 h-3.5" />,
+                                    },
+                                    {
+                                        label: 'Exposure',
+                                        value: deepResearch?.risk_exposure?.recommended_exposure_pct != null ? `${Number(deepResearch.risk_exposure.recommended_exposure_pct).toFixed(0)}%` : '—',
+                                        sub: `Conflict ${fmtNum(deepResearch?.risk_exposure?.scores?.conflict_index, 0)}%`,
+                                        color: Number(deepResearch?.risk_exposure?.recommended_exposure_pct) >= 70 ? '#00E5FF' : Number(deepResearch?.risk_exposure?.recommended_exposure_pct) >= 40 ? '#FBBF24' : '#F87171',
+                                        icon: <Shield className="w-3.5 h-3.5" />,
+                                    },
+                                    {
+                                        label: 'Top Signal',
+                                        value: deepResearch?.signals?.[0]?.asset || '—',
+                                        sub: deepResearch?.signals?.[0] ? `P${fmtNum(deepResearch.signals[0].probability_score, 0)}% C${fmtNum(deepResearch.signals[0].confluence_score, 0)}%` : 'No data',
+                                        color: '#00E5FF',
+                                        icon: <Zap className="w-3.5 h-3.5" />,
+                                    },
+                                    {
+                                        label: 'Fonti Attive',
+                                        value: sources.filter(s => s.status === 'active').length,
+                                        sub: `/ ${sources.length} totali`,
+                                        color: '#A855F7',
+                                        icon: <Database className="w-3.5 h-3.5" />,
+                                    },
+                                    {
+                                        label: 'Copertura Hedging',
+                                        value: deepResearch?.diversification?.length > 0 ? `${fmtPct(deepResearch.diversification[0].coverage_confidence)}` : '—',
+                                        sub: `Su ${deepResearch?.diversification?.[0]?.base_asset || 'N/A'}`,
+                                        color: '#EAB308',
+                                        icon: <Shield className="w-3.5 h-3.5" />,
+                                    },
+                                    {
+                                        label: 'Eventi Rilevati',
+                                        value: smartAlerts?.alerts?.length || 0,
+                                        sub: (smartAlerts?.alerts?.filter(a => a.severity === 'HIGH').length || 0) + ' High Risk',
+                                        color: smartAlerts?.alerts?.some(a => a.severity === 'HIGH') ? '#F87171' : '#00E5FF',
+                                        icon: <Activity className="w-3.5 h-3.5" />,
+                                    }
+                                ].map((kpi, i) => (
+                                    <div key={i} className="p-2.5 bg-gradient-to-br from-[#121212] to-[#0A0E12] border border-white/10 border-l-4 flex flex-col gap-1 rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] overflow-hidden relative" style={{ borderLeftColor: kpi.color === '#00E5FF' || kpi.color === '#A855F7' || kpi.color === '#EAB308' || kpi.color === '#FBBF24' ? '#D1D5DB' : kpi.color }}>
+                                        <div className="flex items-center gap-1.5 text-white/50 text-[9px] md:text-[10px] uppercase tracking-widest font-bold relative z-10 group-hover:text-white/80 transition-colors">
+                                            <span className="text-white/60 mr-0.5">{kpi.icon}</span>
+                                            {kpi.label}
+                                        </div>
+                                        <div className="text-xl md:text-2xl font-black text-white leading-none tracking-tight relative z-10 py-0.5 drop-shadow-md">{kpi.value}</div>
+                                        <div className="text-[10px] text-white/50 font-medium truncate relative z-10">{kpi.sub}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* ── SECTION GRID : 3 columns ── */}
+                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-2.5">
+
+                                {/* ── SIGNALS SNAPSHOT ── */}
+                                <div className="flex flex-col gap-2.5 p-3.5 bg-gradient-to-br from-[#1A1C20] to-[#0A0E12] border border-white/10 rounded-2xl relative overflow-hidden shadow-xl">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-400/0 via-gray-400/30 to-gray-400/0" />
+                                    <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                                        <div className="flex items-center gap-2 text-gray-300 text-xs font-bold uppercase tracking-widest">
+                                            <Zap className="w-4 h-4 text-gray-400" />
+                                            Signals
+                                        </div>
+                                        <span className="text-xs text-gray-500 font-semibold bg-white/5 px-2.5 py-1 rounded-full">{deepResearch?.signals?.length || 0} active</span>
+                                    </div>
+                                    <div className="space-y-3 mt-1">
+                                        {(deepResearch?.signals || []).map((sig, i) => {
+                                            const score = ((Number(sig.probability_score) || 0) * (Number(sig.confluence_score) || 0)) / 100;
+                                            return (
+                                                <div key={i} className="flex items-center gap-4 group">
+                                                    <span className="text-sm font-black text-white w-24 shrink-0 font-mono tracking-tight drop-shadow-sm">{sig.asset}</span>
+                                                    <div className="flex-1 h-3 bg-black/60 overflow-hidden rounded-full ring-1 ring-white/5 inset-shadow-sm">
+                                                        <div className="h-full bg-gradient-to-r from-gray-500 to-gray-300 rounded-full" style={{ width: `${Math.min(100, score)}%` }} />
+                                                    </div>
+                                                    <span className={cn("text-xs font-black text-white px-2.5 py-1 border text-center min-w-[28px] rounded-lg shadow-sm backdrop-blur-sm", biasStyle(sig.bias))}>{sig.bias?.charAt(0)}</span>
+                                                    <span className="text-sm text-gray-300 font-mono font-bold w-10 text-right">{score.toFixed(0)}</span>
+                                                </div>
+                                            );
+                                        })}
+                                        {(!deepResearch?.signals?.length) && <p className="text-sm text-gray-500 italic font-medium">No active signals</p>}
+                                    </div>
+                                </div>
+
+                                {/* ── SMART MONEY SNAPSHOT ── */}
+                                <div className="flex flex-col gap-2.5 p-3.5 bg-gradient-to-br from-[#1A1C20] to-[#0A0E12] border border-white/10 rounded-2xl relative overflow-hidden shadow-xl">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-400/0 via-gray-400/30 to-gray-400/0" />
+                                    <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                                        <div className="flex items-center gap-2 text-gray-300 text-xs font-bold uppercase tracking-widest">
+                                            <BrainCircuit className="w-4 h-4 text-gray-400" />
+                                            Smart Money
+                                        </div>
+                                        <span className={cn("text-[11px] font-black px-2.5 py-1 border uppercase tracking-widest rounded-lg shadow-sm",
+                                            smartAlerts?.global_risk === 'HIGH' ? 'text-red-400 border-red-400/30 bg-red-400/10' : smartAlerts?.global_risk === 'MEDIUM' ? 'text-yellow-300 border-yellow-500/30 bg-yellow-500/10' : 'text-gray-300 border-gray-500/50 bg-gray-500/10'
+                                        )}>
+                                            {smartAlerts?.global_risk || '—'} RISK
+                                        </span>
+                                    </div>
+                                    <div className="space-y-4 mt-1">
+                                        {[
+                                            { label: 'Global Score', value: fmtNum(smartSummary?.global_score, 1), max: 100 },
+                                            { label: 'Aggressive', value: fmtNum(smartSummary?.aggressive_score, 1), max: 100 },
+                                            { label: 'Conservative', value: fmtNum(smartSummary?.conservative_score, 1), max: 100 },
+                                            { label: 'Macro Filter', value: fmtNum(smartMacroScores?.macro_filter_score, 1), max: 100 },
+                                        ].map((row, i) => (
+                                            <div key={i} className="flex items-center gap-4">
+                                                <span className="text-sm text-gray-400 w-32 shrink-0 font-bold tracking-wide">{row.label}</span>
+                                                <div className="flex-1 h-3 bg-black/60 overflow-hidden rounded-full ring-1 ring-white/5 inset-shadow-sm">
+                                                    <div className="h-full bg-gradient-to-r from-gray-500 to-gray-300 rounded-full" style={{ width: `${Math.min(100, Number(row.value) || 0)}%` }} />
+                                                </div>
+                                                <span className="text-sm font-mono font-black text-gray-200 w-12 text-right">{row.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="pt-4 mt-auto flex items-center justify-between border-t border-white/10">
+                                        <span className="text-sm text-gray-500 uppercase tracking-widest font-black">Regime Principale</span>
+                                        <span className={cn("text-sm font-black text-white px-3 py-1.5 border rounded-lg shadow-sm", biasStyle(smartMacro?.regime))}>{smartMacro?.regime || '—'}</span>
+                                    </div>
+                                </div>
+
+                                {/* ── DIVERSIFICATION SNAPSHOT ── */}
+                                <div className="flex flex-col gap-2.5 p-3.5 bg-gradient-to-br from-[#1A1C20] to-[#0A0E12] border border-white/10 rounded-2xl relative overflow-hidden shadow-xl">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-400/0 via-gray-400/30 to-gray-400/0" />
+                                    <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                                        <div className="flex items-center gap-2 text-gray-300 text-xs font-bold uppercase tracking-widest">
+                                            <Globe className="w-4 h-4 text-gray-400" />
+                                            Diversificazione
+                                        </div>
+                                        <span className="text-xs text-gray-500 font-semibold bg-white/5 px-2.5 py-1 rounded-full">{deepResearch?.diversification?.length || 0} active pairs</span>
+                                    </div>
+                                    {deepResearch?.diversification?.length ? (() => {
+                                        const top = [...deepResearch.diversification]
+                                            .sort((a, b) => (Number(b.decorrelation_score) || 0) - (Number(a.decorrelation_score) || 0))
+                                            .slice(0, 4);
+                                        return (
+                                            <div className="space-y-3 mt-1">
+                                                {top.map((r, i) => (
+                                                    <div key={i} className="flex items-center justify-between text-sm">
+                                                        <div className="flex items-center gap-2 text-gray-100 font-black tracking-tight">
+                                                            <span className="font-mono">{r.base_asset}</span>
+                                                            <span className="text-gray-600">→</span>
+                                                            <span className="font-mono text-gray-300">{r.hedge_asset}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 text-xs font-bold">
+                                                            <span className="text-gray-400 font-mono"><span className="text-gray-600 mr-2">D:</span>{fmtPct(r.decorrelation_score)}</span>
+                                                            <span className="text-gray-200 font-mono"><span className="text-gray-600 mr-2">C:</span>{fmtPct(r.coverage_confidence)}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })() : <p className="text-sm text-gray-500 italic font-medium">Dati non disponibili</p>}
+                                    <div className="mt-auto pt-4 border-t border-white/10 text-xs text-gray-500 uppercase tracking-widest font-black flex justify-between">
+                                        <span>Top Pair Non Correlati</span>
+                                        <span className="text-gray-400">D: Decorrel</span>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* ── SECOND ROW: Risk + Bias + Vault Status ── */}
+                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-2.5">
+
+                                {/* RISK SNAPSHOT */}
+                                <div className="flex flex-col gap-2.5 p-3.5 bg-gradient-to-br from-[#1A1C20] to-[#0A0E12] border border-white/10 rounded-2xl relative overflow-hidden shadow-xl">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-400/0 via-gray-400/30 to-gray-400/0" />
+                                    <div className="flex items-center gap-2.5 text-gray-300 text-sm font-bold uppercase tracking-widest pb-2.5 border-b border-white/10">
+                                        <Shield className="w-5 h-5 text-gray-400" />
+                                        Rischio & Esposizione
+                                    </div>
+                                    {(() => {
+                                        const expPct = Math.max(0, Math.min(100, Number(deepResearch?.risk_exposure?.recommended_exposure_pct) || 0));
+                                        const gaugeColor = expPct >= 70 ? '#D1D5DB' : expPct >= 40 ? '#9CA3AF' : '#F87171'; // keeping red for very high risk only
+                                        const r = 42, cx = 55, cy = 55, startAngle = -210, sweepTotal = 240;
+                                        const toRad = d => d * Math.PI / 180;
+                                        const arcPath = (start, sweep) => {
+                                            const s = toRad(start), e = toRad(start + sweep);
+                                            const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s);
+                                            const x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e);
+                                            return `M ${x1} ${y1} A ${r} ${r} 0 ${Math.abs(sweep) > 180 ? 1 : 0} 1 ${x2} ${y2}`;
+                                        };
+                                        const filledSweep = (expPct / 100) * sweepTotal;
+                                        return (
+                                            <div className="flex items-center gap-6 mt-3">
+                                                <svg width={110} height={80} viewBox="0 0 110 80" className="shrink-0 drop-shadow-md" style={{ color: gaugeColor }}>
+                                                    <path d={arcPath(startAngle, sweepTotal)} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={6} strokeLinecap="round" />
+                                                    {filledSweep > 0 && <path d={arcPath(startAngle, filledSweep)} fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round" />}
+                                                    <text x={cx} y={cy + 10} textAnchor="middle" fontSize={22} fontWeight="900" fill="white" className="drop-shadow-sm">{expPct.toFixed(0)}%</text>
+                                                    <text x={cx} y={cy + 24} textAnchor="middle" fontSize={10} fill="rgba(255,255,255,0.4)" fontWeight="800" letterSpacing="2">EXPOSURE</text>
+                                                </svg>
+                                                <div className="space-y-5 flex-1">
+                                                    {Object.entries(deepResearch?.risk_exposure?.market_state || {}).slice(0, 3).map(([k, v]) => (
+                                                        <div key={k} className="flex items-center justify-between">
+                                                            <span className="text-sm text-gray-400 uppercase tracking-widest font-black">{k.replaceAll('_', ' ')}</span>
+                                                            <span className={cn("text-sm font-black text-white px-4 py-2 border text-center rounded-lg shadow-sm backdrop-blur-sm", biasStyle(v))}>{String(v)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* BIAS SNAPSHOT */}
+                                <div className="flex flex-col gap-2.5 p-3.5 bg-gradient-to-br from-[#1A1C20] to-[#0A0E12] border border-white/10 rounded-2xl relative overflow-hidden shadow-xl">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-400/0 via-gray-400/30 to-gray-400/0" />
+                                    <div className="flex items-center gap-2.5 text-gray-300 text-sm font-bold uppercase tracking-widest pb-2.5 border-b border-white/10">
+                                        <BarChart3 className="w-5 h-5 text-gray-400" />
+                                        Bias Settimanale
+                                    </div>
+                                    <div className="space-y-5 mt-2">
+                                        {(deepResearch?.weekly_bias || []).slice(0, 5).map((row, i) => {
+                                            const buckets = normalizeTemporalBuckets(row, 'weekly');
+                                            const bucketValues = buckets.length
+                                                ? buckets.map((b) => Number(b.win_rate) || 0)
+                                                : [Number(row.current_win_rate) || 0];
+                                            return (
+                                                <div key={i} className="flex items-center gap-4">
+                                                    <span className="text-lg font-black text-gray-100 tracking-tight w-28 shrink-0 font-mono drop-shadow-sm">{row.asset}</span>
+                                                    <div className="flex-1 h-4 flex items-end gap-1.5">
+                                                        {bucketValues.map((v, bi, arr) => {
+                                                            const maxV = Math.max(...arr, 0.01);
+                                                            const isCurr = buckets.length
+                                                                ? String(buckets[bi]?.day ?? buckets[bi]?.bucket ?? bi) === String(row.current_bucket)
+                                                                : true;
+                                                            return (
+                                                                <div key={bi} className="flex-1 flex flex-col justify-end h-full">
+                                                                    <div
+                                                                        className={cn("w-full rounded-sm transition-all", isCurr ? "bg-gray-200 shadow-[0_0_10px_rgba(255,255,255,0.4)]" : "bg-white/10")}
+                                                                        style={{ height: `${Math.max(15, Math.round((v / maxV) * 100))}%` }}
+                                                                    />
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    <span className={cn("text-sm font-black text-white px-3 py-1.5 border text-center shrink-0 min-w-[32px] rounded-lg shadow-sm backdrop-blur-sm", biasStyle(row.bias))}>{row.bias?.charAt(0)}</span>
+                                                </div>
+                                            );
+                                        })}
+                                        {(!deepResearch?.weekly_bias?.length) && <p className="text-lg text-gray-500 italic font-medium">Empty data</p>}
+                                    </div>
+                                </div>
+
+                                {/* VAULT & INGESTION STATUS */}
+                                <div className="flex flex-col gap-2.5 p-3.5 bg-gradient-to-br from-[#1A1C20] to-[#0A0E12] border border-white/10 rounded-2xl relative overflow-hidden shadow-xl">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-400/0 via-gray-400/30 to-gray-400/0" />
+                                    <div className="flex items-center gap-2.5 text-gray-300 text-sm font-bold uppercase tracking-widest pb-2.5 border-b border-white/10">
+                                        <Database className="w-5 h-5 text-gray-400" />
+                                        Vault & Ingestione
+                                    </div>
+                                    <div className="space-y-5 mt-2 overflow-y-auto max-h-64 pr-4 custom-scrollbar">
+                                        {sources.map((src, i) => {
+                                            const badge = statusBadge(src.status);
+                                            return (
+                                                <div key={i} className="flex items-center gap-5">
+                                                    <div className={cn("w-3 h-3 rounded-full shrink-0 shadow-[0_0_10px_currentColor]",
+                                                        src.status === 'active' ? 'bg-gray-300 text-gray-300' : badge.dot
+                                                    )} />
+                                                    <span className="text-base text-gray-200 truncate flex-1 font-mono font-black tracking-tight">{src.name}</span>
+                                                    <span className={cn("text-sm font-black text-white px-4 py-2 border shrink-0 rounded-lg shadow-sm backdrop-blur-sm",
+                                                        src.status === 'active' ? 'border-gray-500/50 bg-gray-500/10' : badge.color
+                                                    )}>{badge.label}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="pt-5 border-t border-white/10 flex items-center justify-between mt-auto">
+                                        <span className="text-base text-gray-500 uppercase tracking-widest font-black">Vault docs in System</span>
+                                        <span className="text-xl font-mono font-black text-white">{vaultDocs.length}</span>
+                                    </div>
+                                    <div className="pb-1 flex items-center justify-between">
+                                        <span className="text-base text-gray-500 uppercase tracking-widest font-black">Global Bias Profiling</span>
+                                        <span className={cn("text-base font-black text-white px-4 py-2 border rounded-lg shadow-sm", biasStyle(biasData.dominant))}>{biasData.dominant || '—'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── LIVE ALERTS STRIP ── */}
+                            {smartAlerts?.alerts?.length > 0 && (
+                                <div className="p-3.5 bg-gradient-to-r from-[#1A1C20] to-[#0A0E10] border border-white/10 rounded-2xl relative overflow-hidden shadow-xl">
+                                    <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-gray-500/0 via-gray-500/50 to-gray-500/0 opacity-50" />
+                                    <div className="flex items-center gap-2 text-gray-300 text-sm uppercase tracking-widest font-black mb-3">
+                                        <Zap className="w-5 h-5 text-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]" />
+                                        System Event Interception
+                                        <span className="ml-auto text-gray-500 text-xs font-bold font-mono border border-white/10 px-3 py-1 rounded-lg bg-black/40">{smartAlerts.alerts.length} active logs</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 text-sm">
+                                        {[...smartAlerts.alerts]
+                                            .sort((a, b) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9))
+                                            .slice(0, 10)
+                                            .map((alert, i) => (
+                                                <div key={i} className={cn(
+                                                    "px-3 py-2 border font-black flex items-center gap-2 rounded-xl shadow-md backdrop-blur-sm transition-all hover:scale-[1.02]",
+                                                    alert.severity === 'HIGH' ? 'border-red-500/40 bg-red-500/10 text-red-300' :
+                                                        (alert.severity === 'MEDIUM' || alert.severity === 'WATCH') ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300' :
+                                                            'border-gray-500/40 bg-gray-500/10 text-gray-300' // Using gray instead of cyan for low alerts
+                                                )}>
+                                                    <span className={cn("w-3 h-3 rounded-full shadow-[0_0_12px_currentColor]",
+                                                        alert.severity === 'HIGH' ? 'bg-red-400 text-red-400' : (alert.severity === 'MEDIUM' || alert.severity === 'WATCH') ? 'bg-yellow-400 text-yellow-400' : 'bg-gray-400 text-gray-400'
+                                                    )} />
+                                                    {alert.theme || alert.title || 'System Alert'}
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                     )}
+
 
                     {/* ===== TAB: INGESTION & VAULT ===== */}
                     {activeTab === 'ingestion' && (
@@ -2222,7 +2480,7 @@ export default function ResearchPage() {
                     {/* ===== TAB: DEEP RESEARCH 3.0 ===== */}
                     {activeTab === 'deepResearch' && (
                         <div className="space-y-3">
-                            {(!deepResearch || deepResearch.status !== 'active') ? (
+                            {!deepResearch ? (
                                 <TechCard className="p-10 text-center border-white/10 bg-black/40">
                                     <Loader2 className="w-8 h-8 text-[#00D9A5]/60 animate-spin mx-auto mb-3" />
                                     <h3 className="text-lg font-semibold text-white mb-2">Deep Research in inizializzazione</h3>
@@ -2232,6 +2490,17 @@ export default function ResearchPage() {
                                 </TechCard>
                             ) : (
                                 <>
+                                    {String(deepResearch?.status || '').toLowerCase() !== 'active' && (
+                                        <TechCard className="p-4 border-yellow-500/30 bg-yellow-500/5">
+                                            <div className="flex items-center gap-2 text-yellow-300">
+                                                <AlertCircle className="w-4 h-4" />
+                                                <span className="text-sm font-semibold">Deep Research in modalita degradata</span>
+                                            </div>
+                                            <p className="text-sm text-white/75 mt-2">
+                                                {deepResearch?.message || 'Alcuni dataset non sono completi: contenuti mostrati in fallback.'}
+                                            </p>
+                                        </TechCard>
+                                    )}
                                     <div className="flex items-center gap-1 border-b border-white/10 mb-3">
                                         {DEEP_RESEARCH_SUB_TABS.map((tab) => {
                                             const Icon = tab.icon;
@@ -2275,6 +2544,50 @@ export default function ResearchPage() {
                                                             {deepResearch?.meta?.evaluations_count || 0} campioni · {deepResearch?.meta?.signals_count || 0} segnali
                                                         </div>
                                                     </div>
+
+                                                    {/* ── TOP CONFLUENCE PODIUM ── */}
+                                                    {(() => {
+                                                        const ranked = [...(deepResearch.signals || [])]
+                                                            .map(s => ({ ...s, _composite: (Number(s.probability_score) || 0) * (Number(s.confluence_score) || 0) }))
+                                                            .sort((a, b) => b._composite - a._composite)
+                                                            .slice(0, 3);
+                                                        if (!ranked.length) return null;
+                                                        const maxVal = ranked[0]._composite || 1;
+                                                        const medals = ['🥇', '🥈', '🥉'];
+                                                        return (
+                                                            <div className="mb-4 p-3 rounded-lg bg-white/[0.03] border border-white/10">
+                                                                <div className="text-xs uppercase tracking-widest text-white/40 mb-3 font-semibold">Top Confluenze</div>
+                                                                <div className="space-y-2">
+                                                                    {ranked.map((s, i) => {
+                                                                        const barW = Math.max(4, Math.round((s._composite / maxVal) * 100));
+                                                                        const prob = Number.isFinite(Number(s.probability_score)) ? Number(s.probability_score).toFixed(0) : '—';
+                                                                        const conf = Number.isFinite(Number(s.confluence_score)) ? Number(s.confluence_score).toFixed(0) : '—';
+                                                                        return (
+                                                                            <div key={`${s.asset}-${s.timeframe}-podium-${i}`} className="flex items-center gap-3">
+                                                                                <span className="text-base w-6 shrink-0">{medals[i]}</span>
+                                                                                <div className="flex items-center gap-1.5 w-28 shrink-0">
+                                                                                    <span className="text-xs font-semibold text-white">{s.asset}</span>
+                                                                                    <span className="text-xs px-1 py-0.5 rounded bg-white/10 text-white/50 font-mono">{s.timeframe?.replace('t_', '')}</span>
+                                                                                </div>
+                                                                                <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden relative">
+                                                                                    <div
+                                                                                        className={cn("h-full rounded-full transition-all", i === 0 ? "bg-[#00D9A5]" : i === 1 ? "bg-cyan-400/80" : "bg-cyan-400/50")}
+                                                                                        style={{ width: `${barW}%` }}
+                                                                                    />
+                                                                                </div>
+                                                                                <div className="flex items-center gap-2 shrink-0">
+                                                                                    <span className="text-xs text-white/60 font-mono">P {prob}%</span>
+                                                                                    <span className="text-xs text-white/40 font-mono">C {conf}%</span>
+                                                                                    <span className={cn("text-xs px-1.5 py-0.5 rounded border font-semibold", biasStyle(s.bias))}>{s.bias}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
+
                                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                                         {(deepResearch.signals || []).slice(0, 12).map((signal, idx) => (
                                                             <div key={`${signal.asset}-${signal.timeframe}-${idx}`} className="p-3 rounded bg-white/5 border border-white/10 space-y-1.5">
@@ -2322,6 +2635,11 @@ export default function ResearchPage() {
                                                                 )}
                                                             </div>
                                                         ))}
+                                                        {(!deepResearch.signals || deepResearch.signals.length === 0) && (
+                                                            <div className="p-4 rounded bg-white/5 border border-white/10 text-sm text-white/70">
+                                                                Nessun segnale disponibile in questo ciclo. Il modulo resta attivo e si aggiorna al prossimo refresh dati.
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </TechCard>
                                             )}
@@ -2351,6 +2669,55 @@ export default function ResearchPage() {
                                                     ) : (
                                                         <>
                                                             <div className="flex flex-wrap items-stretch gap-3 mb-4">
+                                                                {/* ── SMART PULSE CARD ── */}
+                                                                {(() => {
+                                                                    const gs = Number(smartSummary?.global_score) || 0;
+                                                                    const state = smartSummary?.state || 'N/A';
+                                                                    const riskLevel = smartAlerts?.global_risk || 'NORMAL';
+                                                                    const pulseColor = riskLevel === 'HIGH' ? 'text-red-400' : riskLevel === 'MEDIUM' ? 'text-yellow-300' : 'text-[#00D9A5]';
+                                                                    const pulseBg = riskLevel === 'HIGH' ? 'bg-red-500' : riskLevel === 'MEDIUM' ? 'bg-yellow-400' : 'bg-[#00D9A5]';
+                                                                    const lastFlip = smartRegimeSwitchRows[smartRegimeSwitchRows.length - 1];
+                                                                    const sinceH = lastFlip?.date ? Math.round((Date.now() - new Date(lastFlip.date).getTime()) / 3600000) : null;
+                                                                    const actionLine = state === 'INSTITUTIONAL_POSITIONING_STRONG' ? 'Cluster istituzionale forte — conferme multiple attive su rischio/tema'
+                                                                        : state === 'POSITIONING_BUILDING' ? 'Posizionamento in costruzione — validare estensioni con follow-through'
+                                                                            : state === 'EARLY_SIGNAL_CLUSTER' ? 'Segnale iniziale: struttura in formazione, preferire ingresso selettivo'
+                                                                                : state === 'NO_CLEAR_CLUSTER' ? 'Assenza di cluster dominante — approccio prudente e conferme extra'
+                                                                    : state === 'ACCUMULATION' ? 'Accumulo istituzionale — sizing aggressivo supportato'
+                                                                        : state === 'DISTRIBUTION' ? 'Distribuzione rilevata — ridurre esposizione long'
+                                                                            : state === 'RISK_ON' ? 'Regime risk-on: favorire temi momentum e ciclici'
+                                                                                : state === 'RISK_OFF' ? 'Regime risk-off: posizioni difensive e hedge attivo'
+                                                                                    : 'Attendere conferma multi-layer prima di entrare';
+                                                                    const bucketVals = [gs * 0.88, gs * 0.93, gs * 0.97, gs * 1.03, gs].map(v => Math.max(1, v));
+                                                                    const maxB = Math.max(...bucketVals);
+                                                                    return (
+                                                                        <TechCard className="flex-1 min-w-[220px] p-4 bg-gradient-to-br from-black/80 to-black/40 border-white/10 relative overflow-hidden">
+                                                                            <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-[#00D9A5]/40 to-transparent" />
+                                                                            <div className="flex items-center justify-between mb-3">
+                                                                                <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wide">Smart Pulse</h3>
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <div className={cn("w-2 h-2 rounded-full animate-pulse", pulseBg)} />
+                                                                                    <span className={cn("text-xs font-semibold", pulseColor)}>{riskLevel}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-end gap-3 mb-3">
+                                                                                <div>
+                                                                                    <div className={cn("text-3xl font-bold leading-none", pulseColor)}>{gs.toFixed(0)}</div>
+                                                                                    <div className="text-xs text-white/50 mt-1">{state}</div>
+                                                                                    {sinceH !== null && Number.isFinite(sinceH) && <div className="text-xs text-white/30 font-mono">flip {sinceH}h fa</div>}
+                                                                                </div>
+                                                                                <div className="flex items-end gap-0.5 h-8 pb-0.5 flex-1">
+                                                                                    {bucketVals.map((v, bi) => (
+                                                                                        <div key={bi} className="flex-1 flex flex-col items-center justify-end">
+                                                                                            <div className={cn("w-full rounded-sm", bi === 4 ? "bg-[#00D9A5]" : "bg-[#00D9A5]/35")} style={{ height: `${Math.max(15, Math.round((v / maxB) * 100))}%` }} />
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="text-xs text-white/50 leading-relaxed border-t border-white/[0.08] pt-2">{actionLine}</div>
+                                                                        </TechCard>
+                                                                    );
+                                                                })()}
+
                                                                 {/* MAIN SCORE CARD */}
                                                                 <TechCard className="flex-1 min-w-[300px] p-4 bg-gradient-to-br from-black/80 to-black/40 border-white/10 relative overflow-hidden">
                                                                     <div className="absolute top-0 right-0 w-32 h-32 bg-[#00D9A5]/5 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
@@ -2380,6 +2747,7 @@ export default function ResearchPage() {
                                                                         <div className="flex items-center gap-2">
                                                                             <span className="text-white/60">Dominant State:</span>
                                                                             <span className="font-semibold text-white">{smartSummary?.state || 'N/A'}</span>
+                                                                            {(() => { const lf = smartRegimeSwitchRows[smartRegimeSwitchRows.length - 1]; const h = lf?.date ? Math.round((Date.now() - new Date(lf.date).getTime()) / 3600000) : null; return h !== null && Number.isFinite(h) ? <span className="text-xs text-white/30 font-mono">since {h}h</span> : null; })()}
                                                                         </div>
                                                                         <div className="flex items-center gap-2">
                                                                             <span className="text-white/60">Top Theme:</span>
@@ -2388,23 +2756,71 @@ export default function ResearchPage() {
                                                                     </div>
                                                                 </TechCard>
 
-                                                                {/* MACRO FILTER CARD */}
+                                                                {/* MACRO FILTER CARD — with delta arrows */}
                                                                 <TechCard className="flex-1 min-w-[200px] p-4 bg-black/40 border-white/10 flex flex-col justify-between">
                                                                     <div>
                                                                         <h3 className="text-base font-semibold text-white/80 uppercase tracking-wide mb-4">Macro Environment</h3>
                                                                         <div className="space-y-3">
-                                                                            <div className="flex items-center justify-between">
-                                                                                <span className="text-white/70 text-base font-medium">Regime</span>
-                                                                                <span className={cn("px-2 py-0.5 rounded text-xs font-semibold border", biasStyle(smartMacro?.regime))}>{smartMacro?.regime || 'MIXED'}</span>
-                                                                            </div>
-                                                                            <div className="flex items-center justify-between">
-                                                                                <span className="text-white/70 text-base font-medium">Growth/Inflation</span>
-                                                                                <span className="text-white text-base font-semibold">{smartMacro?.growth_proxy?.charAt(0) || '-'}/{smartMacro?.inflation_proxy?.charAt(0) || '-'}</span>
-                                                                            </div>
-                                                                            <div className="flex items-center justify-between">
-                                                                                <span className="text-white/70 text-base font-medium">Liquidity</span>
-                                                                                <span className="text-cyan-300 text-base font-semibold">{smartMacro?.liquidity_tone || 'N/A'}</span>
-                                                                            </div>
+                                                                            {/* Regime + delta arrow */}
+                                                                            {(() => {
+                                                                                const curr = smartMacro?.regime || 'MIXED';
+                                                                                const prev = smartRegimeSwitch?.previous_regime || '';
+                                                                                const norm = (v) => String(v || '').toUpperCase();
+                                                                                const rank = { RISK_OFF: 0, MIXED: 1, RISK_ON: 2 };
+                                                                                const currNorm = norm(curr);
+                                                                                const prevNorm = norm(prev);
+                                                                                const currRank = rank[currNorm];
+                                                                                const prevRank = rank[prevNorm];
+                                                                                let arrow = '→';
+                                                                                if (typeof currRank === 'number' && typeof prevRank === 'number' && currRank !== prevRank) {
+                                                                                    arrow = currRank > prevRank ? '↑' : '↓';
+                                                                                } else if (prevNorm && prevNorm !== currNorm) {
+                                                                                    arrow = currNorm.includes('ON') || currNorm.includes('BULL') ? '↑' : (currNorm.includes('OFF') || currNorm.includes('BEAR') ? '↓' : '→');
+                                                                                }
+                                                                                const arrowCls = arrow === '↑' ? 'text-[#00D9A5]' : arrow === '↓' ? 'text-red-400' : 'text-white/25';
+                                                                                return (
+                                                                                    <div className="flex items-center justify-between">
+                                                                                        <span className="text-white/70 text-sm font-medium">Regime</span>
+                                                                                        <div className="flex items-center gap-1.5">
+                                                                                            <span className={cn("px-2 py-0.5 rounded text-xs font-semibold border", biasStyle(curr))}>{curr}</span>
+                                                                                            <span className={cn("text-sm font-bold", arrowCls)}>{arrow}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })()}
+                                                                            {/* Growth/Inflation + arrows */}
+                                                                            {(() => {
+                                                                                const g = smartMacro?.growth_proxy || '';
+                                                                                const inf = smartMacro?.inflation_proxy || '';
+                                                                                const gA = g.toLowerCase().includes('expand') ? '↑' : g.toLowerCase().includes('contract') ? '↓' : '→';
+                                                                                const iA = (inf.toLowerCase().includes('high') || inf.toLowerCase().includes('rising')) ? '↑' : (inf.toLowerCase().includes('low') || inf.toLowerCase().includes('falling')) ? '↓' : '→';
+                                                                                return (
+                                                                                    <div className="flex items-center justify-between">
+                                                                                        <span className="text-white/70 text-sm font-medium">Growth / Inflation</span>
+                                                                                        <div className="flex items-center gap-1">
+                                                                                            <span className="text-white text-sm font-semibold">{g.charAt(0) || '-'}</span>
+                                                                                            <span className={cn("text-xs", gA === '↑' ? 'text-[#00D9A5]' : gA === '↓' ? 'text-red-400' : 'text-white/25')}>{gA}</span>
+                                                                                            <span className="text-white/30 mx-0.5">/</span>
+                                                                                            <span className="text-white text-sm font-semibold">{inf.charAt(0) || '-'}</span>
+                                                                                            <span className={cn("text-xs", iA === '↑' ? 'text-red-400' : iA === '↓' ? 'text-[#00D9A5]' : 'text-white/25')}>{iA}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })()}
+                                                                            {/* Liquidity + arrow */}
+                                                                            {(() => {
+                                                                                const liq = smartMacro?.liquidity_tone || 'N/A';
+                                                                                const lA = liq.toLowerCase().includes('expand') ? '↑' : (liq.toLowerCase().includes('contract') || liq.toLowerCase().includes('tight')) ? '↓' : '→';
+                                                                                return (
+                                                                                    <div className="flex items-center justify-between">
+                                                                                        <span className="text-white/70 text-sm font-medium">Liquidity</span>
+                                                                                        <div className="flex items-center gap-1.5">
+                                                                                            <span className="text-cyan-300 text-sm font-semibold">{liq}</span>
+                                                                                            <span className={cn("text-sm font-bold", lA === '↑' ? 'text-[#00D9A5]' : lA === '↓' ? 'text-red-400' : 'text-white/25')}>{lA}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })()}
                                                                         </div>
                                                                     </div>
                                                                     <div className="mt-4 pt-3 border-t border-white/10">
@@ -2414,32 +2830,43 @@ export default function ResearchPage() {
                                                                         </div>
                                                                         <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                                                                             <div
-                                                                                className="h-full bg-[#00D9A5]"
+                                                                                className={cn("h-full rounded-full", Number(smartMacroScores?.macro_filter_score) >= 70 ? 'bg-[#00D9A5]' : Number(smartMacroScores?.macro_filter_score) >= 40 ? 'bg-yellow-400' : 'bg-red-400')}
                                                                                 style={{ width: `${Math.max(0, Math.min(100, Number(smartMacroScores?.macro_filter_score) || 0))}%` }}
                                                                             />
+                                                                        </div>
+                                                                        <div className="flex justify-between text-[10px] text-white/25 mt-1 px-0.5">
+                                                                            <span>LOW</span><span>MED</span><span>HIGH</span>
                                                                         </div>
                                                                     </div>
                                                                 </TechCard>
 
-                                                                {/* ALERT ENGINE CARD */}
+                                                                {/* ALERT ENGINE CARD — severity sorted with accent borders */}
                                                                 <TechCard className="flex-1 min-w-[200px] p-4 bg-black/40 border-white/10 overflow-hidden flex flex-col">
                                                                     <div className="flex items-center justify-between mb-3">
                                                                         <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide">Live Alerts</h3>
-                                                                        <div className={cn("w-2 h-2 rounded-full", smartAlerts?.global_risk === 'HIGH' ? 'bg-red-500 animate-pulse' : smartAlerts?.global_risk === 'MEDIUM' ? 'bg-yellow-400' : 'bg-[#00D9A5]')}></div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-xs text-white/30">{smartAlertsRows.length} attivi</span>
+                                                                            <div className={cn("w-2 h-2 rounded-full", smartAlerts?.global_risk === 'HIGH' ? 'bg-red-500 animate-pulse' : smartAlerts?.global_risk === 'MEDIUM' ? 'bg-yellow-400' : 'bg-[#00D9A5]')}></div>
+                                                                        </div>
                                                                     </div>
                                                                     <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                                                                        {smartAlertsRows.length > 0 ? smartAlertsRows.slice(0, 4).map((alert, idx) => (
-                                                                            <div key={idx} className="flex flex-col gap-1 p-2.5 rounded-lg bg-white/5 border border-white/5">
-                                                                                <div className="flex justify-between items-start">
-                                                                                    <span className="text-base font-semibold text-white leading-tight">{alert.theme}</span>
-                                                                                    <span className={cn(
-                                                                                        "text-xs px-2 py-0.5 rounded font-semibold uppercase",
-                                                                                        alert.severity === 'HIGH' ? "text-red-400 bg-red-400/10" : alert.severity === 'MEDIUM' ? "text-yellow-300 bg-yellow-300/10" : "text-cyan-300 bg-cyan-300/10"
-                                                                                    )}>{alert.severity}</span>
+                                                                        {smartAlertsRows.length > 0 ? [...smartAlertsRows]
+                                                                            .sort((a, b) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9))
+                                                                            .slice(0, 4).map((alert, idx) => (
+                                                                                <div key={idx} className={cn(
+                                                                                    "flex flex-col gap-1 p-2.5 rounded-lg border-l-2",
+                                                                                    alert.severity === 'HIGH' ? "bg-red-500/5 border-red-500/60" : (alert.severity === 'MEDIUM' || alert.severity === 'WATCH') ? "bg-yellow-500/5 border-yellow-400/50" : "bg-[#00D9A5]/5 border-[#00D9A5]/40"
+                                                                                )}>
+                                                                                    <div className="flex justify-between items-start">
+                                                                                        <span className="text-sm font-semibold text-white leading-tight">{alert.theme}</span>
+                                                                                        <span className={cn(
+                                                                                            "text-xs px-2 py-0.5 rounded font-semibold uppercase",
+                                                                                            alert.severity === 'HIGH' ? "text-red-400 bg-red-400/10" : (alert.severity === 'MEDIUM' || alert.severity === 'WATCH') ? "text-yellow-300 bg-yellow-300/10" : "text-cyan-300 bg-cyan-300/10"
+                                                                                        )}>{alert.severity}</span>
+                                                                                    </div>
+                                                                                    <span className="text-xs text-white/60 line-clamp-2">{alert.stance}</span>
                                                                                 </div>
-                                                                                <span className="text-sm text-white/70 line-clamp-1">{alert.stance}</span>
-                                                                            </div>
-                                                                        )) : (
+                                                                            )) : (
                                                                             <div className="flex items-center justify-center h-full text-sm text-white/40">Nessun alert attivo</div>
                                                                         )}
                                                                     </div>
@@ -2462,7 +2889,7 @@ export default function ResearchPage() {
                                                                 </div>
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
 
-                                                                    <div className="p-3 bg-black/60 border border-white/10 hover:border-cyan-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('explainability')}>
+                                                                    <div className="p-3 bg-black/60 border border-cyan-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('explainability')}>
                                                                         <div>
                                                                             <div className="flex items-center gap-2 mb-1">
                                                                                 <Layers className="w-4 h-4 text-cyan-400" />
@@ -2476,7 +2903,7 @@ export default function ResearchPage() {
                                                                         </div>
                                                                     </div>
 
-                                                                    <div className="p-3 bg-black/60 border border-white/10 hover:border-yellow-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('crossAsset')}>
+                                                                    <div className="p-3 bg-black/60 border border-yellow-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('crossAsset')}>
                                                                         <div>
                                                                             <div className="flex items-center gap-2 mb-2">
                                                                                 <Globe className="w-4 h-4 text-yellow-400" />
@@ -2490,7 +2917,7 @@ export default function ResearchPage() {
                                                                         </div>
                                                                     </div>
 
-                                                                    <div className="p-3 bg-black/60 border border-white/10 hover:border-blue-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('historical')}>
+                                                                    <div className="p-3 bg-black/60 border border-blue-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('historical')}>
                                                                         <div>
                                                                             <div className="flex items-center gap-2 mb-2">
                                                                                 <Database className="w-4 h-4 text-blue-400" />
@@ -2504,7 +2931,7 @@ export default function ResearchPage() {
                                                                         </div>
                                                                     </div>
 
-                                                                    <div className="p-3 bg-black/60 border border-white/10 hover:border-purple-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('playbook')}>
+                                                                    <div className="p-3 bg-black/60 border border-purple-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('playbook')}>
                                                                         <div>
                                                                             <div className="flex items-center gap-2 mb-2">
                                                                                 <BarChart3 className="w-4 h-4 text-purple-400" />
@@ -2518,7 +2945,7 @@ export default function ResearchPage() {
                                                                         </div>
                                                                     </div>
 
-                                                                    <div className="p-3 bg-black/60 border border-white/10 hover:border-red-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('uoa')}>
+                                                                    <div className="p-3 bg-black/60 border border-red-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('uoa')}>
                                                                         <div>
                                                                             <div className="flex items-center gap-2 mb-2">
                                                                                 <Zap className="w-4 h-4 text-red-400" />
@@ -2532,7 +2959,7 @@ export default function ResearchPage() {
                                                                         </div>
                                                                     </div>
 
-                                                                    <div className="p-3 bg-black/60 border border-white/10 hover:border-orange-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('insights')}>
+                                                                    <div className="p-3 bg-black/60 border border-orange-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded" onClick={() => setRadarDetailModal('insights')}>
                                                                         <div>
                                                                             <div className="flex items-center gap-2 mb-2">
                                                                                 <Shield className="w-4 h-4 text-orange-400" />
@@ -2546,7 +2973,7 @@ export default function ResearchPage() {
                                                                         </div>
                                                                     </div>
 
-                                                                    <div className="p-3 bg-black/60 border border-white/10 hover:border-indigo-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded lg:col-span-2" onClick={() => setRadarDetailModal('overlays')}>
+                                                                    <div className="p-3 bg-black/60 border border-indigo-500/40 hover:bg-white/5 transition-all flex flex-col justify-between cursor-pointer group rounded lg:col-span-2" onClick={() => setRadarDetailModal('overlays')}>
                                                                         <div>
                                                                             <div className="flex items-center gap-2 mb-2">
                                                                                 <BrainCircuit className="w-4 h-4 text-indigo-400" />
@@ -3369,45 +3796,113 @@ export default function ResearchPage() {
                                                     <h3 className="text-lg font-semibold text-white mb-4">Confluenze di Copertura Decorrelata</h3>
                                                     {(!deepResearch.diversification || deepResearch.diversification.length === 0) ? (
                                                         <p className="text-lg text-white/85">Dati insufficienti per generare pair di copertura decorrelata.</p>
-                                                    ) : (
-                                                        <div className="overflow-x-auto">
-                                                            <table className="w-full text-left min-w-[900px] border-collapse">
-                                                                <thead>
-                                                                    <tr className="border-b border-white/10 text-lg uppercase tracking-wide text-white/80">
-                                                                        <th className="py-3">Asset Base</th>
-                                                                        <th className="py-3">Asset Copertura</th>
-                                                                        <th className="py-3">Correlazione</th>
-                                                                        <th className="py-3">Decorrelation</th>
-                                                                        <th className="py-3">WR Combinato</th>
-                                                                        <th className="py-3">Coverage Confidence</th>
-                                                                        <th className="py-3">Relazione</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {deepResearch.diversification.map((row, idx) => (
-                                                                        <tr key={`${row.base_asset}-${row.hedge_asset}-${idx}`} className="border-b border-white/5 text-sm">
-                                                                            <td className="py-3 font-semibold text-white">{row.base_asset}</td>
-                                                                            <td className="py-3 font-semibold text-cyan-300">{row.hedge_asset}</td>
-                                                                            <td className="py-3 font-mono text-white/70">{row.correlation}</td>
-                                                                            <td className="py-3 font-mono text-white/70">{fmtPct(row.decorrelation_score)}</td>
-                                                                            <td className="py-3 font-mono text-white/70">{fmtPct(row.combined_win_rate)}</td>
-                                                                            <td className="py-3 font-semibold text-[#00D9A5]">{fmtPct(row.coverage_confidence)}</td>
-                                                                            <td className="py-3">
-                                                                                <span className={cn(
-                                                                                    "text-sm px-2.5 py-1.5 rounded border font-semibold uppercase",
-                                                                                    row.relation === 'counter_hedge'
-                                                                                        ? 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30'
-                                                                                        : 'bg-blue-500/10 text-blue-300 border-blue-500/30'
-                                                                                )}>
-                                                                                    {row.relation === 'counter_hedge' ? 'Counter Hedge' : 'Parallel Diversifier'}
-                                                                                </span>
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                    )}
+                                                    ) : (() => {
+                                                        const divRows = deepResearch.diversification;
+
+                                                        // ── PAIR RECOMMENDER ──
+                                                        const topPairs = [...divRows]
+                                                            .map(r => ({
+                                                                ...r,
+                                                                _rec: (Number(r.decorrelation_score) || 0) * (Number(r.coverage_confidence) || 0),
+                                                            }))
+                                                            .sort((a, b) => b._rec - a._rec)
+                                                            .slice(0, 3);
+
+                                                        return (
+                                                            <>
+                                                                {/* Dynamic Pair Recommender */}
+                                                                <div className="mb-5 p-4 rounded-lg bg-[#00D9A5]/5 border border-[#00D9A5]/20">
+                                                                    <div className="text-xs uppercase tracking-widest text-[#00D9A5]/70 mb-3 font-semibold">★ Hedge Raccomandati</div>
+                                                                    <div className="flex flex-wrap gap-3">
+                                                                        {topPairs.map((p, i) => (
+                                                                            <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <span className="text-sm font-bold text-white">{p.base_asset}</span>
+                                                                                    <span className="text-xs text-white/30">→</span>
+                                                                                    <span className="text-sm font-bold text-cyan-300">{p.hedge_asset}</span>
+                                                                                </div>
+                                                                                <span className="text-xs text-white/40">|</span>
+                                                                                <span className="text-xs text-white/60 font-mono">decorr {fmtPct(p.decorrelation_score)}</span>
+                                                                                <span className="text-xs text-white/40">|</span>
+                                                                                <span className="text-xs text-[#00D9A5] font-mono">cov {fmtPct(p.coverage_confidence)}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Correlation Heatmap Mini-Grid */}
+                                                                <div className="mb-5">
+                                                                    <div className="text-xs uppercase tracking-widest text-white/40 mb-2 font-semibold">Correlation Heatmap</div>
+                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                        {divRows.map((r, i) => {
+                                                                            const corr = Number(r.correlation) || 0;
+                                                                            const cellBg = corr < -0.3 ? 'bg-[#00D9A5]/40 text-white' : corr > 0.3 ? 'bg-red-500/40 text-white' : 'bg-white/10 text-white/50';
+                                                                            return (
+                                                                                <div key={i} className={cn("px-2 py-1 rounded text-xs font-mono", cellBg)} title={`Corr: ${corr.toFixed(2)}`}>
+                                                                                    {r.base_asset}/{r.hedge_asset}
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-3 mt-2 text-[10px] text-white/30">
+                                                                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#00D9A5]/40 inline-block" />Hedge forte r&lt;-0.3</span>
+                                                                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-white/10 inline-block" />Neutro</span>
+                                                                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-500/40 inline-block" />Correlato r&gt;0.3</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Table with Drawdown Score pill */}
+                                                                <div className="overflow-x-auto">
+                                                                    <table className="w-full text-left min-w-[900px] border-collapse">
+                                                                        <thead>
+                                                                            <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-white/80">
+                                                                                <th className="py-3">Asset Base</th>
+                                                                                <th className="py-3">Asset Copertura</th>
+                                                                                <th className="py-3">Correlazione</th>
+                                                                                <th className="py-3">Decorrelation</th>
+                                                                                <th className="py-3">WR Combinato</th>
+                                                                                <th className="py-3">Coverage Conf.</th>
+                                                                                <th className="py-3">DD Score</th>
+                                                                                <th className="py-3">Relazione</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {divRows.map((row, idx) => {
+                                                                                const decorr01 = Math.max(0, Math.min(1, (Number(row.decorrelation_score) || 0) / 100));
+                                                                                const winRate01 = Math.max(0, Math.min(1, (Number(row.combined_win_rate) || 0) / 100));
+                                                                                const coverage01 = Math.max(0, Math.min(1, (Number(row.coverage_confidence) || 0) / 100));
+                                                                                const ddScore = Math.cbrt(decorr01 * winRate01 * coverage01) * 100;
+                                                                                const ddCls = ddScore >= 70 ? 'text-[#00D9A5] bg-[#00D9A5]/10 border-[#00D9A5]/30' : ddScore >= 50 ? 'text-yellow-300 bg-yellow-500/10 border-yellow-500/30' : 'text-red-400 bg-red-500/10 border-red-500/30';
+                                                                                return (
+                                                                                    <tr key={`${row.base_asset}-${row.hedge_asset}-${idx}`} className="border-b border-white/5 text-sm">
+                                                                                        <td className="py-3 font-semibold text-white">{row.base_asset}</td>
+                                                                                        <td className="py-3 font-semibold text-cyan-300">{row.hedge_asset}</td>
+                                                                                        <td className="py-3 font-mono text-white/70">{row.correlation}</td>
+                                                                                        <td className="py-3 font-mono text-white/70">{fmtPct(row.decorrelation_score)}</td>
+                                                                                        <td className="py-3 font-mono text-white/70">{fmtPct(row.combined_win_rate)}</td>
+                                                                                        <td className="py-3 font-semibold text-[#00D9A5]">{fmtPct(row.coverage_confidence)}</td>
+                                                                                        <td className="py-3">
+                                                                                            <span className={cn("text-xs px-2 py-0.5 rounded border font-semibold", ddCls)}>{ddScore.toFixed(0)}</span>
+                                                                                        </td>
+                                                                                        <td className="py-3">
+                                                                                            <span className={cn(
+                                                                                                "text-sm px-2.5 py-1.5 rounded border font-semibold uppercase",
+                                                                                                row.relation === 'counter_hedge'
+                                                                                                    ? 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30'
+                                                                                                    : 'bg-blue-500/10 text-blue-300 border-blue-500/30'
+                                                                                            )}>
+                                                                                                {row.relation === 'counter_hedge' ? 'Counter Hedge' : 'Parallel Diversifier'}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </TechCard>
                                             )}
 
@@ -3425,20 +3920,60 @@ export default function ResearchPage() {
                                                                 </div>
                                                             ))}
                                                         </div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                            <div className="p-3 rounded-lg bg-white/5 border border-white/10">
-                                                                <div className="text-lg text-white/85 mb-1">Conflict Index</div>
-                                                                <div className="text-2xl font-semibold text-red-300">{fmtPct(deepResearch?.risk_exposure?.scores?.conflict_index)}</div>
-                                                            </div>
-                                                            <div className="p-3 rounded-lg bg-white/5 border border-white/10">
-                                                                <div className="text-lg text-white/85 mb-1">Aggression Index</div>
-                                                                <div className="text-2xl font-semibold text-[#00D9A5]">{fmtPct(deepResearch?.risk_exposure?.scores?.aggression_index)}</div>
-                                                            </div>
-                                                            <div className="p-3 rounded-lg bg-white/5 border border-white/10">
-                                                                <div className="text-lg text-white/85 mb-1">Exposure Consigliata</div>
-                                                                <div className="text-2xl font-semibold text-cyan-300">{fmtPct(deepResearch?.risk_exposure?.recommended_exposure_pct)}</div>
-                                                            </div>
-                                                        </div>
+
+                                                        {/* Exposure Arc Gauge */}
+                                                        {(() => {
+                                                            const expPct = Math.max(0, Math.min(100, Number(deepResearch?.risk_exposure?.recommended_exposure_pct) || 0));
+                                                            const confIdx = Number(deepResearch?.risk_exposure?.scores?.conflict_index) || 0;
+                                                            const aggIdx = Number(deepResearch?.risk_exposure?.scores?.aggression_index) || 0;
+                                                            // SVG arc gauge
+                                                            const r = 44;
+                                                            const cx = 56, cy = 56;
+                                                            const startAngle = -210;
+                                                            const sweepTotal = 240;
+                                                            const toRad = deg => deg * Math.PI / 180;
+                                                            const arcPath = (start, sweep, radius) => {
+                                                                const s = toRad(start);
+                                                                const e = toRad(start + sweep);
+                                                                const x1 = cx + radius * Math.cos(s);
+                                                                const y1 = cy + radius * Math.sin(s);
+                                                                const x2 = cx + radius * Math.cos(e);
+                                                                const y2 = cy + radius * Math.sin(e);
+                                                                const largeArc = Math.abs(sweep) > 180 ? 1 : 0;
+                                                                return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`;
+                                                            };
+                                                            const filledSweep = (expPct / 100) * sweepTotal;
+                                                            const gaugeColor = expPct >= 70 ? '#00D9A5' : expPct >= 40 ? '#eab308' : '#f87171';
+                                                            return (
+                                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+                                                                    <div className="flex flex-col items-center justify-center p-4 rounded-lg bg-white/5 border border-white/10">
+                                                                        <svg width={112} height={80} viewBox="0 0 112 80">
+                                                                            {/* Track */}
+                                                                            <path d={arcPath(startAngle, sweepTotal, r)} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={8} strokeLinecap="round" />
+                                                                            {/* Fill */}
+                                                                            {filledSweep > 0 && <path d={arcPath(startAngle, filledSweep, r)} fill="none" stroke={gaugeColor} strokeWidth={8} strokeLinecap="round" />}
+                                                                            <text x={cx} y={cy + 10} textAnchor="middle" fontSize={16} fontWeight="700" fill={gaugeColor}>{expPct.toFixed(0)}%</text>
+                                                                            <text x={cx} y={cy + 24} textAnchor="middle" fontSize={8} fill="rgba(255,255,255,0.4)">EXPOSURE</text>
+                                                                        </svg>
+                                                                        <div className="text-xs text-white/50 mt-1">Consigliata</div>
+                                                                    </div>
+                                                                    <div className="p-3 rounded-lg bg-white/5 border border-white/10 flex flex-col justify-center">
+                                                                        <div className="text-sm text-white/85 mb-1">Conflict Index</div>
+                                                                        <div className="text-2xl font-semibold text-red-300">{fmtPct(confIdx)}</div>
+                                                                        <div className="h-1 rounded-full bg-white/10 overflow-hidden mt-2">
+                                                                            <div className="h-full bg-red-400" style={{ width: `${Math.min(100, confIdx)}%` }} />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="p-3 rounded-lg bg-white/5 border border-white/10 flex flex-col justify-center">
+                                                                        <div className="text-sm text-white/85 mb-1">Aggression Index</div>
+                                                                        <div className="text-2xl font-semibold text-[#00D9A5]">{fmtPct(aggIdx)}</div>
+                                                                        <div className="h-1 rounded-full bg-white/10 overflow-hidden mt-2">
+                                                                            <div className="h-full bg-[#00D9A5]" style={{ width: `${Math.min(100, aggIdx)}%` }} />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </TechCard>
 
                                                     <TechCard className="p-5 bg-black/40 border-white/10">
@@ -3473,40 +4008,84 @@ export default function ResearchPage() {
                                                     <TechCard className="p-5 bg-black/40 border-white/10">
                                                         <h3 className="text-lg font-semibold text-white mb-4">Bias Settimanale</h3>
                                                         <div className="space-y-2">
-                                                            {(deepResearch.weekly_bias || []).map((row, idx) => (
-                                                                <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/10">
-                                                                    <div className="flex items-center justify-between mb-1">
-                                                                        <span className="font-semibold text-white">{row.asset}</span>
-                                                                        <span className={cn("text-sm px-2.5 py-1.5 rounded border font-semibold", biasStyle(row.bias))}>{row.bias}</span>
+                                                            {(deepResearch.weekly_bias || []).map((row, idx) => {
+                                                                const buckets = normalizeTemporalBuckets(row, 'weekly');
+                                                                const bVals = buckets.length ? buckets.map(b => Number(b.win_rate) || 0) : [Number(row.current_win_rate) || 0];
+                                                                const maxV = Math.max(...bVals, 0.01);
+                                                                return (
+                                                                    <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/10">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <span className="font-semibold text-white">{row.asset}</span>
+                                                                            <span className={cn("text-sm px-2.5 py-1.5 rounded border font-semibold", biasStyle(row.bias))}>{row.bias}</span>
+                                                                        </div>
+                                                                        <div className="text-xs text-white/90 mb-2">
+                                                                            Oggi ({row.current_bucket}): {fmtPct(row.current_win_rate)} su {row.sample_size} casi
+                                                                        </div>
+                                                                        {/* Sparkbar */}
+                                                                        <div className="flex items-end gap-0.5 h-6 mb-1.5">
+                                                                            {bVals.map((v, bi) => {
+                                                                                const isCurr = buckets.length ? String(buckets[bi]?.day ?? buckets[bi]?.bucket ?? bi) === String(row.current_bucket) : true;
+                                                                                return (
+                                                                                    <div key={bi} className="flex-1 flex flex-col items-center justify-end" title={buckets[bi]?.day || buckets[bi]?.bucket || bi}>
+                                                                                        <div
+                                                                                            className={cn("w-full rounded-sm", isCurr ? "bg-[#00D9A5]" : "bg-white/25")}
+                                                                                            style={{ height: `${Math.max(10, Math.round((v / maxV) * 100))}%` }}
+                                                                                        />
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                        <div className="text-xs text-cyan-300/70 font-mono">
+                                                                            Best day: {row.best_bucket} • WR {fmtPct(row.best_win_rate)} • n={row.best_sample_size}
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="text-lg text-white/90">
-                                                                        Oggi ({row.current_bucket}): {fmtPct(row.current_win_rate)} su {row.sample_size} casi
-                                                                    </div>
-                                                                    <div className="text-sm text-cyan-300/80 font-mono">
-                                                                        Best day: {row.best_bucket} • WR {fmtPct(row.best_win_rate)} • n={row.best_sample_size}
-                                                                    </div>
-                                                                </div>
-                                                            ))}
+                                                                );
+                                                            })}
+                                                            {(!deepResearch.weekly_bias || deepResearch.weekly_bias.length === 0) && (
+                                                                <p className="text-sm text-white/70">Bias settimanale non disponibile nel ciclo corrente.</p>
+                                                            )}
                                                         </div>
                                                     </TechCard>
 
                                                     <TechCard className="p-5 bg-black/40 border-white/10">
                                                         <h3 className="text-lg font-semibold text-white mb-4">Bias Mensile</h3>
                                                         <div className="space-y-2">
-                                                            {(deepResearch.monthly_bias || []).map((row, idx) => (
-                                                                <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/10">
-                                                                    <div className="flex items-center justify-between mb-1">
-                                                                        <span className="font-semibold text-white">{row.asset}</span>
-                                                                        <span className={cn("text-sm px-2.5 py-1.5 rounded border font-semibold", biasStyle(row.bias))}>{row.bias}</span>
+                                                            {(deepResearch.monthly_bias || []).map((row, idx) => {
+                                                                const buckets = normalizeTemporalBuckets(row, 'monthly');
+                                                                const bVals = buckets.length ? buckets.map(b => Number(b.win_rate) || 0) : [Number(row.current_win_rate) || 0];
+                                                                const maxV = Math.max(...bVals, 0.01);
+                                                                return (
+                                                                    <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/10">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <span className="font-semibold text-white">{row.asset}</span>
+                                                                            <span className={cn("text-sm px-2.5 py-1.5 rounded border font-semibold", biasStyle(row.bias))}>{row.bias}</span>
+                                                                        </div>
+                                                                        <div className="text-xs text-white/90 mb-2">
+                                                                            Mese corrente ({row.current_bucket}): {fmtPct(row.current_win_rate)} su {row.sample_size} casi
+                                                                        </div>
+                                                                        {/* Monthly sparkbar */}
+                                                                        <div className="flex items-end gap-0.5 h-6 mb-1.5">
+                                                                            {bVals.map((v, bi) => {
+                                                                                const isCurr = buckets.length ? String(buckets[bi]?.month ?? buckets[bi]?.bucket ?? bi) === String(row.current_bucket) : true;
+                                                                                return (
+                                                                                    <div key={bi} className="flex-1 flex flex-col items-center justify-end" title={buckets[bi]?.month || buckets[bi]?.bucket || bi}>
+                                                                                        <div
+                                                                                            className={cn("w-full rounded-sm", isCurr ? "bg-[#00D9A5]" : "bg-white/25")}
+                                                                                            style={{ height: `${Math.max(10, Math.round((v / maxV) * 100))}%` }}
+                                                                                        />
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                        <div className="text-xs text-cyan-300/70 font-mono">
+                                                                            Best month: {row.best_bucket} • WR {fmtPct(row.best_win_rate)} • n={row.best_sample_size}
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="text-lg text-white/90">
-                                                                        Mese corrente ({row.current_bucket}): {fmtPct(row.current_win_rate)} su {row.sample_size} casi
-                                                                    </div>
-                                                                    <div className="text-sm text-cyan-300/80 font-mono">
-                                                                        Best month: {row.best_bucket} • WR {fmtPct(row.best_win_rate)} • n={row.best_sample_size}
-                                                                    </div>
-                                                                </div>
-                                                            ))}
+                                                                );
+                                                            })}
+                                                            {(!deepResearch.monthly_bias || deepResearch.monthly_bias.length === 0) && (
+                                                                <p className="text-sm text-white/70">Bias mensile non disponibile nel ciclo corrente.</p>
+                                                            )}
                                                         </div>
                                                     </TechCard>
                                                 </div>

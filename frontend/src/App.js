@@ -12,34 +12,80 @@ import ErrorBoundary from './components/layout/ErrorBoundary';
 
 import { LockScreen } from './components/layout/LockScreen';
 
+const safeStorageGet = (key, fallback = null) => {
+  try {
+    const value = localStorage.getItem(key);
+    return value ?? fallback;
+  } catch (_error) {
+    return fallback;
+  }
+};
+
+const createLazyWithRetry = (importer, cacheKey) => {
+  return lazy(async () => {
+    try {
+      return await importer();
+    } catch (error) {
+      const message = String(error?.message || error || '');
+      const isChunkLikeError =
+        /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|dynamically imported module/i.test(
+          message
+        );
+
+      if (!isChunkLikeError || typeof window === 'undefined') {
+        throw error;
+      }
+
+      const retryKey = `karion_lazy_retry_${cacheKey}`;
+      const alreadyRetried = sessionStorage.getItem(retryKey) === '1';
+      if (alreadyRetried) {
+        sessionStorage.removeItem(retryKey);
+        throw error;
+      }
+
+      sessionStorage.setItem(retryKey, '1');
+      return await importer();
+    }
+  });
+};
+
 // Route-level code splitting: load page code only when route is visited.
-const Layout = lazy(() => import('./components/layout/Layout'));
-const LandingPage = lazy(() => import('./components/pages/LandingPage').then((m) => ({ default: m.LandingPage })));
-const AuthPage = lazy(() => import('./components/pages/AuthPage'));
-const DashboardPage = lazy(() => import('./components/pages/DashboardPage'));
-const ProfilePage = lazy(() => import('./components/pages/ProfilePage'));
-const StrategyPage = lazy(() => import('./components/pages/StrategyPage'));
-const PsychologyPage = lazy(() => import('./components/pages/PsychologyPage'));
-const JournalPage = lazy(() => import('./components/pages/JournalPage'));
-const AIPage = lazy(() => import('./components/pages/AIPage'));
-const MonteCarloPage = lazy(() => import('./components/pages/MonteCarloPage'));
-const StatisticsPage = lazy(() => import('./components/pages/StatisticsPage'));
-const AscensionPage = lazy(() => import('./components/pages/AscensionPage'));
-const SettingsPage = lazy(() => import('./components/pages/SettingsPage'));
-const NewsPage = lazy(() => import('./components/pages/NewsPage'));
-const ReportPage = lazy(() => import('./components/pages/ReportPage'));
-const RiskPage = lazy(() => import('./components/pages/RiskPage'));
-const COTPage = lazy(() => import('./components/pages/COTPage'));
-const OptionsFlowPage = lazy(() => import('./components/pages/OptionsFlowPage'));
-const MacroEconomyPage = lazy(() => import('./components/pages/MacroEconomyPage'));
-const CryptoPage = lazy(() => import('./components/pages/CryptoPage'));
-const CalculatorPage = lazy(() => import('./components/pages/CalculatorPage'));
-const PricingPage = lazy(() => import('./components/pages/PricingPage'));
-const CheckoutSuccessPage = lazy(() => import('./components/pages/CheckoutSuccessPage'));
-const IntroPreviewPage = lazy(() => import('./components/pages/IntroPreviewPage'));
-const MobilePreviewPage = lazy(() => import('./components/pages/MobilePreviewPage'));
-const BacktestPage = lazy(() => import('./components/pages/BacktestPage'));
-const ResearchPage = lazy(() => import('./components/pages/ResearchPage'));
+const Layout = createLazyWithRetry(() => import('./components/layout/Layout'), 'layout');
+const LandingPage = createLazyWithRetry(
+  () => import('./components/pages/LandingPage').then((m) => ({ default: m.LandingPage })),
+  'landing'
+);
+const AuthPage = createLazyWithRetry(() => import('./components/pages/AuthPage'), 'auth');
+const DashboardPage = createLazyWithRetry(() => import('./components/pages/DashboardPage'), 'dashboard');
+const ProfilePage = createLazyWithRetry(() => import('./components/pages/ProfilePage'), 'profile');
+const StrategyPage = createLazyWithRetry(() => import('./components/pages/StrategyPage'), 'strategy');
+const PsychologyPage = createLazyWithRetry(() => import('./components/pages/PsychologyPage'), 'psychology');
+const JournalPage = createLazyWithRetry(() => import('./components/pages/JournalPage'), 'journal');
+const AIPage = createLazyWithRetry(() => import('./components/pages/AIPage'), 'ai');
+const MonteCarloPage = createLazyWithRetry(() => import('./components/pages/MonteCarloPage'), 'montecarlo');
+const StatisticsPage = createLazyWithRetry(() => import('./components/pages/StatisticsPage'), 'statistics');
+const AscensionPage = createLazyWithRetry(() => import('./components/pages/AscensionPage'), 'ascension');
+const SettingsPage = createLazyWithRetry(() => import('./components/pages/SettingsPage'), 'settings');
+const NewsPage = createLazyWithRetry(() => import('./components/pages/NewsPage'), 'news');
+const ReportPage = createLazyWithRetry(() => import('./components/pages/ReportPage'), 'report');
+const RiskPage = createLazyWithRetry(() => import('./components/pages/RiskPage'), 'risk');
+const COTPage = createLazyWithRetry(() => import('./components/pages/COTPage'), 'cot');
+const OptionsFlowPage = createLazyWithRetry(() => import('./components/pages/OptionsFlowPage'), 'optionsflow');
+const MacroEconomyPage = createLazyWithRetry(() => import('./components/pages/MacroEconomyPage'), 'macro');
+const CryptoPage = createLazyWithRetry(() => import('./components/pages/CryptoPage'), 'crypto');
+const CalculatorPage = createLazyWithRetry(() => import('./components/pages/CalculatorPage'), 'calculator');
+const PricingPage = createLazyWithRetry(() => import('./components/pages/PricingPage'), 'pricing');
+const CheckoutSuccessPage = createLazyWithRetry(
+  () => import('./components/pages/CheckoutSuccessPage'),
+  'checkoutsuccess'
+);
+const IntroPreviewPage = createLazyWithRetry(() => import('./components/pages/IntroPreviewPage'), 'intropreview');
+const MobilePreviewPage = createLazyWithRetry(
+  () => import('./components/pages/MobilePreviewPage'),
+  'mobilepreview'
+);
+const BacktestPage = createLazyWithRetry(() => import('./components/pages/BacktestPage'), 'backtest');
+const ResearchPage = createLazyWithRetry(() => import('./components/pages/ResearchPage'), 'research');
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -179,7 +225,7 @@ function App() {
   const isIntroPreviewPath = typeof window !== 'undefined' && window.location.pathname === '/intro-preview';
   const [isLocked, setIsLocked] = useState(() => {
     if (typeof window === 'undefined') return true;
-    return localStorage.getItem('karion_access') !== 'granted';
+    return safeStorageGet('karion_access') !== 'granted';
   });
   const isMobileDevice = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -188,17 +234,17 @@ function App() {
 
   useEffect(() => {
     // Preload the most common first routes while lock overlay is visible.
-    import('./components/pages/AuthPage');
-    import('./components/pages/LandingPage');
+    import('./components/pages/AuthPage').catch(() => {});
+    import('./components/pages/LandingPage').catch(() => {});
   }, []);
 
   useEffect(() => {
     // Warm critical in-app routes to reduce first-click latency in sidebar navigation.
-    import('./components/pages/DashboardPage');
-    import('./components/pages/ResearchPage');
-    import('./components/pages/BacktestPage');
-    import('./components/pages/CryptoPage');
-    import('./components/pages/StrategyPage');
+    import('./components/pages/DashboardPage').catch(() => {});
+    import('./components/pages/ResearchPage').catch(() => {});
+    import('./components/pages/BacktestPage').catch(() => {});
+    import('./components/pages/CryptoPage').catch(() => {});
+    import('./components/pages/StrategyPage').catch(() => {});
   }, []);
 
   return (

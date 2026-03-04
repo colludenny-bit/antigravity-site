@@ -1,18 +1,55 @@
 {
   "alpha": 0.5,
   "weights": {
-    "A": 1.0,
-    "B": 1.0,
-    "C": 1.0,
-    "D": 1.0,
+    "A": 0.9299,
+    "B": 0.9577,
+    "C": 1.0577,
+    "D": 0.9632,
     "E": 1.0
   },
   "checkpoints": {
-    "A": 0,
-    "B": 0,
-    "C": 0,
-    "D": 0,
+    "A": 472,
+    "B": 970,
+    "C": 1841,
+    "D": 321,
     "E": 0
   },
-  "updates": []
+  "updates": [
+    {
+      "date": "2026-03-02",
+      "scenario": "A",
+      "N_campioni": 472,
+      "P_vecchia": 1.0,
+      "P_nuova": 0.9299,
+      "Brier_pre": 0.338856,
+      "Brier_post": 0.30952
+    },
+    {
+      "date": "2026-03-02",
+      "scenario": "B",
+      "N_campioni": 970,
+      "P_vecchia": 1.0,
+      "P_nuova": 0.9577,
+      "Brier_pre": 0.385566,
+      "Brier_post": 0.359542
+    },
+    {
+      "date": "2026-03-02",
+      "scenario": "C",
+      "N_campioni": 1841,
+      "P_vecchia": 1.0,
+      "P_nuova": 1.0577,
+      "Brier_pre": 0.219772,
+      "Brier_post": 0.214404
+    },
+    {
+      "date": "2026-03-02",
+      "scenario": "D",
+      "N_campioni": 321,
+      "P_vecchia": 1.0,
+      "P_nuova": 0.9632,
+      "Brier_pre": 0.36853,
+      "Brier_post": 0.347305
+    }
+  ]
 }

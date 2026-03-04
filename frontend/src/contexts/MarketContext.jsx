@@ -6,6 +6,16 @@ import { AIService } from '../services/AIService';
 const MarketContext = createContext();
 const FOREGROUND_POLL_MS = 12000;
 const BACKGROUND_POLL_MS = 30000;
+const safeParseStorageObject = (key) => {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_error) {
+        return {};
+    }
+};
 
 export const useMarket = () => useContext(MarketContext);
 
@@ -134,7 +144,7 @@ export const MarketProvider = ({ children }) => {
 
             // B. AI Insight Pulse (Every 60s roughly)
             if (Math.random() > 0.8) {
-                const keys = JSON.parse(localStorage.getItem('karion_api_keys') || '{}');
+                const keys = safeParseStorageObject('karion_api_keys');
                 const contextData = {
                     context: "Global Pulse",
                     spx: currentData.macro?.SPX || { change: 0 },

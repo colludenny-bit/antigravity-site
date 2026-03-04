@@ -2,13 +2,37 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import api from '../services/api';
 
 const AuthContext = createContext(null);
+const safeStorageGet = (key, fallback = null) => {
+  try {
+    const value = localStorage.getItem(key);
+    return value ?? fallback;
+  } catch (_error) {
+    return fallback;
+  }
+};
+
+const safeStorageSet = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_error) {
+    // Ignore storage write failures in restricted contexts.
+  }
+};
+
+const safeStorageRemove = (key) => {
+  try {
+    localStorage.removeItem(key);
+  } catch (_error) {
+    // Ignore storage remove failures in restricted contexts.
+  }
+};
 
 // Demo mode - set to true to bypass authentication
 const DEMO_MODE = false;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(DEMO_MODE ? { id: 'demo', name: 'Demo Trader', email: 'trader@karion.io' } : null);
-  const [token, setToken] = useState(DEMO_MODE ? 'demo-token' : localStorage.getItem('token'));
+  const [token, setToken] = useState(DEMO_MODE ? 'demo-token' : safeStorageGet('token'));
   const [loading, setLoading] = useState(!DEMO_MODE);
   const [isInitialized, setIsInitialized] = useState(DEMO_MODE);
   const [subscription, setSubscription] = useState(null);
@@ -26,7 +50,7 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUser = useCallback(async () => {
     setError(null);
-    const storedToken = localStorage.getItem('token');
+    const storedToken = safeStorageGet('token');
     if (!storedToken) {
       setLoading(false);
       setIsInitialized(true);
@@ -73,7 +97,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', { email, password });
       const { access_token, user: userData } = response.data;
-      localStorage.setItem('token', access_token);
+      safeStorageSet('token', access_token);
       setToken(access_token);
       setUser(userData);
       // Fetch subscription after login
@@ -94,7 +118,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/register', { email, password, name });
       const { access_token, user: userData } = response.data;
-      localStorage.setItem('token', access_token);
+      safeStorageSet('token', access_token);
       setToken(access_token);
       setUser(userData);
       return userData;
@@ -108,7 +132,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    safeStorageRemove('token');
     setToken(null);
     setUser(null);
     setSubscription(null);

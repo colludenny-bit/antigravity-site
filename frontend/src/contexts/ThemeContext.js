@@ -1,17 +1,29 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const ThemeContext = createContext(null);
+const safeStorageGet = (key, fallback = null) => {
+  try {
+    const value = localStorage.getItem(key);
+    return value ?? fallback;
+  } catch (_error) {
+    return fallback;
+  }
+};
+
+const safeStorageSet = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_error) {
+    // Storage can be unavailable in private/restricted contexts.
+  }
+};
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => {
-    // Forza il tema scuro poiché il tema chiaro non è ancora completo nella dashboard
-    localStorage.setItem('karion_theme', 'dark');
-    return 'dark';
-  });
+  const [theme, setTheme] = useState(() => 'dark');
 
   // Dark theme variant: 'full-black' or 'carbon-black'
   const [darkVariant, setDarkVariant] = useState(() => {
-    const stored = localStorage.getItem('karion_dark_variant');
+    const stored = safeStorageGet('karion_dark_variant');
     return stored || 'full-black';
   });
 
@@ -23,7 +35,7 @@ export const ThemeProvider = ({ children }) => {
 
     // Add theme class
     root.classList.add(theme);
-    localStorage.setItem('karion_theme', theme);
+    safeStorageSet('karion_theme', theme);
 
     // If dark mode, add the variant class
     if (theme === 'dark') {
@@ -45,7 +57,7 @@ export const ThemeProvider = ({ children }) => {
 
   // Save dark variant to localStorage
   useEffect(() => {
-    localStorage.setItem('karion_dark_variant', darkVariant);
+    safeStorageSet('karion_dark_variant', darkVariant);
   }, [darkVariant]);
 
   const toggleTheme = () => {

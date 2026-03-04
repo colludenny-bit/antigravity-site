@@ -10,7 +10,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from zoneinfo import ZoneInfo
 import jwt
 import bcrypt
@@ -1726,6 +1726,7 @@ def _fetch_market_breadth_payload():
             "refresh_interval_hours": BREADTH_REFRESH_INTERVAL_HOURS,
             "refresh_interval_minutes": BREADTH_REFRESH_INTERVAL_MINUTES,
             "tracked_tickers": list(BREADTH_SYMBOL_MAP.keys()),
+            "thresholds": BREADTH_REGIME_THRESHOLDS,
         },
         "indices": {
             "SP500": sp_payload,
@@ -1742,20 +1743,30 @@ async def get_market_breadth():
     global _breadth_cache
     now = datetime.now(timezone.utc)
 
+    def _ensure_breadth_thresholds(payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            return payload
+        source = payload.get("source")
+        if not isinstance(source, dict):
+            source = {}
+            payload["source"] = source
+        source.setdefault("thresholds", BREADTH_REGIME_THRESHOLDS)
+        return payload
+
     if _breadth_cache["data"] and _breadth_cache["timestamp"]:
         age = (now - _breadth_cache["timestamp"]).total_seconds()
         if age < BREADTH_CACHE_TTL:
-            return _breadth_cache["data"]
+            return _ensure_breadth_thresholds(_breadth_cache["data"])
 
     try:
         payload = _fetch_market_breadth_payload()
         _breadth_cache = {"data": payload, "timestamp": now}
-        return payload
+        return _ensure_breadth_thresholds(payload)
     except Exception as exc:
         if _breadth_cache["data"] and _breadth_cache["timestamp"]:
             stale_age = int((now - _breadth_cache["timestamp"]).total_seconds())
             return {
-                **_breadth_cache["data"],
+                **_ensure_breadth_thresholds(_breadth_cache["data"]),
                 "cache_stale": True,
                 "cache_age_seconds": stale_age,
                 "warning": f"breadth refresh failed: {str(exc)}",
@@ -1857,9 +1868,30 @@ async def market_svp_screenshot_feed(asset: Optional[str] = None, limit: int = 2
 _market_cache = {"data": None, "timestamp": None}
 _vix_cache = {"data": None, "timestamp": None}
 _cot_live_cache = {"data": None, "timestamp": None}
+_options_flow_cache = {"data": None, "timestamp": None}
 _session_discretionary_cache = {"data": None, "timestamp": None}
 _price_action_cache = {"data": None, "timestamp": None}
 ROME_TZ = ZoneInfo("Europe/Rome")
+NEW_YORK_TZ = ZoneInfo("America/New_York")
+
+OPTIONS_FLOW_CACHE_TTL_SECONDS = 60
+OPTIONS_MIN_NOTIONAL_MILLION = 0.5
+
+OPTIONS_PROXY_MAP = {
+    "XAUUSD": "GLD",
+    "NAS100": "QQQ",
+    "SP500": "SPY",
+    "EURUSD": "FXE",
+    "BTCUSD": "IBIT",
+}
+
+OPTIONS_SPOT_REF_MAP = {
+    "XAUUSD": "GC=F",
+    "NAS100": "NQ=F",
+    "SP500": "ES=F",
+    "EURUSD": "EURUSD=X",
+    "BTCUSD": "BTC-USD",
+}
 
 
 def _to_int(value: Any, default: int = 0) -> int:
@@ -1977,9 +2009,15 @@ def _breadth_direction_sign(breadth_row: Dict[str, Any]) -> int:
     ma50 = _safe_float(((breadth_row.get("above_ma50") or {}) if isinstance(breadth_row.get("above_ma50"), dict) else {}).get("pct"), float("nan"))
     ma200 = _safe_float(((breadth_row.get("above_ma200") or {}) if isinstance(breadth_row.get("above_ma200"), dict) else {}).get("pct"), float("nan"))
     if math.isfinite(ma50) and math.isfinite(ma200):
-        if ma50 >= 60.0 and ma200 >= 55.0:
+        if (
+            ma50 >= BREADTH_REGIME_THRESHOLDS["bullish_ma50_min"]
+            and ma200 >= BREADTH_REGIME_THRESHOLDS["bullish_ma200_min"]
+        ):
             return 1
-        if ma50 <= 40.0 and ma200 <= 45.0:
+        if (
+            ma50 <= BREADTH_REGIME_THRESHOLDS["weak_ma50_max"]
+            and ma200 <= BREADTH_REGIME_THRESHOLDS["weak_ma200_max"]
+        ):
             return -1
     regime = str(breadth_row.get("breadth_regime", "")).lower()
     if regime == "broad-bullish":
@@ -2928,6 +2966,404 @@ def get_yf_ticker_safe(symbol: str, period: str = "5d", interval: str = "1d"):
         logger.error(f"yfinance error for {symbol}: {e}")
         return None
 
+
+def _safe_pct_delta(current: float, previous: Optional[float]) -> float:
+    if previous is None:
+        return 0.0
+    prev_abs = abs(previous)
+    if prev_abs < 1e-9:
+        if abs(current) < 1e-9:
+            return 0.0
+        return 100.0 if current > 0 else -100.0
+    return ((current - previous) / prev_abs) * 100.0
+
+
+def _norm_pdf(value: float) -> float:
+    return math.exp(-0.5 * value * value) / math.sqrt(2.0 * math.pi)
+
+
+def _bs_gamma(spot: float, strike: float, years_to_expiry: float, iv: float) -> float:
+    if spot <= 0 or strike <= 0 or years_to_expiry <= 0 or iv <= 0:
+        return 0.0
+    denom = iv * math.sqrt(years_to_expiry)
+    if denom <= 0:
+        return 0.0
+    d1 = (math.log(spot / strike) + (0.5 * iv * iv * years_to_expiry)) / denom
+    return _norm_pdf(d1) / (spot * denom)
+
+
+def _pick_primary_expiry(expiries: List[str]) -> Optional[str]:
+    if not expiries:
+        return None
+    today = datetime.now(timezone.utc).date()
+    parsed: List[date] = []
+    for item in expiries:
+        try:
+            parsed.append(datetime.strptime(item, "%Y-%m-%d").date())
+        except Exception:
+            continue
+    if not parsed:
+        return None
+    future = sorted([d for d in parsed if d >= today])
+    chosen = future[0] if future else sorted(parsed)[-1]
+    return chosen.isoformat()
+
+
+def _options_bias_from_flow(
+    flow_shift_to_puts: float,
+    net_million: float,
+    call_ratio: float,
+    put_ratio: float,
+    call_change: float,
+    put_change: float,
+) -> str:
+    ratio_skew = put_ratio - call_ratio
+    momentum_skew = put_change - call_change
+    gross_million = abs(net_million)
+
+    # 1) Directional flow shift is the strongest intraday signal.
+    if flow_shift_to_puts >= 3.0 or momentum_skew >= 3.0:
+        return "bearish"
+    if flow_shift_to_puts <= -3.0 or momentum_skew <= -3.0:
+        return "bullish"
+
+    # 2) Strong call/put participation skew takes precedence over premium notional.
+    if ratio_skew >= 8.0:
+        return "bearish"
+    if ratio_skew <= -8.0:
+        return "bullish"
+
+    # 3) Premium imbalance is only valid if no strong opposite participation skew.
+    if net_million <= -2.0 and ratio_skew >= -4.0:
+        return "bearish"
+    if net_million >= 2.0 and ratio_skew <= 4.0:
+        return "bullish"
+
+    # 4) If premium is tiny and no directional skew -> neutral.
+    if gross_million < 1.0 and abs(ratio_skew) < 6.0:
+        return "neutral"
+
+    return "neutral"
+
+
+def _compute_options_snapshot_row(
+    symbol: str,
+    proxy_ticker: str,
+    target_spot: Optional[float] = None,
+    previous: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    ticker = yf.Ticker(proxy_ticker)
+    spot_hist = ticker.history(period="5d", interval="1d")
+    if spot_hist is None or spot_hist.empty:
+        return None
+    spot = _safe_float(spot_hist["Close"].iloc[-1], 0.0)
+    if spot <= 0:
+        return None
+    strike_scale = (target_spot / spot) if (target_spot and target_spot > 0 and spot > 0) else 1.0
+
+    expiries = list(ticker.options or [])
+    expiry = _pick_primary_expiry(expiries)
+    if not expiry:
+        return None
+
+    chain = ticker.option_chain(expiry)
+    calls = chain.calls
+    puts = chain.puts
+    if calls is None or puts is None or calls.empty or puts.empty:
+        return None
+
+    call_volume = _safe_float(calls["volume"].fillna(0).sum(), 0.0)
+    put_volume = _safe_float(puts["volume"].fillna(0).sum(), 0.0)
+    call_oi_total = _safe_float(calls["openInterest"].fillna(0).sum(), 0.0)
+    put_oi_total = _safe_float(puts["openInterest"].fillna(0).sum(), 0.0)
+
+    # Volume first; if empty (common out of session) fallback to OI participation.
+    call_activity = call_volume if call_volume > 0 else call_oi_total
+    put_activity = put_volume if put_volume > 0 else put_oi_total
+    total_activity = max(call_activity + put_activity, 1.0)
+    call_ratio = (call_activity / total_activity) * 100.0
+    put_ratio = 100.0 - call_ratio
+
+    call_notional = _safe_float((calls["lastPrice"].fillna(0) * calls["volume"].fillna(0) * 100).sum(), 0.0)
+    put_notional = _safe_float((puts["lastPrice"].fillna(0) * puts["volume"].fillna(0) * 100).sum(), 0.0)
+    if call_notional <= 0 and call_oi_total > 0:
+        call_notional = _safe_float((calls["lastPrice"].fillna(0) * calls["openInterest"].fillna(0) * 20).sum(), 0.0)
+    if put_notional <= 0 and put_oi_total > 0:
+        put_notional = _safe_float((puts["lastPrice"].fillna(0) * puts["openInterest"].fillna(0) * 20).sum(), 0.0)
+
+    call_million = call_notional / 1_000_000.0
+    put_million = put_notional / 1_000_000.0
+    net_million = call_million - put_million
+
+    has_previous = isinstance(previous, dict) and bool(previous)
+    prev_call = _safe_float((previous or {}).get("call_million"), 0.0) if has_previous else None
+    prev_put = _safe_float((previous or {}).get("put_million"), 0.0) if has_previous else None
+    prev_net = _safe_float((previous or {}).get("net_million"), 0.0) if has_previous else None
+
+    if has_previous:
+        if max(abs(call_million), abs(prev_call or 0.0)) < OPTIONS_MIN_NOTIONAL_MILLION:
+            call_change = 0.0
+        else:
+            call_change = _safe_pct_delta(call_million, prev_call)
+
+        if max(abs(put_million), abs(prev_put or 0.0)) < OPTIONS_MIN_NOTIONAL_MILLION:
+            put_change = 0.0
+        else:
+            put_change = _safe_pct_delta(put_million, prev_put)
+
+        if max(abs(net_million), abs(prev_net or 0.0)) < OPTIONS_MIN_NOTIONAL_MILLION:
+            net_change = 0.0
+        else:
+            net_change = _safe_pct_delta(net_million, prev_net)
+
+        flow_shift_to_puts = put_change - call_change
+    else:
+        total_notional = max(abs(call_million) + abs(put_million), 1e-9)
+        call_share = (abs(call_million) / total_notional) * 100.0
+        put_share = 100.0 - call_share
+        imbalance_pct = ((put_million - call_million) / total_notional) * 100.0
+        call_change = max(-99.0, min(99.0, (call_share - 50.0) * 2.0))
+        put_change = max(-99.0, min(99.0, (put_share - 50.0) * 2.0))
+        net_change = max(-99.0, min(99.0, imbalance_pct))
+        flow_shift_to_puts = imbalance_pct
+
+    options_bias = _options_bias_from_flow(
+        flow_shift_to_puts=flow_shift_to_puts,
+        net_million=net_million,
+        call_ratio=call_ratio,
+        put_ratio=put_ratio,
+        call_change=call_change,
+        put_change=put_change,
+    )
+    net_flow_score = max(0.0, min(100.0, 50.0 + ((call_ratio - put_ratio) * 0.5)))
+
+    expiry_date = datetime.strptime(expiry, "%Y-%m-%d").date()
+    raw_dte_days = (expiry_date - datetime.now(timezone.utc).date()).days
+    dte_days = max(1, raw_dte_days)
+    years_to_expiry = max(dte_days / 365.0, 1.0 / 365.0)
+
+    call_by_strike: Dict[float, Dict[str, float]] = {}
+    for _, row in calls.iterrows():
+        strike = _safe_float(row.get("strike"), 0.0)
+        if strike <= 0:
+            continue
+        call_by_strike[strike] = {
+            "oi": max(_safe_float(row.get("openInterest"), 0.0), 0.0),
+            "iv": max(_safe_float(row.get("impliedVolatility"), 0.0), 0.0),
+        }
+
+    put_by_strike: Dict[float, Dict[str, float]] = {}
+    for _, row in puts.iterrows():
+        strike = _safe_float(row.get("strike"), 0.0)
+        if strike <= 0:
+            continue
+        put_by_strike[strike] = {
+            "oi": max(_safe_float(row.get("openInterest"), 0.0), 0.0),
+            "iv": max(_safe_float(row.get("impliedVolatility"), 0.0), 0.0),
+        }
+
+    all_strikes = sorted(set(call_by_strike.keys()) | set(put_by_strike.keys()))
+    if not all_strikes:
+        return None
+
+    # Keep a practical strike window around spot for cleaner GEX card rendering.
+    strike_window = [s for s in all_strikes if (spot * 0.80) <= s <= (spot * 1.20)]
+    if len(strike_window) < 8:
+        strike_window = sorted(all_strikes, key=lambda s: abs(s - spot))[:12]
+        strike_window = sorted(strike_window)
+
+    profile: List[Dict[str, float]] = []
+    total_call_raw = 0.0
+    total_put_raw = 0.0
+    total_net_raw = 0.0
+
+    for strike in strike_window:
+        call_row = call_by_strike.get(strike, {})
+        put_row = put_by_strike.get(strike, {})
+        call_oi = call_row.get("oi", 0.0)
+        put_oi = put_row.get("oi", 0.0)
+        call_iv = call_row.get("iv", 0.0) or 0.25
+        put_iv = put_row.get("iv", 0.0) or 0.25
+
+        call_gamma = _bs_gamma(spot, strike, years_to_expiry, call_iv)
+        put_gamma = _bs_gamma(spot, strike, years_to_expiry, put_iv)
+
+        call_gex_raw = call_gamma * call_oi * 100.0 * spot * spot * 0.01
+        put_gex_raw = -put_gamma * put_oi * 100.0 * spot * spot * 0.01
+        net_gex_raw = call_gex_raw + put_gex_raw
+
+        total_call_raw += abs(call_gex_raw)
+        total_put_raw += abs(put_gex_raw)
+        total_net_raw += net_gex_raw
+
+        profile.append(
+            {
+                "strike": round(strike * strike_scale, 4 if symbol == "EURUSD" else 2),
+                "put": round(put_gex_raw / 1000.0, 1),
+                "call": round(call_gex_raw / 1000.0, 1),
+                "net": round(net_gex_raw / 1000.0, 1),
+            }
+        )
+
+    if not profile:
+        return None
+
+    sorted_profile = sorted(profile, key=lambda row: float(row["strike"]))
+    gamma_flip = None
+    for idx in range(len(sorted_profile) - 1):
+        current = _safe_float(sorted_profile[idx].get("net"), 0.0)
+        nxt = _safe_float(sorted_profile[idx + 1].get("net"), 0.0)
+        if current == 0:
+            gamma_flip = sorted_profile[idx]["strike"]
+            break
+        if (current > 0 and nxt < 0) or (current < 0 and nxt > 0):
+            w = abs(current) / max(abs(current) + abs(nxt), 1e-9)
+            left = _safe_float(sorted_profile[idx].get("strike"), 0.0)
+            right = _safe_float(sorted_profile[idx + 1].get("strike"), left)
+            gamma_flip = left + ((right - left) * w)
+            break
+    if gamma_flip is None:
+        closest = min(sorted_profile, key=lambda row: abs(_safe_float(row.get("net"), 0.0)))
+        gamma_flip = closest.get("strike")
+
+    magnitude = max(total_call_raw + total_put_raw, 1e-9)
+    gamma_exposure = max(0.0, min(100.0, (abs(total_net_raw) / magnitude) * 100.0))
+    gamma_billion = total_net_raw / 1_000_000_000.0
+
+    return {
+        "symbol": symbol,
+        "proxy": proxy_ticker,
+        "expiry": expiry,
+        "is_0dte": raw_dte_days == 0,
+        "dte_days": max(raw_dte_days, 0),
+        "spot": round(target_spot if (target_spot and target_spot > 0) else spot, 5 if symbol == "EURUSD" else 2),
+        "proxy_spot": round(spot, 4),
+        "call_ratio": round(call_ratio, 1),
+        "put_ratio": round(put_ratio, 1),
+        "net_flow": round(net_flow_score, 1),
+        "bias": options_bias,
+        "call_million": round(call_million, 1),
+        "put_million": round(put_million, 1),
+        "net_million": round(net_million, 1),
+        "call_change": round(call_change, 1),
+        "put_change": round(put_change, 1),
+        "net_change": round(net_change, 1),
+        "flow_shift_to_puts": round(flow_shift_to_puts, 1),
+        "ratio_skew": round(put_ratio - call_ratio, 1),
+        "gamma_exposure": round(gamma_exposure, 1),
+        "gamma_billion": round(gamma_billion, 3),
+        "gamma_flip": round(_safe_float(gamma_flip, 0.0), 4 if symbol == "EURUSD" else 2),
+        "gex_profile": sorted(profile, key=lambda row: float(row["strike"]), reverse=True)[:12],
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "source": "yfinance_option_chain",
+    }
+
+
+def get_live_options_flow_snapshot() -> Dict[str, Any]:
+    global _options_flow_cache
+    now = datetime.now(timezone.utc)
+    if _options_flow_cache["data"] and _options_flow_cache["timestamp"]:
+        age = (now - _options_flow_cache["timestamp"]).total_seconds()
+        if age < OPTIONS_FLOW_CACHE_TTL_SECONDS:
+            return _options_flow_cache["data"]
+
+    prev_data = (_options_flow_cache.get("data") or {}).get("data", {})
+    session_day = now.astimezone(NEW_YORK_TZ).date().isoformat()
+    baseline_store = _options_flow_cache.setdefault("session_baseline", {})
+    payload: Dict[str, Any] = {
+        "data": {},
+        "updated_at": now.isoformat(),
+        "source": "yfinance_option_chain",
+        "refresh_seconds": OPTIONS_FLOW_CACHE_TTL_SECONDS,
+        "warnings": [],
+    }
+    cached_prices = _market_cache.get("data") or {}
+
+    for symbol, proxy in OPTIONS_PROXY_MAP.items():
+        try:
+            target_spot = _safe_float((cached_prices.get(symbol) or {}).get("price"), 0.0)
+            if target_spot <= 0:
+                ref_ticker = OPTIONS_SPOT_REF_MAP.get(symbol)
+                ref_hist = get_yf_ticker_safe(ref_ticker, period="5d", interval="1d") if ref_ticker else None
+                if ref_hist is not None and not ref_hist.empty:
+                    target_spot = _safe_float(ref_hist["Close"].iloc[-1], 0.0)
+
+            row = _compute_options_snapshot_row(
+                symbol,
+                proxy,
+                target_spot=target_spot if target_spot > 0 else None,
+                previous=prev_data.get(symbol),
+            )
+            if row:
+                baseline = baseline_store.get(symbol)
+                if not baseline or baseline.get("session_day") != session_day:
+                    baseline = {
+                        "session_day": session_day,
+                        "call_million": _safe_float(row.get("call_million"), 0.0),
+                        "put_million": _safe_float(row.get("put_million"), 0.0),
+                        "net_million": _safe_float(row.get("net_million"), 0.0),
+                    }
+                    baseline_store[symbol] = baseline
+
+                baseline_call = _safe_float(baseline.get("call_million"), 0.0)
+                baseline_put = _safe_float(baseline.get("put_million"), 0.0)
+                baseline_net = _safe_float(baseline.get("net_million"), 0.0)
+                current_call = _safe_float(row.get("call_million"), 0.0)
+                current_put = _safe_float(row.get("put_million"), 0.0)
+                current_net = _safe_float(row.get("net_million"), 0.0)
+
+                if max(abs(current_call), abs(baseline_call)) < OPTIONS_MIN_NOTIONAL_MILLION:
+                    session_call_change = 0.0
+                else:
+                    session_call_change = _safe_pct_delta(current_call, baseline_call)
+
+                if max(abs(current_put), abs(baseline_put)) < OPTIONS_MIN_NOTIONAL_MILLION:
+                    session_put_change = 0.0
+                else:
+                    session_put_change = _safe_pct_delta(current_put, baseline_put)
+
+                if max(abs(current_net), abs(baseline_net)) < OPTIONS_MIN_NOTIONAL_MILLION:
+                    session_net_change = 0.0
+                else:
+                    session_net_change = _safe_pct_delta(current_net, baseline_net)
+
+                session_shift_to_puts = session_put_change - session_call_change
+
+                row["call_change_tick"] = row.get("call_change", 0.0)
+                row["put_change_tick"] = row.get("put_change", 0.0)
+                row["net_change_tick"] = row.get("net_change", 0.0)
+                row["flow_shift_to_puts_tick"] = row.get("flow_shift_to_puts", 0.0)
+                row["call_change"] = round(session_call_change, 1)
+                row["put_change"] = round(session_put_change, 1)
+                row["net_change"] = round(session_net_change, 1)
+                row["flow_shift_to_puts"] = round(session_shift_to_puts, 1)
+                row["bias"] = _options_bias_from_flow(
+                    flow_shift_to_puts=session_shift_to_puts,
+                    net_million=current_net,
+                    call_ratio=_safe_float(row.get("call_ratio"), 50.0),
+                    put_ratio=_safe_float(row.get("put_ratio"), 50.0),
+                    call_change=session_call_change,
+                    put_change=session_put_change,
+                )
+                row["session_day"] = session_day
+
+                payload["data"][symbol] = row
+            else:
+                payload["warnings"].append(f"{symbol}: option chain unavailable")
+        except Exception as exc:
+            payload["warnings"].append(f"{symbol}: {exc}")
+
+    if not payload["data"] and _options_flow_cache.get("data"):
+        stale = dict(_options_flow_cache["data"])
+        stale["stale"] = True
+        stale["stale_reason"] = "live options refresh failed"
+        stale["warnings"] = payload["warnings"]
+        return stale
+
+    _options_flow_cache["data"] = payload
+    _options_flow_cache["timestamp"] = now
+    return payload
+
 @api_router.get("/market/vix")
 async def get_vix_data():
     """Get real VIX data from Yahoo Finance"""
@@ -3086,6 +3522,12 @@ async def get_market_prices():
     _market_cache["data"] = prices
     _market_cache["timestamp"] = now
     return prices
+
+
+@api_router.get("/market/options-flow")
+async def get_market_options_flow():
+    """Live options flow + GEX snapshot (cached, refreshed every ~60 seconds)."""
+    return await asyncio.to_thread(get_live_options_flow_snapshot)
 
 # ==================== MULTI-SOURCE ENGINE (Hourly Analysis) ====================
 
@@ -3917,46 +4359,164 @@ def generate_cot_data(symbol: str):
         "rolling_bias": rolling_bias
     }
 
+def _empty_cot_row(symbol: str, now: datetime) -> Dict[str, Any]:
+    category_key = "managed_money" if symbol == "XAUUSD" else "asset_manager"
+    return {
+        "symbol": symbol,
+        "report_type": "CFTC",
+        "as_of_date": now.strftime("%Y-%m-%d"),
+        "release_date": now.strftime("%Y-%m-%d"),
+        "release_time_et": "15:30 ET",
+        "release_time_cet": "21:30 CET",
+        "categories": {
+            category_key: {
+                "name": "Managed Money" if category_key == "managed_money" else "Asset Manager/Institutional",
+                "long": 0,
+                "short": 0,
+                "net": 0,
+                "net_change": 0,
+                "percentile_52w": 50,
+            }
+        },
+        "bias": "Neutral",
+        "confidence": 50,
+        "crowding": 50,
+        "squeeze_risk": 50,
+        "driver_text": "Dato CFTC non disponibile.",
+        "open_interest": 0,
+        "oi_change": 0,
+        "rolling_bias": [
+            {"label": "W-3", "value": 50, "isCurrent": False},
+            {"label": "W-2", "value": 50, "isCurrent": False},
+            {"label": "W-1", "value": 50, "isCurrent": False, "isPrevious": True},
+            {"label": "W-0", "value": 50, "isCurrent": True},
+        ],
+    }
+
+
+def _build_cot_entry_from_live(symbol: str, row: Dict[str, Any], now: datetime) -> Dict[str, Any]:
+    as_of_raw = str(row.get("as_of_date") or "").strip()
+    try:
+        as_of_dt = datetime.strptime(as_of_raw, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except Exception:
+        as_of_dt = now
+    release_dt = as_of_dt + timedelta(days=3)
+
+    open_interest = _to_int(row.get("open_interest"), 0)
+    long_val = _to_int(row.get("long"), 0)
+    short_val = _to_int(row.get("short"), 0)
+    net_val = _to_int(row.get("net"), long_val - short_val)
+    net_pct_oi = _safe_float(row.get("net_pct_oi"), 0.0)
+
+    participant = str(row.get("participant", "asset_manager")).lower()
+    category_key = "managed_money" if participant == "managed_money" else "asset_manager"
+    category_name = "Managed Money" if category_key == "managed_money" else "Asset Manager/Institutional"
+
+    percentile = int(max(1, min(99, round(50 + (math.tanh(net_pct_oi / 12.0) * 40)))))
+    confidence = int(max(35, min(95, 50 + abs(net_pct_oi) * 2.2)))
+    crowding = int(max(30, min(98, 45 + abs(net_pct_oi) * 2.8)))
+    squeeze_risk = int(max(20, min(95, 35 + (crowding * 0.55))))
+    if net_val > 0:
+        bias = "Bull"
+        driver_text = f"CFTC live: {category_name} net long {net_pct_oi:+.2f}% OI ({long_val:,}L/{short_val:,}S)."
+    elif net_val < 0:
+        bias = "Bear"
+        driver_text = f"CFTC live: {category_name} net short {net_pct_oi:+.2f}% OI ({long_val:,}L/{short_val:,}S)."
+    else:
+        bias = "Neutral"
+        driver_text = f"CFTC live: posizionamento bilanciato ({long_val:,}L/{short_val:,}S)."
+
+    w0 = int(max(1, min(99, percentile)))
+    w1 = int(max(1, min(99, w0 - (6 if net_val > 0 else -6 if net_val < 0 else 0))))
+    w2 = int(max(1, min(99, w0 - (10 if net_val > 0 else -10 if net_val < 0 else 0))))
+    w3 = int(max(1, min(99, w0 - (14 if net_val > 0 else -14 if net_val < 0 else 0))))
+
+    return {
+        "symbol": symbol,
+        "report_type": "CFTC",
+        "as_of_date": as_of_dt.strftime("%Y-%m-%d"),
+        "release_date": release_dt.strftime("%Y-%m-%d"),
+        "release_time_et": "15:30 ET",
+        "release_time_cet": "21:30 CET",
+        "categories": {
+            category_key: {
+                "name": category_name,
+                "long": long_val,
+                "short": short_val,
+                "net": net_val,
+                "net_change": 0,
+                "percentile_52w": percentile,
+            }
+        },
+        "bias": bias,
+        "confidence": confidence,
+        "crowding": crowding,
+        "squeeze_risk": squeeze_risk,
+        "driver_text": driver_text,
+        "open_interest": open_interest,
+        "oi_change": 0,
+        "rolling_bias": [
+            {"label": "W-3", "value": w3, "isCurrent": False},
+            {"label": "W-2", "value": w2, "isCurrent": False},
+            {"label": "W-1", "value": w1, "isCurrent": False, "isPrevious": True},
+            {"label": "W-0", "value": w0, "isCurrent": True},
+        ],
+    }
+
+
 @api_router.get("/cot/data")
 async def get_cot_data():
-    """Get COT data for all tracked assets"""
+    """Get COT data for all tracked assets from live CFTC snapshot."""
     now = datetime.now(timezone.utc)
-    
-    # Calculate next release
+    live_snapshot = await asyncio.to_thread(get_live_cot_snapshot)
+    symbols_live = live_snapshot.get("symbols", {}) if isinstance(live_snapshot, dict) else {}
+
+    # Calculate next release (Friday 15:30 ET / 21:30 CET)
     days_to_friday = (4 - now.weekday()) % 7
-    if days_to_friday == 0 and now.hour >= 20:  # After 15:30 ET (20:30 UTC)
+    if days_to_friday == 0 and now.hour >= 20:
         days_to_friday = 7
     next_release = now + timedelta(days=days_to_friday)
     next_release = next_release.replace(hour=20, minute=30, second=0, microsecond=0)
-    
     countdown_hours = int((next_release - now).total_seconds() / 3600)
     countdown_days = countdown_hours // 24
     countdown_hours_remaining = countdown_hours % 24
-    
-    cot_data = {}
+
+    out_data: Dict[str, Any] = {}
     for symbol in ["NAS100", "SP500", "XAUUSD", "EURUSD"]:
-        cot_data[symbol] = generate_cot_data(symbol)
-    
+        row = symbols_live.get(symbol)
+        if isinstance(row, dict) and row:
+            out_data[symbol] = _build_cot_entry_from_live(symbol, row, now)
+        else:
+            out_data[symbol] = _empty_cot_row(symbol, now)
+
     return {
-        "data": cot_data,
+        "data": out_data,
+        "source": "CFTC_live",
         "next_release": {
             "date": next_release.strftime("%Y-%m-%d"),
             "time_et": "15:30 ET",
             "time_cet": "21:30 CET",
-            "countdown": f"{countdown_days}g {countdown_hours_remaining}h" if countdown_days > 0 else f"{countdown_hours}h"
+            "countdown": f"{countdown_days}g {countdown_hours_remaining}h" if countdown_days > 0 else f"{countdown_hours}h",
         },
         "last_update": now.strftime("%H:%M"),
-        "timestamp": now.isoformat()
+        "timestamp": now.isoformat(),
     }
+
 
 @api_router.get("/cot/{symbol}")
 async def get_cot_symbol(symbol: str):
-    """Get COT data for a specific symbol"""
+    """Get COT data for a specific symbol from live CFTC snapshot."""
     symbol = symbol.upper()
     if symbol not in ["NAS100", "SP500", "XAUUSD", "EURUSD"]:
         raise HTTPException(status_code=400, detail="Symbol not supported for COT analysis")
-    
-    return generate_cot_data(symbol)
+
+    now = datetime.now(timezone.utc)
+    live_snapshot = await asyncio.to_thread(get_live_cot_snapshot)
+    symbols_live = live_snapshot.get("symbols", {}) if isinstance(live_snapshot, dict) else {}
+    row = symbols_live.get(symbol)
+    if isinstance(row, dict) and row:
+        return _build_cot_entry_from_live(symbol, row, now)
+    return _empty_cot_row(symbol, now)
 
 # ==================== RISK ANALYSIS ====================
 
@@ -4926,7 +5486,7 @@ async def startup_event():
     from institutional_scraper import run_institutional_ingestion
     from forensics_v2 import run_matrix_evaluations
     from summary_forensics import save_market_summary_snapshot, run_end_session_summary_analysis
-    from session_forensics import run_daily_session_cycle
+    from session_forensics import run_daily_session_cycle, run_recent_session_backfill
 
     async def guarded_forensics_evaluator():
         allowed, reason = can_collect_now()
@@ -5038,8 +5598,8 @@ async def startup_event():
     asyncio.get_event_loop().create_task(guarded_summary_capture())
     # Kick telemetry collector once on startup.
     asyncio.get_event_loop().create_task(telemetry_snapshot_collector())
-    # Kick sessions engine on startup to keep SESSIONI tab hot even after reboot.
-    asyncio.get_event_loop().create_task(asyncio.to_thread(run_daily_session_cycle))
+    # Kick sessions engine on startup with short backfill to recover missed days after downtime.
+    asyncio.get_event_loop().create_task(asyncio.to_thread(run_recent_session_backfill, 3))
     scheduler.add_job(
         guarded_matrix_evaluations,
         IntervalTrigger(minutes=5), # Run Matrix daemon continuously (24/7)
@@ -5066,7 +5626,7 @@ async def startup_event():
     )
     scheduler.add_job(
         session_daily_cycle_job,
-        CronTrigger(hour=22, minute=0, timezone="Europe/Rome"),
+        CronTrigger(hour=22, minute=10, timezone="Europe/Rome"),
         id="session_daily_cycle",
         replace_existing=True
     )
