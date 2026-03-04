@@ -1157,7 +1157,21 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
       .filter((line) => !/^contesto statistico:/i.test(line))
       .filter((line) => !/^agenda macro/i.test(line));
 
-    const compactLines = candidates.slice(0, 2).map((line) => (
+    const selectedLines = [];
+    const leadLine = candidates[0];
+    const weeklyLine = candidates.find((line) => /^bias settimanale/i.test(line));
+    const flowLine = candidates.find((line) => /flusso opzioni|gex/i.test(line));
+
+    if (leadLine) selectedLines.push(leadLine);
+    if (weeklyLine && !selectedLines.includes(weeklyLine)) selectedLines.push(weeklyLine);
+    if (flowLine && !selectedLines.includes(flowLine)) selectedLines.push(flowLine);
+
+    for (const line of candidates) {
+      if (selectedLines.length >= 3) break;
+      if (!selectedLines.includes(line)) selectedLines.push(line);
+    }
+
+    const compactLines = selectedLines.slice(0, 3).map((line) => (
       line.length > 220 ? `${line.slice(0, 217).trimEnd()}...` : line
     ));
 

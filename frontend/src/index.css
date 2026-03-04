@@ -2547,6 +2547,16 @@ html:not(.dark) .bg-card[class*="rounded-xl"]::after {
   padding-bottom: 3.8px;
 }
 
+.dashboard-page .dashboard-overview-tab > div:first-child {
+  padding: 3.8px !important;
+  border-radius: 7.6px !important;
+}
+
+.dashboard-page .dashboard-overview-tab > div:first-child svg {
+  width: 15.2px !important;
+  height: 15.2px !important;
+}
+
 @media (min-width: 640px) {
   .dashboard-page .dashboard-overview-tab {
     padding-left: 11.4px;
@@ -2554,6 +2564,19 @@ html:not(.dark) .bg-card[class*="rounded-xl"]::after {
     padding-top: 5.7px;
     padding-bottom: 5.7px;
   }
+
+  .dashboard-page .dashboard-overview-tab > div:first-child {
+    padding: 5.7px !important;
+  }
+
+  .dashboard-page .dashboard-overview-tab > div:first-child svg {
+    width: 19px !important;
+    height: 19px !important;
+  }
+}
+
+aside[data-testid="sidebar-desktop"] {
+  width: 212.8px !important; /* 224px -5% */
 }
 
 aside[data-testid="sidebar-desktop"] .sidebar-tab-item {
