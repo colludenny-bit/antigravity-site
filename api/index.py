@@ -988,33 +988,57 @@ def _compute_options_snapshot_row(
     target_spot: Optional[float] = None,
     previous: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
-    if yf is None:
+    # Lightweight live options feed via Yahoo Finance HTTP API
+    # (avoids heavy pandas/yfinance runtime footprint on Vercel).
+    headers = {"User-Agent": "Mozilla/5.0"}
+    base_url = f"https://query2.finance.yahoo.com/v7/finance/options/{proxy_ticker}"
+    response = requests.get(base_url, timeout=10, headers=headers)
+    response.raise_for_status()
+    payload = response.json()
+    result = (((payload or {}).get("optionChain") or {}).get("result") or [])
+    if not result:
+        return None
+    result0 = result[0]
+
+    expiration_ts = result0.get("expirationDates") or []
+    expiry = None
+    query_payload = result0
+    if expiration_ts:
+        today_ts = int(datetime.now(timezone.utc).timestamp())
+        valid_exp = sorted([int(ts) for ts in expiration_ts if int(ts) >= today_ts])
+        chosen_exp = valid_exp[0] if valid_exp else int(expiration_ts[0])
+        expiry = datetime.fromtimestamp(chosen_exp, tz=timezone.utc).date().isoformat()
+        response2 = requests.get(f"{base_url}?date={chosen_exp}", timeout=10, headers=headers)
+        if response2.ok:
+            payload2 = response2.json()
+            result2 = (((payload2 or {}).get("optionChain") or {}).get("result") or [])
+            if result2:
+                query_payload = result2[0]
+    else:
+        expiry = datetime.now(timezone.utc).date().isoformat()
+
+    options_list = query_payload.get("options") or []
+    if not options_list:
+        return None
+    option_row = options_list[0]
+    calls = option_row.get("calls") or []
+    puts = option_row.get("puts") or []
+    if not calls or not puts:
         return None
 
-    ticker = yf.Ticker(proxy_ticker)
-    spot_hist = ticker.history(period="5d", interval="1d")
-    if spot_hist is None or spot_hist.empty:
-        return None
-    spot = _safe_float(spot_hist["Close"].iloc[-1], 0.0)
+    quote = query_payload.get("quote") or {}
+    spot = _safe_float(
+        quote.get("regularMarketPrice"),
+        _safe_float(quote.get("previousClose"), 0.0),
+    )
     if spot <= 0:
         return None
     strike_scale = (target_spot / spot) if (target_spot and target_spot > 0 and spot > 0) else 1.0
 
-    expiries = list(ticker.options or [])
-    expiry = _pick_primary_expiry(expiries)
-    if not expiry:
-        return None
-
-    chain = ticker.option_chain(expiry)
-    calls = chain.calls
-    puts = chain.puts
-    if calls is None or puts is None or calls.empty or puts.empty:
-        return None
-
-    call_volume = _safe_float(calls["volume"].fillna(0).sum(), 0.0)
-    put_volume = _safe_float(puts["volume"].fillna(0).sum(), 0.0)
-    call_oi_total = _safe_float(calls["openInterest"].fillna(0).sum(), 0.0)
-    put_oi_total = _safe_float(puts["openInterest"].fillna(0).sum(), 0.0)
+    call_volume = sum(_safe_float(row.get("volume"), 0.0) for row in calls)
+    put_volume = sum(_safe_float(row.get("volume"), 0.0) for row in puts)
+    call_oi_total = sum(_safe_float(row.get("openInterest"), 0.0) for row in calls)
+    put_oi_total = sum(_safe_float(row.get("openInterest"), 0.0) for row in puts)
 
     call_activity = call_volume if call_volume > 0 else call_oi_total
     put_activity = put_volume if put_volume > 0 else put_oi_total
@@ -1022,12 +1046,12 @@ def _compute_options_snapshot_row(
     call_ratio = (call_activity / total_activity) * 100.0
     put_ratio = 100.0 - call_ratio
 
-    call_notional = _safe_float((calls["lastPrice"].fillna(0) * calls["volume"].fillna(0) * 100).sum(), 0.0)
-    put_notional = _safe_float((puts["lastPrice"].fillna(0) * puts["volume"].fillna(0) * 100).sum(), 0.0)
+    call_notional = sum(_safe_float(row.get("lastPrice"), 0.0) * _safe_float(row.get("volume"), 0.0) * 100.0 for row in calls)
+    put_notional = sum(_safe_float(row.get("lastPrice"), 0.0) * _safe_float(row.get("volume"), 0.0) * 100.0 for row in puts)
     if call_notional <= 0 and call_oi_total > 0:
-        call_notional = _safe_float((calls["lastPrice"].fillna(0) * calls["openInterest"].fillna(0) * 20).sum(), 0.0)
+        call_notional = sum(_safe_float(row.get("lastPrice"), 0.0) * _safe_float(row.get("openInterest"), 0.0) * 20.0 for row in calls)
     if put_notional <= 0 and put_oi_total > 0:
-        put_notional = _safe_float((puts["lastPrice"].fillna(0) * puts["openInterest"].fillna(0) * 20).sum(), 0.0)
+        put_notional = sum(_safe_float(row.get("lastPrice"), 0.0) * _safe_float(row.get("openInterest"), 0.0) * 20.0 for row in puts)
 
     call_million = call_notional / 1_000_000.0
     put_million = put_notional / 1_000_000.0
@@ -1069,7 +1093,7 @@ def _compute_options_snapshot_row(
     years_to_expiry = max(dte_days / 365.0, 1.0 / 365.0)
 
     call_by_strike = {}
-    for _, row in calls.iterrows():
+    for row in calls:
         strike = _safe_float(row.get("strike"), 0.0)
         if strike <= 0:
             continue
@@ -1079,7 +1103,7 @@ def _compute_options_snapshot_row(
         }
 
     put_by_strike = {}
-    for _, row in puts.iterrows():
+    for row in puts:
         strike = _safe_float(row.get("strike"), 0.0)
         if strike <= 0:
             continue
@@ -1177,7 +1201,7 @@ def _compute_options_snapshot_row(
         "gamma_flip": round(_safe_float(gamma_flip, 0.0), 4 if symbol == "EURUSD" else 2),
         "gex_profile": sorted(profile, key=lambda row: float(row["strike"]), reverse=True)[:12],
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "source": "yfinance_option_chain",
+        "source": "yahoo_options_http",
     }
 
 
@@ -1196,7 +1220,7 @@ def _build_live_options_flow_payload() -> Dict[str, Any]:
     payload = {
         "data": {},
         "updated_at": now.isoformat(),
-        "source": "yfinance_option_chain" if yf else "fallback_no_yfinance",
+        "source": "yahoo_options_http",
         "refresh_seconds": OPTIONS_FLOW_CACHE_TTL_SECONDS,
         "warnings": [],
     }
@@ -1204,12 +1228,8 @@ def _build_live_options_flow_payload() -> Dict[str, Any]:
     for symbol, proxy in OPTIONS_PROXY_MAP.items():
         try:
             target_spot = _safe_float((analyses.get(symbol) or {}).get("price"), 0.0)
-            if target_spot <= 0 and yf is not None:
-                ref_ticker = OPTIONS_SPOT_REF_MAP.get(symbol)
-                if ref_ticker:
-                    ref_hist = yf.Ticker(ref_ticker).history(period="5d", interval="1d")
-                    if ref_hist is not None and not ref_hist.empty:
-                        target_spot = _safe_float(ref_hist["Close"].iloc[-1], 0.0)
+            if target_spot <= 0:
+                target_spot = _safe_float((analyses.get(symbol) or {}).get("analysisPrice"), 0.0)
 
             row = _compute_options_snapshot_row(
                 symbol,
