@@ -507,3 +507,11 @@
 {"ts_utc":"2026-03-04T04:46:57.914455+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
 {"ts_utc":"2026-03-04T04:46:57.916593+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
 {"ts_utc":"2026-03-04T04:46:57.917213+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:51:57.911847+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:51:57.913779+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:51:57.914432+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:56:57.902698+00:00","stream":"collection_skips","payload":{"job":"global_pulse","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:56:57.910313+00:00","stream":"collection_skips","payload":{"job":"forensics_evaluator","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:56:57.911091+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:56:57.911727+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
+{"ts_utc":"2026-03-04T04:56:57.912261+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}

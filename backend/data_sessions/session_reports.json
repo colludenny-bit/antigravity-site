@@ -6293,7 +6293,7 @@
   {
     "status": "active",
     "rome_day": "2026-03-03",
-    "generated_at": "2026-03-04T03:47:06.704855+00:00",
+    "generated_at": "2026-03-04T04:55:09.861233+00:00",
     "daily_report": {
       "rows": [
         {
@@ -6325,7 +6325,7 @@
           "acc_card_dashboard": null,
           "r_giornaliero": null,
           "event_risk": null,
-          "generated_at_utc": "2026-03-04T03:47:05.107155+00:00",
+          "generated_at_utc": "2026-03-04T04:55:07.613589+00:00",
           "historical_metrics": {
             "Acc_scenario": 0.7348,
             "Acc_weekday": 0.7692,
@@ -6366,7 +6366,7 @@
           "acc_card_dashboard": null,
           "r_giornaliero": null,
           "event_risk": null,
-          "generated_at_utc": "2026-03-04T03:47:05.592025+00:00",
+          "generated_at_utc": "2026-03-04T04:55:08.111808+00:00",
           "historical_metrics": {
             "Acc_scenario": 0.771,
             "Acc_weekday": 0.7308,
@@ -6407,7 +6407,7 @@
           "acc_card_dashboard": null,
           "r_giornaliero": null,
           "event_risk": null,
-          "generated_at_utc": "2026-03-04T03:47:06.058431+00:00",
+          "generated_at_utc": "2026-03-04T04:55:08.614138+00:00",
           "historical_metrics": {
             "Acc_scenario": 0.7049,
             "Acc_weekday": 0.6538,
@@ -6448,7 +6448,7 @@
           "acc_card_dashboard": null,
           "r_giornaliero": null,
           "event_risk": null,
-          "generated_at_utc": "2026-03-04T03:47:06.574330+00:00",
+          "generated_at_utc": "2026-03-04T04:55:09.727914+00:00",
           "historical_metrics": {
             "Acc_scenario": 0.7754,
             "Acc_weekday": 0.5769,
@@ -6969,7 +6969,7 @@
       ]
     },
     "historical_stats": {
-      "generated_at": "2026-03-04T03:47:06.694150+00:00",
+      "generated_at": "2026-03-04T04:55:09.849706+00:00",
       "windows": {
         "7d": {
           "label": "Ultimi 7 giorni",
@@ -8105,7 +8105,7 @@
       ]
     },
     "operational_playbook": {
-      "generated_at": "2026-03-04T03:47:06.704840+00:00",
+      "generated_at": "2026-03-04T04:55:09.861214+00:00",
       "today": [
         {
           "asset": "NAS100",
