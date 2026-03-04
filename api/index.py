@@ -3425,6 +3425,33 @@ async def get_research_sessions_history(limit: int = 30, current_user: dict = De
         return {"count": 0, "limit": limit, "items": [], "status": "error", "message": str(exc)}
 
 
+@api_router.get("/research/sessions/pipeline")
+async def get_research_sessions_pipeline(
+    asset: str = "EURUSD",
+    days: int = 7,
+    current_user: dict = Depends(get_current_user),
+):
+    _ = current_user
+    try:
+        from session_forensics import get_session_pipeline
+
+        safe_asset = str(asset or "EURUSD").upper().strip()
+        safe_days = max(1, min(int(days or 7), 14))
+        return await asyncio.to_thread(get_session_pipeline, safe_asset, safe_days)
+    except Exception as exc:
+        return {
+            "status": "error",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "message": str(exc),
+            "asset": str(asset or "EURUSD").upper().strip(),
+            "days": [],
+            "today": None,
+            "current_session": None,
+            "next_session": None,
+            "session_type_stats_30d": {},
+        }
+
+
 @api_router.post("/research/matrix-snapshot")
 async def save_research_matrix_snapshot(payload: dict, current_user: dict = Depends(get_current_user)):
     _ = current_user
