@@ -200,13 +200,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
                   <NavLink
                     to={item.path}
                     className={cn(
-                      "w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-all duration-200 border border-transparent",
+                      "sidebar-tab-item w-full py-3 px-4 rounded-xl flex items-center gap-4 transition-all duration-200 border border-transparent",
                       "hover:bg-white/10 hover:border-white/15",
                       isActive && "bg-white/16 border-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_24px_rgba(0,0,0,0.25)]"
                     )}
                   >
                     <Icon className={cn(
-                      "w-[28px] h-[28px] sidebar-icon-animate transition-all flex-shrink-0",
+                      "sidebar-tab-icon w-[28px] h-[28px] sidebar-icon-animate transition-all flex-shrink-0",
                       item.label === 'Crypto' ? "text-[#C5A028]" : "text-white/72",
                       isActive && "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]"
                     )} />

@@ -23,28 +23,49 @@ const safeStorageGet = (key, fallback = null) => {
 
 const createLazyWithRetry = (importer, cacheKey) => {
   return lazy(async () => {
+    const isChunkLikeError = (err) => {
+      const message = String(err?.message || err || '');
+      return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|dynamically imported module/i.test(
+        message
+      );
+    };
+
     try {
       return await importer();
     } catch (error) {
-      const message = String(error?.message || error || '');
-      const isChunkLikeError =
-        /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|dynamically imported module/i.test(
-          message
-        );
-
-      if (!isChunkLikeError || typeof window === 'undefined') {
+      if (!isChunkLikeError(error) || typeof window === 'undefined') {
         throw error;
       }
 
       const retryKey = `karion_lazy_retry_${cacheKey}`;
+      const reloadKey = `karion_lazy_reload_${cacheKey}`;
       const alreadyRetried = sessionStorage.getItem(retryKey) === '1';
-      if (alreadyRetried) {
-        sessionStorage.removeItem(retryKey);
-        throw error;
+      let finalError = error;
+
+      if (!alreadyRetried) {
+        sessionStorage.setItem(retryKey, '1');
+        try {
+          return await importer();
+        } catch (retryError) {
+          finalError = retryError;
+        }
+      }
+      sessionStorage.removeItem(retryKey);
+
+      if (!isChunkLikeError(finalError)) {
+        throw finalError;
       }
 
-      sessionStorage.setItem(retryKey, '1');
-      return await importer();
+      const alreadyReloaded = sessionStorage.getItem(reloadKey) === '1';
+      if (!alreadyReloaded) {
+        sessionStorage.setItem(reloadKey, '1');
+        window.location.reload();
+        return await new Promise(() => {});
+      }
+
+      sessionStorage.removeItem(reloadKey);
+      throw finalError;
+
     }
   });
 };

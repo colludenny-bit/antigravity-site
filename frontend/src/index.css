@@ -2512,3 +2512,59 @@ html:not(.dark) .bg-card[class*="rounded-xl"]::after {
   font-size: 1.06rem !important;
   line-height: 1.52rem !important;
 }
+
+/* Dashboard + sidebar tab density (5% smaller), keep typography unchanged */
+.dashboard-page .dashboard-tab-list {
+  min-height: 34.2px;
+  padding: 3.8px;
+  gap: 3.8px;
+}
+
+.dashboard-page .dashboard-tab-trigger {
+  padding: 5.7px 11.4px;
+  border-radius: 7.6px;
+}
+
+.dashboard-page .tab-selector {
+  padding: 9.5px 15.2px;
+  border-radius: 11.4px;
+}
+
+.dashboard-page .tech-tabs {
+  padding: 2.85px;
+  gap: 1.9px;
+}
+
+.dashboard-page .tech-tab {
+  padding: 7.6px 15.2px;
+  border-radius: 7.6px;
+}
+
+.dashboard-page .dashboard-overview-tab {
+  padding-left: 7.6px;
+  padding-right: 7.6px;
+  padding-top: 3.8px;
+  padding-bottom: 3.8px;
+}
+
+@media (min-width: 640px) {
+  .dashboard-page .dashboard-overview-tab {
+    padding-left: 11.4px;
+    padding-right: 11.4px;
+    padding-top: 5.7px;
+    padding-bottom: 5.7px;
+  }
+}
+
+aside[data-testid="sidebar-desktop"] .sidebar-tab-item {
+  padding-top: 11.4px !important;
+  padding-bottom: 11.4px !important;
+  padding-left: 15.2px !important;
+  padding-right: 15.2px !important;
+  gap: 15.2px !important;
+}
+
+aside[data-testid="sidebar-desktop"] .sidebar-tab-icon {
+  width: 26.6px !important;
+  height: 26.6px !important;
+}

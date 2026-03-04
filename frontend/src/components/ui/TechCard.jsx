@@ -26,7 +26,6 @@ export const TechCard = ({
 
     const content = (
         <motion.div
-            whileHover={{ y: -2 }}
             whileTap={{ scale: 0.98 }}
             className={cardClasses}
             onClick={onClick}

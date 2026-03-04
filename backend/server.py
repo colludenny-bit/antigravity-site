@@ -6089,6 +6089,35 @@ async def run_research_sessions_cycle(
         logger.error(f"Error running SESSIONI cycle: {e}")
         return {"status": "error", "message": str(e)}
 
+
+@api_router.get("/research/sessions/pipeline")
+async def get_research_sessions_pipeline(
+    asset: str = "EURUSD",
+    days: int = 7,
+    current_user: str = Depends(get_current_user),
+):
+    """Per-session pipeline classification (CONTRACTION/RANGE/EXPANSION/REBALANCE) for today + last N days."""
+    try:
+        from session_forensics import get_session_pipeline
+        safe_asset = str(asset or "EURUSD").upper().strip()
+        safe_days = max(1, min(int(days or 7), 14))
+        return await asyncio.to_thread(get_session_pipeline, safe_asset, safe_days)
+    except Exception as e:
+        logger.error(f"Error fetching sessions pipeline: {e}")
+        return {
+            "status": "error",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "message": str(e),
+            "asset": asset,
+            "days": [],
+            "today": None,
+            "current_session": None,
+            "next_session": None,
+            "session_type_stats_30d": {},
+        }
+
+
+
 @api_router.get("/research/vault")
 async def get_institutional_vault(current_user: str = Depends(get_current_user)):
     """Get real scraped institutional reports from local storage."""

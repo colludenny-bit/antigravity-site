@@ -27,10 +27,6 @@ from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import requests
 try:
-    import yfinance as yf
-except Exception:
-    yf = None
-try:
     from .market_intelligence import (
         STRATEGY_CATALOG,
         build_cot_snapshot,
@@ -906,9 +902,12 @@ def _get_intelligence_bundle():
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError):
         return default
+    if not math.isfinite(parsed):
+        return default
+    return parsed
 
 
 def _safe_pct_delta(current: float, previous: Optional[float]) -> float:
@@ -982,57 +981,149 @@ def _options_bias_from_flow(
     return "neutral"
 
 
+def _normalize_option_rows(raw_rows: Any) -> List[Dict[str, float]]:
+    normalized: List[Dict[str, float]] = []
+    for row in raw_rows or []:
+        if not isinstance(row, dict):
+            continue
+        normalized.append(
+            {
+                "strike": _safe_float(row.get("strike"), 0.0),
+                "volume": _safe_float(row.get("volume"), 0.0),
+                "openInterest": _safe_float(row.get("openInterest"), 0.0),
+                "lastPrice": _safe_float(row.get("lastPrice"), 0.0),
+                "impliedVolatility": _safe_float(row.get("impliedVolatility"), 0.0),
+            }
+        )
+    return normalized
+
+
+def _build_yahoo_options_context(timeout: int = 10) -> Dict[str, Any]:
+    session = requests.Session()
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"}
+
+    seed_resp = session.get("https://fc.yahoo.com", timeout=timeout, headers=headers, allow_redirects=True)
+    if seed_resp.status_code >= 500:
+        raise RuntimeError(f"yahoo cookie seed failed ({seed_resp.status_code})")
+
+    crumb_resp = session.get(
+        "https://query1.finance.yahoo.com/v1/test/getcrumb",
+        timeout=timeout,
+        headers=headers,
+        allow_redirects=True,
+    )
+    crumb = (crumb_resp.text or "").strip()
+    if crumb_resp.status_code != 200:
+        raise RuntimeError(f"yahoo crumb status {crumb_resp.status_code}")
+    if not crumb or "Unauthorized" in crumb or "Invalid" in crumb or "<html" in crumb.lower():
+        raise RuntimeError(f"invalid yahoo crumb response: {crumb[:80]}")
+
+    return {"session": session, "headers": headers, "crumb": crumb}
+
+
+def _fetch_options_chain_via_http(proxy_ticker: str, http_context: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    context = http_context if isinstance(http_context, dict) and http_context else _build_yahoo_options_context()
+    session = context.get("session") or requests.Session()
+    headers = context.get("headers") or {"User-Agent": "Mozilla/5.0 (compatible; Karion/1.0)"}
+    crumb = str(context.get("crumb") or "").strip()
+    if not crumb:
+        raise RuntimeError("missing yahoo crumb")
+
+    crumb_qs = urllib_parse.quote(crumb, safe="")
+    last_error: Optional[Exception] = None
+
+    for host in ("query2.finance.yahoo.com", "query1.finance.yahoo.com"):
+        try:
+            base_url = f"https://{host}/v7/finance/options/{proxy_ticker}"
+            response = session.get(f"{base_url}?crumb={crumb_qs}", timeout=10, headers=headers)
+            if response.status_code in (401, 403):
+                last_error = RuntimeError(f"{host} unauthorized ({response.status_code})")
+                continue
+            response.raise_for_status()
+
+            payload = response.json()
+            result = (((payload or {}).get("optionChain") or {}).get("result") or [])
+            if not result:
+                return None
+            result0 = result[0]
+
+            expiration_ts = result0.get("expirationDates") or []
+            expiry = None
+            query_payload = result0
+            if expiration_ts:
+                today_ts = int(datetime.now(timezone.utc).timestamp())
+                valid_exp = sorted([int(ts) for ts in expiration_ts if int(ts) >= today_ts])
+                chosen_exp = valid_exp[0] if valid_exp else int(expiration_ts[0])
+                expiry = datetime.fromtimestamp(chosen_exp, tz=timezone.utc).date().isoformat()
+
+                response2 = session.get(
+                    f"{base_url}?date={chosen_exp}&crumb={crumb_qs}",
+                    timeout=10,
+                    headers=headers,
+                )
+                if response2.ok:
+                    payload2 = response2.json()
+                    result2 = (((payload2 or {}).get("optionChain") or {}).get("result") or [])
+                    if result2:
+                        query_payload = result2[0]
+            else:
+                expiry = datetime.now(timezone.utc).date().isoformat()
+
+            options_list = query_payload.get("options") or []
+            if not options_list:
+                return None
+
+            option_row = options_list[0]
+            calls = _normalize_option_rows(option_row.get("calls") or [])
+            puts = _normalize_option_rows(option_row.get("puts") or [])
+            if not calls or not puts:
+                return None
+
+            quote = query_payload.get("quote") or {}
+            spot = _safe_float(
+                quote.get("regularMarketPrice"),
+                _safe_float(quote.get("previousClose"), 0.0),
+            )
+            if spot <= 0:
+                return None
+
+            return {
+                "spot": spot,
+                "expiry": expiry,
+                "calls": calls,
+                "puts": puts,
+                "source": "yahoo_options_http",
+            }
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    if last_error:
+        raise last_error
+    return None
+
+
 def _compute_options_snapshot_row(
     symbol: str,
     proxy_ticker: str,
     target_spot: Optional[float] = None,
     previous: Optional[Dict[str, Any]] = None,
+    http_context: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
-    # Lightweight live options feed via Yahoo Finance HTTP API
-    # (avoids heavy pandas/yfinance runtime footprint on Vercel).
-    headers = {"User-Agent": "Mozilla/5.0"}
-    base_url = f"https://query2.finance.yahoo.com/v7/finance/options/{proxy_ticker}"
-    response = requests.get(base_url, timeout=10, headers=headers)
-    response.raise_for_status()
-    payload = response.json()
-    result = (((payload or {}).get("optionChain") or {}).get("result") or [])
-    if not result:
-        return None
-    result0 = result[0]
+    chain_payload = _fetch_options_chain_via_http(proxy_ticker, http_context=http_context)
 
-    expiration_ts = result0.get("expirationDates") or []
-    expiry = None
-    query_payload = result0
-    if expiration_ts:
-        today_ts = int(datetime.now(timezone.utc).timestamp())
-        valid_exp = sorted([int(ts) for ts in expiration_ts if int(ts) >= today_ts])
-        chosen_exp = valid_exp[0] if valid_exp else int(expiration_ts[0])
-        expiry = datetime.fromtimestamp(chosen_exp, tz=timezone.utc).date().isoformat()
-        response2 = requests.get(f"{base_url}?date={chosen_exp}", timeout=10, headers=headers)
-        if response2.ok:
-            payload2 = response2.json()
-            result2 = (((payload2 or {}).get("optionChain") or {}).get("result") or [])
-            if result2:
-                query_payload = result2[0]
-    else:
-        expiry = datetime.now(timezone.utc).date().isoformat()
-
-    options_list = query_payload.get("options") or []
-    if not options_list:
-        return None
-    option_row = options_list[0]
-    calls = option_row.get("calls") or []
-    puts = option_row.get("puts") or []
-    if not calls or not puts:
+    if not chain_payload:
         return None
 
-    quote = query_payload.get("quote") or {}
-    spot = _safe_float(
-        quote.get("regularMarketPrice"),
-        _safe_float(quote.get("previousClose"), 0.0),
-    )
-    if spot <= 0:
+    spot = _safe_float(chain_payload.get("spot"), 0.0)
+    expiry = str(chain_payload.get("expiry") or datetime.now(timezone.utc).date().isoformat())
+    calls = chain_payload.get("calls") or []
+    puts = chain_payload.get("puts") or []
+    source_label = str(chain_payload.get("source") or "options_chain")
+
+    if spot <= 0 or not calls or not puts:
         return None
+
     strike_scale = (target_spot / spot) if (target_spot and target_spot > 0 and spot > 0) else 1.0
 
     call_volume = sum(_safe_float(row.get("volume"), 0.0) for row in calls)
@@ -1201,7 +1292,7 @@ def _compute_options_snapshot_row(
         "gamma_flip": round(_safe_float(gamma_flip, 0.0), 4 if symbol == "EURUSD" else 2),
         "gex_profile": sorted(profile, key=lambda row: float(row["strike"]), reverse=True)[:12],
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "source": "yahoo_options_http",
+        "source": source_label,
     }
 
 
@@ -1268,6 +1359,11 @@ def _build_live_options_flow_payload() -> Dict[str, Any]:
         "refresh_seconds": OPTIONS_FLOW_CACHE_TTL_SECONDS,
         "warnings": [],
     }
+    yahoo_http_context: Optional[Dict[str, Any]] = None
+    try:
+        yahoo_http_context = _build_yahoo_options_context()
+    except Exception as exc:
+        payload["warnings"].append(f"options auth warmup failed: {exc}")
 
     for symbol, proxy in OPTIONS_PROXY_MAP.items():
         try:
@@ -1275,12 +1371,27 @@ def _build_live_options_flow_payload() -> Dict[str, Any]:
             if target_spot <= 0:
                 target_spot = _safe_float((analyses.get(symbol) or {}).get("analysisPrice"), 0.0)
 
-            row = _compute_options_snapshot_row(
-                symbol,
-                proxy,
-                target_spot=target_spot if target_spot > 0 else None,
-                previous=prev_data.get(symbol),
-            )
+            try:
+                row = _compute_options_snapshot_row(
+                    symbol,
+                    proxy,
+                    target_spot=target_spot if target_spot > 0 else None,
+                    previous=prev_data.get(symbol),
+                    http_context=yahoo_http_context,
+                )
+            except Exception as primary_exc:
+                err_text = str(primary_exc).lower()
+                if "crumb" in err_text or "unauthorized" in err_text:
+                    yahoo_http_context = _build_yahoo_options_context()
+                    row = _compute_options_snapshot_row(
+                        symbol,
+                        proxy,
+                        target_spot=target_spot if target_spot > 0 else None,
+                        previous=prev_data.get(symbol),
+                        http_context=yahoo_http_context,
+                    )
+                else:
+                    raise
 
             if not row:
                 row = _build_options_fallback_row(

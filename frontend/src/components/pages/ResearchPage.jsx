@@ -70,6 +70,9 @@ export default function ResearchPage() {
     const [matrixData, setMatrixData] = useState(null);
     const [deepResearch, setDeepResearch] = useState(null);
     const [sessionsData, setSessionsData] = useState(null);
+    const [pipelineData, setPipelineData] = useState(null);
+    const [selectedPipelineAsset, setSelectedPipelineAsset] = useState('EURUSD');
+    const [sessionsInnerTab, setSessionsInnerTab] = useState('storico');
     const [smartMoneyData, setSmartMoneyData] = useState(null);
 
     // UI State
@@ -135,7 +138,10 @@ export default function ResearchPage() {
         apiFetch('/research/sessions')
             .then((data) => setSessionsData(data))
             .catch(() => null);
-    }, [activeTab, forensicsSubTab]);
+        apiFetch(`/research/sessions/pipeline?asset=${selectedPipelineAsset}&days=7`)
+            .then((data) => setPipelineData(data))
+            .catch(() => null);
+    }, [activeTab, forensicsSubTab, selectedPipelineAsset]);
 
     useEffect(() => {
         if (activeTab !== 'deepResearch') return;
@@ -1915,563 +1921,805 @@ export default function ResearchPage() {
                                         </>
                                     )}
 
-                                    {forensicsSubTab === 'sessioni' && (
-                                        <div className="space-y-6">
-                                            <div className="bg-[#00D9A5]/5 p-6 rounded-2xl border border-[#00D9A5]/20">
-                                                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                                                    <div>
-                                                        <h2 className="text-xl font-semibold text-white flex items-center gap-2 mb-1.5">
-                                                            <BarChart3 className="w-5 h-5 text-[#00D9A5]" />
-                                                            SESSIONI • Sydney → Asian → London → New York
-                                                        </h2>
-                                                        <p className="text-base text-white/85">
-                                                            Report inter-sessione giornaliero, auto-correlazioni, matrici Scenario/Bias e ottimizzazione pesi.
-                                                        </p>
-                                                    </div>
-                                                    <div className={cn(
-                                                        "px-3 py-2 rounded-lg border text-sm font-semibold",
-                                                        sessionsData?.status === 'active'
-                                                            ? "text-[#00D9A5] bg-[#00D9A5]/10 border-[#00D9A5]/30"
-                                                            : "text-yellow-300 bg-yellow-500/10 border-yellow-500/30"
-                                                    )}>
-                                                        {sessionsData?.status === 'active' ? 'CICLO ATTIVO' : 'COLLECTING'}
+                                    {forensicsSubTab === 'sessioni' && (() => {
+                                        // ── Constants for Pipeline Live ──
+                                        const SESSION_TYPE_COLORS = {
+                                            CONTRACTION: { bg: 'bg-blue-500/20', border: 'border-blue-500/40', text: 'text-blue-300', dot: 'bg-blue-400' },
+                                            RANGE: { bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-yellow-300', dot: 'bg-yellow-400' },
+                                            EXPANSION: { bg: 'bg-[#00D9A5]/15', border: 'border-[#00D9A5]/30', text: 'text-[#00D9A5]', dot: 'bg-[#00D9A5]' },
+                                            REBALANCE: { bg: 'bg-purple-500/15', border: 'border-purple-500/30', text: 'text-purple-300', dot: 'bg-purple-400' },
+                                        };
+                                        const PATTERN_LABELS = {
+                                            SWEEP_HIGH: '↑ Sweep High', SWEEP_LOW: '↓ Sweep Low',
+                                            DOUBLE_LIQ: '⚡ Double Liq', CLEAN_BREAK_UP: '▲ Break Up',
+                                            CLEAN_BREAK_DOWN: '▼ Break Down', NONE: '—',
+                                        };
+                                        const PIPELINE_ASSETS = ['EURUSD', 'NAS100', 'SP500', 'XAUUSD'];
+                                        const todayCards = pipelineData?.today?.sessions || [];
+                                        const currentSess = pipelineData?.current_session;
+                                        const nextSess = pipelineData?.next_session;
+                                        const typeStats = pipelineData?.session_type_stats_30d || {};
+                                        const historyDays = (pipelineData?.days || []).slice(-7).reverse();
+
+                                        return (
+                                            <div className="space-y-6">
+                                                {/* Header */}
+                                                <div className="bg-[#00D9A5]/5 p-5 rounded-2xl border border-[#00D9A5]/20">
+                                                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                                        <div>
+                                                            <h2 className="text-xl font-semibold text-white flex items-center gap-2 mb-1">
+                                                                <BarChart3 className="w-5 h-5 text-[#00D9A5]" />
+                                                                SESSIONI • Sydney → Asian → London → New York
+                                                            </h2>
+                                                            <p className="text-sm text-white/70">Pipeline automatica con classificazione per-sessione e predizione sessione successiva.</p>
+                                                        </div>
+                                                        <div className={cn(
+                                                            "px-3 py-2 rounded-lg border text-sm font-semibold whitespace-nowrap",
+                                                            sessionsData?.status === 'active'
+                                                                ? "text-[#00D9A5] bg-[#00D9A5]/10 border-[#00D9A5]/30"
+                                                                : "text-yellow-300 bg-yellow-500/10 border-yellow-500/30"
+                                                        )}>
+                                                            {sessionsData?.status === 'active' ? 'CICLO ATTIVO' : 'COLLECTING'}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {!sessionsData || sessionsData.status !== 'active' ? (
-                                                <>
-                                                    <TechCard className="p-10 text-center border-white/10 bg-black/40">
-                                                        <Loader2 className="w-8 h-8 text-[#00D9A5]/60 animate-spin mx-auto mb-3" />
-                                                        <h3 className="text-lg font-semibold text-white mb-2">SESSIONI in inizializzazione</h3>
-                                                        <p className="text-base text-white/80">
-                                                            {sessionsData?.message || 'In attesa del primo ciclo completo Sydney/Asian/London/NY.'}
-                                                        </p>
-                                                    </TechCard>
+                                                {/* Inner tab switcher */}
+                                                <div className="flex gap-2 flex-wrap">
+                                                    {[{ id: 'pipeline', label: '🔴 Pipeline Live' }, { id: 'storico', label: '📊 Storico & Analisi' }].map(t => (
+                                                        <button key={t.id} onClick={() => setSessionsInnerTab(t.id)}
+                                                            className={cn('px-4 py-1.5 rounded-lg text-sm font-semibold border transition-all',
+                                                                sessionsInnerTab === t.id
+                                                                    ? 'bg-[#00D9A5]/15 border-[#00D9A5]/40 text-[#00D9A5]'
+                                                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white/90'
+                                                            )}>{t.label}</button>
+                                                    ))}
+                                                </div>
 
-                                                    {sessionsHasHistorical && (
-                                                        <TechCard className="p-6 bg-black/40 border-white/10">
-                                                            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                                                                <h3 className="text-lg font-semibold text-white">Storico Integrato (Gia Disponibile)</h3>
-                                                                <div className="text-sm text-white/70">
-                                                                    trend points: {sessionsHistTrend.length} • aggiornato: {sessionsHistorical?.generated_at ? new Date(sessionsHistorical.generated_at).toLocaleString('it-IT') : 'N/A'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
-                                                                {[
-                                                                    { key: '7d', label: '7 Giorni' },
-                                                                    { key: '30d', label: '30 Giorni' },
-                                                                    { key: '90d', label: '90 Giorni' },
-                                                                    { key: 'all', label: 'Storico Totale' },
-                                                                ].map((item) => {
-                                                                    const w = sessionsHistWindows?.[item.key] || {};
-                                                                    return (
-                                                                        <div key={item.key} className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-1.5">
-                                                                            <div className="text-xs uppercase tracking-wide text-white/70">{item.label}</div>
-                                                                            <div className="text-lg font-semibold text-[#00D9A5]">{fmtNum(w?.verified_rate_pct, 1)}%</div>
-                                                                            <div className="text-xs text-white/70">bias {fmtNum(w?.bias_accuracy_pct, 1)}% • target {fmtNum(w?.target_hit_rate_pct, 1)}%</div>
-                                                                            <div className="text-xs text-white/70">samples {w?.samples || 0} • days {w?.days || 0} • assets {w?.assets_covered || 0}</div>
-                                                                            <div className={cn("text-xs font-semibold", Number(w?.avg_outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>
-                                                                                outcome medio {fmtSigned(w?.avg_outcome_pips, 1, 'p')}
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                                                <div className="overflow-x-auto">
-                                                                    <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Scenario Leaderboard</h4>
-                                                                    <table className="w-full min-w-[620px] text-left">
-                                                                        <thead>
-                                                                            <tr className="border-b border-white/10 text-xs uppercase text-white/70">
-                                                                                <th className="py-2">Scenario</th>
-                                                                                <th className="py-2">Samples</th>
-                                                                                <th className="py-2">Verified</th>
-                                                                                <th className="py-2">Bias Acc</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {sessionsScenarioBoard.slice(0, 5).map((row) => (
-                                                                                <tr key={row.scenario} className="border-b border-white/5">
-                                                                                    <td className="py-2.5">
-                                                                                        <div className="font-semibold text-white">{row.scenario}</div>
-                                                                                        <div className="text-xs text-white/60">{row.label}</div>
-                                                                                    </td>
-                                                                                    <td className="py-2.5 text-white/80">{row.samples || 0}</td>
-                                                                                    <td className="py-2.5 text-[#00D9A5] font-semibold">{fmtNum(row.verified_rate_pct, 1)}%</td>
-                                                                                    <td className="py-2.5 text-cyan-300">{fmtNum(row.bias_accuracy_pct, 1)}%</td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
-                                                                <div className="overflow-x-auto">
-                                                                    <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Asset Leaderboard</h4>
-                                                                    <table className="w-full min-w-[620px] text-left">
-                                                                        <thead>
-                                                                            <tr className="border-b border-white/10 text-xs uppercase text-white/70">
-                                                                                <th className="py-2">Asset</th>
-                                                                                <th className="py-2">Samples</th>
-                                                                                <th className="py-2">Verified</th>
-                                                                                <th className="py-2">Avg Outcome</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {sessionsAssetBoard.slice(0, 4).map((row) => (
-                                                                                <tr key={row.asset} className="border-b border-white/5">
-                                                                                    <td className="py-2.5 font-semibold text-white">{row.asset}</td>
-                                                                                    <td className="py-2.5 text-white/80">{row.samples || 0}</td>
-                                                                                    <td className="py-2.5 text-[#00D9A5]">{fmtNum(row.verified_rate_pct, 1)}%</td>
-                                                                                    <td className={cn("py-2.5 font-semibold", Number(row.avg_outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>{fmtSigned(row.avg_outcome_pips, 1, 'p')}</td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
-                                                            </div>
-                                                        </TechCard>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <TechCard className="p-6 bg-black/40 border-white/10">
-                                                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-                                                            <div className="space-y-1.5">
-                                                                <div className="text-sm uppercase tracking-wide text-white/60">Kairon Session Health Score</div>
-                                                                <div className="text-xl font-semibold text-white">{fmtNum(sessionsKsh, 1)}</div>
-                                                                <div className={cn(
-                                                                    "text-sm font-semibold",
-                                                                    sessionsHealth?.status === 'green'
-                                                                        ? "text-[#00D9A5]"
-                                                                        : sessionsHealth?.status === 'yellow'
-                                                                            ? "text-yellow-300"
-                                                                            : "text-red-400"
-                                                                )}>
-                                                                    {sessionsHealth?.interpretation || 'Valutazione in corso'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex-1 space-y-3">
-                                                                <div className="h-3 rounded-full bg-white/10 overflow-hidden">
-                                                                    <div
-                                                                        className={cn(
-                                                                            "h-full transition-all",
-                                                                            sessionsKsh >= 75 ? "bg-[#00D9A5]" : sessionsKsh >= 55 ? "bg-yellow-400" : "bg-red-400"
-                                                                        )}
-                                                                        style={{ width: `${Math.max(0, Math.min(100, sessionsKsh))}%` }}
-                                                                    />
-                                                                </div>
-                                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                                    <div className="bg-white/5 rounded-lg border border-white/10 p-2.5">
-                                                                        <div className="text-xs text-white/60 uppercase">Acc 20gg</div>
-                                                                        <div className="text-base font-semibold text-white">{pct01(sessionsHealth?.components?.acc_media_ultimi_20gg, 1)}</div>
-                                                                    </div>
-                                                                    <div className="bg-white/5 rounded-lg border border-white/10 p-2.5">
-                                                                        <div className="text-xs text-white/60 uppercase">Brier</div>
-                                                                        <div className="text-base font-semibold text-white">{fmtNum(sessionsHealth?.components?.brier_score, 3)}</div>
-                                                                    </div>
-                                                                    <div className="bg-white/5 rounded-lg border border-white/10 p-2.5">
-                                                                        <div className="text-xs text-white/60 uppercase">Sharpe P</div>
-                                                                        <div className="text-base font-semibold text-white">{fmtNum(sessionsHealth?.components?.sharpe_p_raw, 2)}</div>
-                                                                    </div>
-                                                                    <div className="bg-white/5 rounded-lg border border-white/10 p-2.5">
-                                                                        <div className="text-xs text-white/60 uppercase">Corr Sig</div>
-                                                                        <div className="text-base font-semibold text-white">{(sessionsCorrelationRatio * 100).toFixed(1)}%</div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-end gap-1 h-8">
-                                                                    {sessionsKshSpark.slice(-30).map((p, idx) => (
-                                                                        <div
-                                                                            key={`${p.rome_day}-${idx}`}
-                                                                            className="flex-1 rounded-sm bg-[#00D9A5]/80"
-                                                                            style={{ height: `${Math.max(8, Math.min(100, Number(p.value) || 0))}%` }}
-                                                                            title={`${p.rome_day}: ${p.value}`}
-                                                                        />
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </TechCard>
-
-                                                    <TechCard className="p-6 bg-black/40 border-white/10">
-                                                        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                                                            <h3 className="text-lg font-semibold text-white">Storico Integrato (Sessioni + Correlazioni Live)</h3>
-                                                            <div className="text-sm text-white/70">
-                                                                trend points: {sessionsHistTrend.length} • aggiornato: {sessionsHistorical?.generated_at ? new Date(sessionsHistorical.generated_at).toLocaleString('it-IT') : 'N/A'}
-                                                            </div>
-                                                        </div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
-                                                            {[
-                                                                { key: '7d', label: '7 Giorni' },
-                                                                { key: '30d', label: '30 Giorni' },
-                                                                { key: '90d', label: '90 Giorni' },
-                                                                { key: 'all', label: 'Storico Totale' },
-                                                            ].map((item) => {
-                                                                const w = sessionsHistWindows?.[item.key] || {};
-                                                                return (
-                                                                    <div key={item.key} className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-1.5">
-                                                                        <div className="text-xs uppercase tracking-wide text-white/70">{item.label}</div>
-                                                                        <div className="text-lg font-semibold text-[#00D9A5]">{fmtNum(w?.verified_rate_pct, 1)}%</div>
-                                                                        <div className="text-xs text-white/70">bias {fmtNum(w?.bias_accuracy_pct, 1)}% • target {fmtNum(w?.target_hit_rate_pct, 1)}%</div>
-                                                                        <div className="text-xs text-white/70">samples {w?.samples || 0} • days {w?.days || 0} • assets {w?.assets_covered || 0}</div>
-                                                                        <div className={cn("text-xs font-semibold", Number(w?.avg_outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>
-                                                                            outcome medio {fmtSigned(w?.avg_outcome_pips, 1, 'p')}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                                            <div className="overflow-x-auto">
-                                                                <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Scenario Leaderboard</h4>
-                                                                <table className="w-full min-w-[620px] text-left">
-                                                                    <thead>
-                                                                        <tr className="border-b border-white/10 text-xs uppercase text-white/70">
-                                                                            <th className="py-2">Scenario</th>
-                                                                            <th className="py-2">Samples</th>
-                                                                            <th className="py-2">Verified</th>
-                                                                            <th className="py-2">Bias Acc</th>
-                                                                            <th className="py-2">Avg Outcome</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {sessionsScenarioBoard.slice(0, 5).map((row) => (
-                                                                            <tr key={row.scenario} className="border-b border-white/5">
-                                                                                <td className="py-2.5">
-                                                                                    <div className="font-semibold text-white">{row.scenario}</div>
-                                                                                    <div className="text-xs text-white/60">{row.label}</div>
-                                                                                </td>
-                                                                                <td className="py-2.5 text-white/80">{row.samples || 0}</td>
-                                                                                <td className="py-2.5 text-[#00D9A5] font-semibold">{fmtNum(row.verified_rate_pct, 1)}%</td>
-                                                                                <td className="py-2.5 text-cyan-300">{fmtNum(row.bias_accuracy_pct, 1)}%</td>
-                                                                                <td className={cn("py-2.5 font-semibold", Number(row.avg_outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>{fmtSigned(row.avg_outcome_pips, 1, 'p')}</td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                            <div className="overflow-x-auto">
-                                                                <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Asset Leaderboard</h4>
-                                                                <table className="w-full min-w-[560px] text-left">
-                                                                    <thead>
-                                                                        <tr className="border-b border-white/10 text-xs uppercase text-white/70">
-                                                                            <th className="py-2">Asset</th>
-                                                                            <th className="py-2">Samples</th>
-                                                                            <th className="py-2">Verified</th>
-                                                                            <th className="py-2">Bias Acc</th>
-                                                                            <th className="py-2">Avg Range</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {sessionsAssetBoard.map((row) => (
-                                                                            <tr key={row.asset} className="border-b border-white/5">
-                                                                                <td className="py-2.5 font-semibold text-white">{row.asset}</td>
-                                                                                <td className="py-2.5 text-white/80">{row.samples || 0}</td>
-                                                                                <td className="py-2.5 text-[#00D9A5] font-semibold">{fmtNum(row.verified_rate_pct, 1)}%</td>
-                                                                                <td className="py-2.5 text-cyan-300">{fmtNum(row.bias_accuracy_pct, 1)}%</td>
-                                                                                <td className="py-2.5 text-white/80">{fmtNum(row.avg_ny_range_pips, 1)}p</td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        </div>
-                                                        <div className="mt-5">
-                                                            <div className="text-xs uppercase tracking-wide text-white/60 mb-2">Trend Storico Verifiche (ultimi 60 giorni)</div>
-                                                            <div className="flex items-end gap-1 h-16">
-                                                                {sessionsHistTrend.slice(-60).map((row, idx) => {
-                                                                    const val = Number(row?.verified_rate_pct) || 0;
-                                                                    return (
-                                                                        <div
-                                                                            key={`${row.rome_day}-${idx}`}
-                                                                            className={cn("flex-1 rounded-sm", val >= 60 ? "bg-[#00D9A5]/80" : val >= 45 ? "bg-yellow-400/80" : "bg-red-400/80")}
-                                                                            style={{ height: `${Math.max(8, Math.min(100, val))}%` }}
-                                                                            title={`${row.rome_day} • verified ${fmtNum(row.verified_rate_pct, 1)}% • outcome ${fmtSigned(row.avg_outcome_pips, 1, 'p')}`}
-                                                                        />
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    </TechCard>
-
-                                                    <TechCard className="p-6 bg-black/40 border-white/10">
-                                                        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                                                            <h3 className="text-lg font-semibold text-white">[1] Report Giornaliero Inter-Sessione</h3>
-                                                            <div className="text-sm text-white/75">
-                                                                {sessionsSummary?.assets_covered || 0} asset • verified {fmtNum(sessionsSummary?.verified_rate_pct, 1)}% • range medio NY {fmtNum(sessionsSummary?.avg_ny_range_pips, 1)} pips
-                                                            </div>
-                                                        </div>
-                                                        <div className="overflow-x-auto">
-                                                            <table className="w-full min-w-[1220px] text-left">
-                                                                <thead>
-                                                                    <tr className="border-b border-white/10">
-                                                                        <th className="py-3 text-sm uppercase text-white/80">Asset</th>
-                                                                        <th className="py-3 text-sm uppercase text-white/80">Scenario</th>
-                                                                        <th className="py-3 text-sm uppercase text-white/80">Bias NY</th>
-                                                                        <th className="py-3 text-sm uppercase text-white/80">Outcome NY</th>
-                                                                        <th className="py-3 text-sm uppercase text-white/80">Sydney</th>
-                                                                        <th className="py-3 text-sm uppercase text-white/80">A1 Asian</th>
-                                                                        <th className="py-3 text-sm uppercase text-white/80">L5 Within</th>
-                                                                        <th className="py-3 text-sm uppercase text-white/80">C3 Expansion</th>
-                                                                        <th className="py-3 text-sm uppercase text-white/80">Sweep</th>
-                                                                        <th className="py-3 text-sm uppercase text-white/80">Verified</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {sessionsRows.map((row, idx) => (
-                                                                        <tr key={`${row.rome_day}-${row.asset}-${idx}`} className="border-b border-white/5 last:border-0">
-                                                                            <td className="py-3 font-semibold text-white">{row.asset}</td>
-                                                                            <td className="py-3 text-white/90">
-                                                                                <span className="font-semibold">{row.scenario}</span> <span className="text-white/60">({row.scenario_label})</span>
-                                                                            </td>
-                                                                            <td className="py-3 text-white/90">{row.bias_direction} • {pct01(row.bias_probability, 0)}</td>
-                                                                            <td className={cn("py-3 font-semibold", Number(row.outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>
-                                                                                {fmtSigned(row.outcome_pips, 1, 'p')}
-                                                                            </td>
-                                                                            <td className="py-3 text-white/85">
-                                                                                {fmtNum(row.feature_s0_range_sydney_pips, 1)}p
-                                                                                <span className="text-white/55 ml-1">
-                                                                                    ({Number(row.feature_s1_sydney_direction) > 0 ? 'L' : Number(row.feature_s1_sydney_direction) < 0 ? 'S' : 'N'})
-                                                                                </span>
-                                                                            </td>
-                                                                            <td className="py-3 text-white/85">{fmtNum(row.feature_a1_range_asian_pips, 1)}p</td>
-                                                                            <td className="py-3 text-white/85">{fmtNum(row.feature_l5_within_asian_pct, 1)}%</td>
-                                                                            <td className="py-3 text-white/85">{fmtNum(row.feature_c3_expansion_potential, 2)}x</td>
-                                                                            <td className="py-3 text-white/85">{fmtNum(row.feature_c1_sweep_depth_pips, 1)}p</td>
-                                                                            <td className="py-3">
-                                                                                <span className={cn(
-                                                                                    "px-2 py-1 rounded border text-xs font-semibold",
-                                                                                    row.scenario_verified ? "text-[#00D9A5] bg-[#00D9A5]/10 border-[#00D9A5]/30" : "text-red-400 bg-red-500/10 border-red-500/30"
-                                                                                )}>
-                                                                                    {row.scenario_verified ? 'TRUE' : 'FALSE'}
-                                                                                </span>
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                    </TechCard>
-
-                                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                                                        <TechCard className="p-6 bg-black/40 border-white/10">
-                                                            <h3 className="text-lg font-semibold text-white mb-4">[2] Auto-Analisi AI</h3>
-                                                            <div className="space-y-3">
-                                                                {sessionsInsights.length ? sessionsInsights.map((line, idx) => (
-                                                                    <div key={idx} className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white/85 leading-relaxed">
-                                                                        {line}
-                                                                    </div>
-                                                                )) : (
-                                                                    <div className="text-sm text-white/60">Insight non ancora disponibili.</div>
-                                                                )}
-                                                            </div>
-                                                            <div className="mt-5 pt-4 border-t border-white/10">
-                                                                <div className="text-sm font-semibold text-white mb-2">Aggiornamenti Pesi Oggi</div>
-                                                                {sessionsWeightUpdates.length ? (
-                                                                    <div className="space-y-2">
-                                                                        {sessionsWeightUpdates.map((u, idx) => (
-                                                                            <div key={idx} className="text-sm text-white/80 bg-white/5 border border-white/10 rounded-lg p-2.5">
-                                                                                {u.scenario}: P {fmtNum(u.P_vecchia, 3)} → {fmtNum(u.P_nuova, 3)} • N={u.N_campioni} • Brier {fmtNum(u.Brier_pre, 3)} → {fmtNum(u.Brier_post, 3)}
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="text-sm text-white/55">Nessun update pesi nel ciclo corrente.</div>
-                                                                )}
-                                                            </div>
-                                                        </TechCard>
-
-                                                        <TechCard className="p-6 bg-black/40 border-white/10">
-                                                            <h3 className="text-lg font-semibold text-white mb-4">[3] Matrice di Correlazione Incrociata</h3>
-                                                            <div className="space-y-2">
-                                                                {[...sessionsCorrPrimary, ...sessionsCorrExtra].map((corr, idx) => (
-                                                                    <div key={`${corr.name}-${idx}`} className="grid grid-cols-[1.5fr_auto_auto_auto] gap-3 items-center rounded-lg border border-white/10 bg-white/5 p-2.5">
-                                                                        <div className="text-sm text-white/85">{corr.name}</div>
-                                                                        <div className="text-sm font-mono text-white/90">r {fmtNum(corr.r, 3)}</div>
-                                                                        <div className="text-sm font-mono text-white/90">p {fmtNum(corr.p_value, 3)}</div>
-                                                                        <span className={cn(
-                                                                            "text-xs px-2 py-1 rounded border font-semibold text-center",
-                                                                            corr.interpretation === 'FORTE'
-                                                                                ? "text-[#00D9A5] border-[#00D9A5]/30 bg-[#00D9A5]/10"
-                                                                                : corr.interpretation === 'NON SIGNIFICATIVA'
-                                                                                    ? "text-white/60 border-white/20 bg-white/5"
-                                                                                    : "text-yellow-300 border-yellow-300/30 bg-yellow-500/10"
-                                                                        )}>
-                                                                            {corr.interpretation}
-                                                                        </span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </TechCard>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                                                        <TechCard className="p-6 bg-black/40 border-white/10 overflow-x-auto">
-                                                            <h3 className="text-lg font-semibold text-white mb-3">Matrice Bias × Giorno × Scenario</h3>
-                                                            <table className="w-full min-w-[560px] text-left">
-                                                                <thead>
-                                                                    <tr className="border-b border-white/10">
-                                                                        <th className="py-2 text-xs uppercase text-white/70">Scenario</th>
-                                                                        {(sessionsScenarioWeekday.days || []).map((d) => (
-                                                                            <th key={d} className="py-2 text-xs uppercase text-white/70 text-center">{d}</th>
-                                                                        ))}
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {(sessionsScenarioWeekday.rows || []).map((row) => (
-                                                                        <tr key={row.scenario} className="border-b border-white/5 last:border-0">
-                                                                            <td className="py-2.5 font-semibold text-white">{row.scenario}</td>
-                                                                            {(row.cells || []).map((cell, idx) => (
-                                                                                <td key={`${row.scenario}-${idx}`} className="py-2.5 text-center">
-                                                                                    <span className={cn("text-xs px-2 py-1 rounded border font-semibold", matrixStateBadgeClass(cell.state))}>
-                                                                                        {cell.display}
-                                                                                    </span>
-                                                                                </td>
-                                                                            ))}
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        </TechCard>
-
-                                                        <TechCard className="p-6 bg-black/40 border-white/10 overflow-x-auto">
-                                                            <h3 className="text-lg font-semibold text-white mb-3">Matrice Bias × Asset</h3>
-                                                            <table className="w-full min-w-[520px] text-left">
-                                                                <thead>
-                                                                    <tr className="border-b border-white/10">
-                                                                        <th className="py-2 text-xs uppercase text-white/70">Bias</th>
-                                                                        {(sessionsBiasAsset.assets || []).map((asset) => (
-                                                                            <th key={asset} className="py-2 text-xs uppercase text-white/70 text-center">{asset}</th>
-                                                                        ))}
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {(sessionsBiasAsset.rows || []).map((row) => (
-                                                                        <tr key={row.bias} className="border-b border-white/5 last:border-0">
-                                                                            <td className="py-2.5 font-semibold text-white">{row.bias}</td>
-                                                                            {(row.cells || []).map((cell, idx) => (
-                                                                                <td key={`${row.bias}-${idx}`} className="py-2.5 text-center">
-                                                                                    <span className={cn("text-xs px-2 py-1 rounded border font-semibold", matrixStateBadgeClass(cell.state))}>
-                                                                                        {cell.display}
-                                                                                    </span>
-                                                                                </td>
-                                                                            ))}
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        </TechCard>
-                                                    </div>
-                                                </>
-                                            )}
-
-                                            {(sessionsPlaybookToday.length > 0 || sessionsPlaybookWeek.length > 0 || sessionsPlaybookMonth.length > 0) && (
-                                                <TechCard className="p-6 bg-black/40 border-white/10">
-                                                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                                                        <h3 className="text-lg font-semibold text-white">Playbook Statistico Operativo (Giorno / Settimana / Mese)</h3>
-                                                        <div className="text-sm text-white/70">
-                                                            aggiornato: {sessionsPlaybook?.generated_at ? new Date(sessionsPlaybook.generated_at).toLocaleString('it-IT') : 'N/A'}
-                                                        </div>
-                                                    </div>
-                                                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                                                        <div className="overflow-x-auto">
-                                                            <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Oggi</h4>
-                                                            <table className="w-full min-w-[420px] text-left">
-                                                                <thead>
-                                                                    <tr className="border-b border-white/10 text-xs uppercase text-white/70">
-                                                                        <th className="py-2">Asset</th>
-                                                                        <th className="py-2">Bias</th>
-                                                                        <th className="py-2">Conf.</th>
-                                                                        <th className="py-2">Samples</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {sessionsPlaybookToday.map((row) => (
-                                                                        <tr key={`today-${row.asset}`} className="border-b border-white/5">
-                                                                            <td className="py-2.5 font-semibold text-white">{row.asset}</td>
-                                                                            <td className={cn(
-                                                                                "py-2.5 text-xs font-semibold",
-                                                                                row.bias === 'LONG_BIAS'
-                                                                                    ? "text-[#00D9A5]"
-                                                                                    : row.bias === 'SHORT_BIAS'
-                                                                                        ? "text-red-400"
-                                                                                        : "text-white/70"
-                                                                            )}>{row.bias}</td>
-                                                                            <td className="py-2.5 text-cyan-300">{fmtNum(row.confidence, 1)}</td>
-                                                                            <td className="py-2.5 text-white/80">{row.samples || 0}</td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
+                                                {/* ═══ PIPELINE LIVE TAB ═══ */}
+                                                {sessionsInnerTab === 'pipeline' && (
+                                                    <div className="space-y-5">
+                                                        {/* Asset Switcher */}
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-xs text-white/50 uppercase tracking-wide mr-1">Asset:</span>
+                                                            {PIPELINE_ASSETS.map(a => (
+                                                                <button key={a} onClick={() => setSelectedPipelineAsset(a)}
+                                                                    className={cn('px-3 py-1 rounded-lg text-xs font-bold border transition-all',
+                                                                        selectedPipelineAsset === a
+                                                                            ? 'bg-[#00D9A5]/15 border-[#00D9A5]/40 text-[#00D9A5]'
+                                                                            : 'bg-white/5 border-white/10 text-white/50 hover:text-white/80'
+                                                                    )}>{a}</button>
+                                                            ))}
+                                                            {currentSess && (
+                                                                <span className="ml-auto text-xs text-white/50">
+                                                                    Ora Roma: <span className="text-white font-mono">{pipelineData?.rome_now}</span>
+                                                                    {' • '}
+                                                                    Sessione: <span className="text-[#00D9A5] font-semibold uppercase">{currentSess || 'Chiuso'}</span>
+                                                                </span>
+                                                            )}
                                                         </div>
 
-                                                        <div className="overflow-x-auto">
-                                                            <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Settimana Corrente</h4>
-                                                            <table className="w-full min-w-[480px] text-left">
-                                                                <thead>
-                                                                    <tr className="border-b border-white/10 text-xs uppercase text-white/70">
-                                                                        <th className="py-2">Giorno</th>
-                                                                        <th className="py-2">Bias Aggregato</th>
-                                                                        <th className="py-2">Best Asset</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {sessionsPlaybookWeek.map((row) => {
-                                                                        const signals = Array.isArray(row.asset_signals) ? row.asset_signals : [];
-                                                                        const best = [...signals].sort((a, b) => (Number(b?.confidence) || 0) - (Number(a?.confidence) || 0))[0] || {};
+                                                        {/* Today's Session Cards */}
+                                                        {!pipelineData || pipelineData.status === 'error' ? (
+                                                            <TechCard className="p-8 text-center border-white/10 bg-black/40">
+                                                                <Loader2 className="w-7 h-7 text-[#00D9A5]/50 animate-spin mx-auto mb-3" />
+                                                                <p className="text-white/60 text-sm">Caricamento dati sessioni in corso...</p>
+                                                            </TechCard>
+                                                        ) : (
+                                                            <>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                                                                    {todayCards.map((card) => {
+                                                                        const tc = SESSION_TYPE_COLORS[card.session_type] || SESSION_TYPE_COLORS.RANGE;
+                                                                        const isLive = card.status === 'live';
+                                                                        const isUpcoming = card.status === 'upcoming';
+                                                                        const pred = card.prediction;
                                                                         return (
-                                                                            <tr key={`week-${row.date}`} className="border-b border-white/5">
-                                                                                <td className="py-2.5 text-white/90">{row.weekday}</td>
-                                                                                <td className={cn(
-                                                                                    "py-2.5 text-xs font-semibold",
-                                                                                    row.aggregate_bias === 'LONG_TILT'
-                                                                                        ? "text-[#00D9A5]"
-                                                                                        : row.aggregate_bias === 'SHORT_TILT'
-                                                                                            ? "text-red-400"
-                                                                                            : "text-white/70"
-                                                                                )}>{row.aggregate_bias}</td>
-                                                                                <td className="py-2.5 text-cyan-300 text-xs">{best?.asset || 'N/A'} • {best?.bias || 'NEUTRAL'} • {fmtNum(best?.confidence, 1)}</td>
-                                                                            </tr>
+                                                                            <div key={card.session} className={cn(
+                                                                                'rounded-xl border p-4 space-y-3 relative transition-all',
+                                                                                isLive ? 'border-[#00D9A5]/60 bg-[#00D9A5]/5 ring-1 ring-[#00D9A5]/20' :
+                                                                                    isUpcoming ? 'border-white/10 bg-white/3 opacity-80' :
+                                                                                        (tc.bg + ' ' + tc.border)
+                                                                            )}>
+                                                                                {isLive && (
+                                                                                    <span className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold text-[#00D9A5]">
+                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-[#00D9A5] animate-pulse" />
+                                                                                        LIVE
+                                                                                    </span>
+                                                                                )}
+                                                                                {/* Session Header */}
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="text-lg">{card.flag}</span>
+                                                                                    <div>
+                                                                                        <div className="text-sm font-bold text-white">{card.label}</div>
+                                                                                        <div className="text-[10px] text-white/50 uppercase">{card.status}</div>
+                                                                                    </div>
+                                                                                    {card.session_type && (
+                                                                                        <span className={cn('ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full border', tc.bg, tc.border, tc.text)}>
+                                                                                            {card.session_type}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+
+                                                                                {isUpcoming ? (
+                                                                                    /* Upcoming: show prediction */
+                                                                                    pred && pred.samples > 0 ? (
+                                                                                        <div className="space-y-2">
+                                                                                            <div className="text-xs text-white/50 uppercase tracking-wide">Predizione</div>
+                                                                                            <div className={cn('text-lg font-bold', pred.direction === 'BULLISH' ? 'text-[#00D9A5]' : pred.direction === 'BEARISH' ? 'text-red-400' : 'text-yellow-300')}>
+                                                                                                {pred.direction === 'BULLISH' ? '▲' : pred.direction === 'BEARISH' ? '▼' : '◆'} {pred.direction}
+                                                                                            </div>
+                                                                                            <div className="text-xs text-white/60">{pred.confidence}% conf • {pred.samples} campioni</div>
+                                                                                            {/* Mini split bar */}
+                                                                                            <div className="h-1.5 rounded-full overflow-hidden bg-white/10 flex">
+                                                                                                <div className="bg-[#00D9A5]" style={{ width: `${pred.bull_pct}%` }} />
+                                                                                                <div className="bg-red-400" style={{ width: `${pred.bear_pct}%` }} />
+                                                                                            </div>
+                                                                                            <div className="flex justify-between text-[10px] text-white/40">
+                                                                                                <span>Bull {pred.bull_pct}%</span>
+                                                                                                <span>Bear {pred.bear_pct}%</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="text-xs text-white/40 italic">In attesa...</div>
+                                                                                    )
+                                                                                ) : (
+                                                                                    /* Completed / Live */
+                                                                                    <div className="space-y-2">
+                                                                                        {/* OHLC mini row */}
+                                                                                        <div className="grid grid-cols-2 gap-1 text-xs">
+                                                                                            <div><span className="text-white/40">H</span> <span className="font-mono text-white/90">{card.high?.toFixed(selectedPipelineAsset === 'EURUSD' ? 5 : 2)}</span></div>
+                                                                                            <div><span className="text-white/40">L</span> <span className="font-mono text-white/90">{card.low?.toFixed(selectedPipelineAsset === 'EURUSD' ? 5 : 2)}</span></div>
+                                                                                        </div>
+                                                                                        {/* Range bar relative to ATR */}
+                                                                                        <div className="space-y-1">
+                                                                                            <div className="flex justify-between text-[10px] text-white/50">
+                                                                                                <span>Range: <span className="font-mono text-white/80">{card.range_pips}p</span></span>
+                                                                                                <span>ATR: <span className={cn('font-mono', card.atr_ratio_pct > 70 ? 'text-[#00D9A5]' : card.atr_ratio_pct > 35 ? 'text-yellow-300' : 'text-blue-300')}>{card.atr_ratio_pct}%</span></span>
+                                                                                            </div>
+                                                                                            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                                                                                <div
+                                                                                                    className={cn('h-full rounded-full transition-all', card.atr_ratio_pct > 70 ? 'bg-[#00D9A5]' : card.atr_ratio_pct > 35 ? 'bg-yellow-400' : 'bg-blue-400')}
+                                                                                                    style={{ width: `${Math.min(100, card.atr_ratio_pct || 0)}%` }}
+                                                                                                />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        {/* Direction + Pattern */}
+                                                                                        <div className="flex items-center justify-between">
+                                                                                            <span className={cn('text-xs font-semibold', card.direction === 'LONG' ? 'text-[#00D9A5]' : card.direction === 'SHORT' ? 'text-red-400' : 'text-white/50')}>
+                                                                                                {card.direction === 'LONG' ? '▲' : card.direction === 'SHORT' ? '▼' : '◆'} {card.direction}
+                                                                                            </span>
+                                                                                            <span className="text-[10px] text-white/50 font-mono">{PATTERN_LABELS[card.pattern] || '—'}</span>
+                                                                                        </div>
+                                                                                        {/* Prediction for next session (if available) */}
+                                                                                        {pred && pred.samples > 0 && (
+                                                                                            <div className="pt-2 border-t border-white/10">
+                                                                                                <div className="text-[10px] text-white/40 uppercase mb-1">Next Session</div>
+                                                                                                <div className={cn('text-xs font-bold', pred.direction === 'BULLISH' ? 'text-[#00D9A5]' : pred.direction === 'BEARISH' ? 'text-red-400' : 'text-yellow-300')}>
+                                                                                                    {pred.direction} {pred.confidence}% conf
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
                                                                         );
                                                                     })}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
+                                                                </div>
 
-                                                        <div className="overflow-x-auto">
-                                                            <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Mese Corrente</h4>
-                                                            <table className="w-full min-w-[420px] text-left">
-                                                                <thead>
-                                                                    <tr className="border-b border-white/10 text-xs uppercase text-white/70">
-                                                                        <th className="py-2">Asset</th>
-                                                                        <th className="py-2">Bias</th>
-                                                                        <th className="py-2">Conf.</th>
-                                                                        <th className="py-2">Samples</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {sessionsPlaybookMonth.map((row) => (
-                                                                        <tr key={`month-${row.asset}`} className="border-b border-white/5">
-                                                                            <td className="py-2.5 font-semibold text-white">{row.asset}</td>
-                                                                            <td className={cn(
-                                                                                "py-2.5 text-xs font-semibold",
-                                                                                row.bias === 'LONG_BIAS'
-                                                                                    ? "text-[#00D9A5]"
-                                                                                    : row.bias === 'SHORT_BIAS'
-                                                                                        ? "text-red-400"
-                                                                                        : "text-white/70"
-                                                                            )}>{row.bias}</td>
-                                                                            <td className="py-2.5 text-cyan-300">{fmtNum(row.confidence, 1)}</td>
-                                                                            <td className="py-2.5 text-white/80">{row.samples || 0}</td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
+                                                                {/* Session Type Statistics 30d */}
+                                                                {Object.keys(typeStats).length > 0 && (
+                                                                    <TechCard className="p-5 bg-black/40 border-white/10">
+                                                                        <h4 className="text-sm font-semibold text-white mb-4 uppercase tracking-wide">📈 Distribuzione Tipo Sessione — Ultimi 30gg</h4>
+                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                                                                            {['sydney', 'asian', 'london', 'ny'].map(sess => {
+                                                                                const s = typeStats[sess] || {};
+                                                                                const types = ['CONTRACTION', 'RANGE', 'EXPANSION', 'REBALANCE'];
+                                                                                const max = Math.max(...types.map(t => s[t] || 0), 1);
+                                                                                const flags = { sydney: '🇦🇺', asian: '🇯🇵', london: '🇬🇧', ny: '🇺🇸' };
+                                                                                const labels = { sydney: 'Sydney', asian: 'Asian', london: 'London', ny: 'New York' };
+                                                                                return (
+                                                                                    <div key={sess} className="space-y-2">
+                                                                                        <div className="text-xs font-semibold text-white/80">{flags[sess]} {labels[sess]}</div>
+                                                                                        {types.map(t => {
+                                                                                            const tc = SESSION_TYPE_COLORS[t];
+                                                                                            const pct = s[t] || 0;
+                                                                                            return (
+                                                                                                <div key={t} className="space-y-0.5">
+                                                                                                    <div className="flex justify-between text-[10px]">
+                                                                                                        <span className={tc.text}>{t}</span>
+                                                                                                        <span className="text-white/50 font-mono">{pct}%</span>
+                                                                                                    </div>
+                                                                                                    <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                                                                                                        <div className={tc.dot + ' h-full rounded-full'} style={{ width: `${pct}%` }} />
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        })}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </TechCard>
+                                                                )}
+
+                                                                {/* History 7 days */}
+                                                                {historyDays.length > 1 && (
+                                                                    <TechCard className="p-5 bg-black/40 border-white/10">
+                                                                        <h4 className="text-sm font-semibold text-white mb-4 uppercase tracking-wide">📅 Ultimi 7 Giorni — Storico Pipeline</h4>
+                                                                        <div className="space-y-4">
+                                                                            {historyDays.slice(1).map(day => ( // skip today (already shown above)
+                                                                                <div key={day.rome_day}>
+                                                                                    <div className="text-xs text-white/50 mb-2">{day.weekday} {day.rome_day} • ATR settimanale: <span className="font-mono text-white/70">{day.atr_weekly_pips}p</span></div>
+                                                                                    <div className="grid grid-cols-4 gap-2">
+                                                                                        {day.sessions.filter(c => c.status === 'completed').map(card => {
+                                                                                            const tc = SESSION_TYPE_COLORS[card.session_type] || SESSION_TYPE_COLORS.RANGE;
+                                                                                            return (
+                                                                                                <div key={card.session} className={cn('rounded-lg border p-2 space-y-1', tc.bg, tc.border)}>
+                                                                                                    <div className="flex items-center gap-1">
+                                                                                                        <span className="text-sm">{card.flag}</span>
+                                                                                                        <span className={cn('text-[10px] font-bold', tc.text)}>{card.session_type}</span>
+                                                                                                    </div>
+                                                                                                    <div className="text-[10px] text-white/50 font-mono">{card.range_pips}p</div>
+                                                                                                    <div className={cn('text-[10px] font-semibold', card.direction === 'LONG' ? 'text-[#00D9A5]' : card.direction === 'SHORT' ? 'text-red-400' : 'text-white/40')}>
+                                                                                                        {card.direction === 'LONG' ? '▲' : card.direction === 'SHORT' ? '▼' : '◆'}
+                                                                                                    </div>
+                                                                                                    {/* Mini ATR bar */}
+                                                                                                    <div className="h-0.5 rounded-full bg-white/10 overflow-hidden">
+                                                                                                        <div className={cn(tc.dot, 'h-full')} style={{ width: `${Math.min(100, card.atr_ratio_pct || 0)}%` }} />
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            );
+                                                                                        })}
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </TechCard>
+                                                                )}
+                                                            </>
+                                                        )}
                                                     </div>
-                                                </TechCard>
-                                            )}
-                                        </div>
-                                    )}
+                                                )}
+
+                                                {/* ═══ STORICO & ANALISI TAB ═══ */}
+                                                {sessionsInnerTab === 'storico' && (
+                                                    <div className="space-y-6">
+                                                        {!sessionsData || sessionsData.status !== 'active' ? (
+                                                            <>
+                                                                <TechCard className="p-10 text-center border-white/10 bg-black/40">
+                                                                    <Loader2 className="w-8 h-8 text-[#00D9A5]/60 animate-spin mx-auto mb-3" />
+                                                                    <h3 className="text-lg font-semibold text-white mb-2">SESSIONI in inizializzazione</h3>
+                                                                    <p className="text-base text-white/80">
+                                                                        {sessionsData?.message || 'In attesa del primo ciclo completo Sydney/Asian/London/NY.'}
+                                                                    </p>
+                                                                </TechCard>
+
+                                                                {sessionsHasHistorical && (
+                                                                    <TechCard className="p-6 bg-black/40 border-white/10">
+                                                                        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                                                                            <h3 className="text-lg font-semibold text-white">Storico Integrato (Gia Disponibile)</h3>
+                                                                            <div className="text-sm text-white/70">
+                                                                                trend points: {sessionsHistTrend.length} • aggiornato: {sessionsHistorical?.generated_at ? new Date(sessionsHistorical.generated_at).toLocaleString('it-IT') : 'N/A'}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+                                                                            {[
+                                                                                { key: '7d', label: '7 Giorni' },
+                                                                                { key: '30d', label: '30 Giorni' },
+                                                                                { key: '90d', label: '90 Giorni' },
+                                                                                { key: 'all', label: 'Storico Totale' },
+                                                                            ].map((item) => {
+                                                                                const w = sessionsHistWindows?.[item.key] || {};
+                                                                                return (
+                                                                                    <div key={item.key} className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-1.5">
+                                                                                        <div className="text-xs uppercase tracking-wide text-white/70">{item.label}</div>
+                                                                                        <div className="text-lg font-semibold text-[#00D9A5]">{fmtNum(w?.verified_rate_pct, 1)}%</div>
+                                                                                        <div className="text-xs text-white/70">bias {fmtNum(w?.bias_accuracy_pct, 1)}% • target {fmtNum(w?.target_hit_rate_pct, 1)}%</div>
+                                                                                        <div className="text-xs text-white/70">samples {w?.samples || 0} • days {w?.days || 0} • assets {w?.assets_covered || 0}</div>
+                                                                                        <div className={cn("text-xs font-semibold", Number(w?.avg_outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>
+                                                                                            outcome medio {fmtSigned(w?.avg_outcome_pips, 1, 'p')}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                                                            <div className="overflow-x-auto">
+                                                                                <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Scenario Leaderboard</h4>
+                                                                                <table className="w-full min-w-[620px] text-left">
+                                                                                    <thead>
+                                                                                        <tr className="border-b border-white/10 text-xs uppercase text-white/70">
+                                                                                            <th className="py-2">Scenario</th>
+                                                                                            <th className="py-2">Samples</th>
+                                                                                            <th className="py-2">Verified</th>
+                                                                                            <th className="py-2">Bias Acc</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody>
+                                                                                        {sessionsScenarioBoard.slice(0, 5).map((row) => (
+                                                                                            <tr key={row.scenario} className="border-b border-white/5">
+                                                                                                <td className="py-2.5">
+                                                                                                    <div className="font-semibold text-white">{row.scenario}</div>
+                                                                                                    <div className="text-xs text-white/60">{row.label}</div>
+                                                                                                </td>
+                                                                                                <td className="py-2.5 text-white/80">{row.samples || 0}</td>
+                                                                                                <td className="py-2.5 text-[#00D9A5] font-semibold">{fmtNum(row.verified_rate_pct, 1)}%</td>
+                                                                                                <td className="py-2.5 text-cyan-300">{fmtNum(row.bias_accuracy_pct, 1)}%</td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                            <div className="overflow-x-auto">
+                                                                                <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Asset Leaderboard</h4>
+                                                                                <table className="w-full min-w-[620px] text-left">
+                                                                                    <thead>
+                                                                                        <tr className="border-b border-white/10 text-xs uppercase text-white/70">
+                                                                                            <th className="py-2">Asset</th>
+                                                                                            <th className="py-2">Samples</th>
+                                                                                            <th className="py-2">Verified</th>
+                                                                                            <th className="py-2">Avg Outcome</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody>
+                                                                                        {sessionsAssetBoard.slice(0, 4).map((row) => (
+                                                                                            <tr key={row.asset} className="border-b border-white/5">
+                                                                                                <td className="py-2.5 font-semibold text-white">{row.asset}</td>
+                                                                                                <td className="py-2.5 text-white/80">{row.samples || 0}</td>
+                                                                                                <td className="py-2.5 text-[#00D9A5]">{fmtNum(row.verified_rate_pct, 1)}%</td>
+                                                                                                <td className={cn("py-2.5 font-semibold", Number(row.avg_outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>{fmtSigned(row.avg_outcome_pips, 1, 'p')}</td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        </div>
+                                                                    </TechCard>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <TechCard className="p-6 bg-black/40 border-white/10">
+                                                                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                                                                        <div className="space-y-1.5">
+                                                                            <div className="text-sm uppercase tracking-wide text-white/60">Kairon Session Health Score</div>
+                                                                            <div className="text-xl font-semibold text-white">{fmtNum(sessionsKsh, 1)}</div>
+                                                                            <div className={cn(
+                                                                                "text-sm font-semibold",
+                                                                                sessionsHealth?.status === 'green'
+                                                                                    ? "text-[#00D9A5]"
+                                                                                    : sessionsHealth?.status === 'yellow'
+                                                                                        ? "text-yellow-300"
+                                                                                        : "text-red-400"
+                                                                            )}>
+                                                                                {sessionsHealth?.interpretation || 'Valutazione in corso'}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex-1 space-y-3">
+                                                                            <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+                                                                                <div
+                                                                                    className={cn(
+                                                                                        "h-full transition-all",
+                                                                                        sessionsKsh >= 75 ? "bg-[#00D9A5]" : sessionsKsh >= 55 ? "bg-yellow-400" : "bg-red-400"
+                                                                                    )}
+                                                                                    style={{ width: `${Math.max(0, Math.min(100, sessionsKsh))}%` }}
+                                                                                />
+                                                                            </div>
+                                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                                                <div className="bg-white/5 rounded-lg border border-white/10 p-2.5">
+                                                                                    <div className="text-xs text-white/60 uppercase">Acc 20gg</div>
+                                                                                    <div className="text-base font-semibold text-white">{pct01(sessionsHealth?.components?.acc_media_ultimi_20gg, 1)}</div>
+                                                                                </div>
+                                                                                <div className="bg-white/5 rounded-lg border border-white/10 p-2.5">
+                                                                                    <div className="text-xs text-white/60 uppercase">Brier</div>
+                                                                                    <div className="text-base font-semibold text-white">{fmtNum(sessionsHealth?.components?.brier_score, 3)}</div>
+                                                                                </div>
+                                                                                <div className="bg-white/5 rounded-lg border border-white/10 p-2.5">
+                                                                                    <div className="text-xs text-white/60 uppercase">Sharpe P</div>
+                                                                                    <div className="text-base font-semibold text-white">{fmtNum(sessionsHealth?.components?.sharpe_p_raw, 2)}</div>
+                                                                                </div>
+                                                                                <div className="bg-white/5 rounded-lg border border-white/10 p-2.5">
+                                                                                    <div className="text-xs text-white/60 uppercase">Corr Sig</div>
+                                                                                    <div className="text-base font-semibold text-white">{(sessionsCorrelationRatio * 100).toFixed(1)}%</div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-end gap-1 h-8">
+                                                                                {sessionsKshSpark.slice(-30).map((p, idx) => (
+                                                                                    <div
+                                                                                        key={`${p.rome_day}-${idx}`}
+                                                                                        className="flex-1 rounded-sm bg-[#00D9A5]/80"
+                                                                                        style={{ height: `${Math.max(8, Math.min(100, Number(p.value) || 0))}%` }}
+                                                                                        title={`${p.rome_day}: ${p.value}`}
+                                                                                    />
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </TechCard>
+
+                                                                <TechCard className="p-6 bg-black/40 border-white/10">
+                                                                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                                                                        <h3 className="text-lg font-semibold text-white">Storico Integrato (Sessioni + Correlazioni Live)</h3>
+                                                                        <div className="text-sm text-white/70">
+                                                                            trend points: {sessionsHistTrend.length} • aggiornato: {sessionsHistorical?.generated_at ? new Date(sessionsHistorical.generated_at).toLocaleString('it-IT') : 'N/A'}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+                                                                        {[
+                                                                            { key: '7d', label: '7 Giorni' },
+                                                                            { key: '30d', label: '30 Giorni' },
+                                                                            { key: '90d', label: '90 Giorni' },
+                                                                            { key: 'all', label: 'Storico Totale' },
+                                                                        ].map((item) => {
+                                                                            const w = sessionsHistWindows?.[item.key] || {};
+                                                                            return (
+                                                                                <div key={item.key} className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-1.5">
+                                                                                    <div className="text-xs uppercase tracking-wide text-white/70">{item.label}</div>
+                                                                                    <div className="text-lg font-semibold text-[#00D9A5]">{fmtNum(w?.verified_rate_pct, 1)}%</div>
+                                                                                    <div className="text-xs text-white/70">bias {fmtNum(w?.bias_accuracy_pct, 1)}% • target {fmtNum(w?.target_hit_rate_pct, 1)}%</div>
+                                                                                    <div className="text-xs text-white/70">samples {w?.samples || 0} • days {w?.days || 0} • assets {w?.assets_covered || 0}</div>
+                                                                                    <div className={cn("text-xs font-semibold", Number(w?.avg_outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>
+                                                                                        outcome medio {fmtSigned(w?.avg_outcome_pips, 1, 'p')}
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                                                        <div className="overflow-x-auto">
+                                                                            <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Scenario Leaderboard</h4>
+                                                                            <table className="w-full min-w-[620px] text-left">
+                                                                                <thead>
+                                                                                    <tr className="border-b border-white/10 text-xs uppercase text-white/70">
+                                                                                        <th className="py-2">Scenario</th>
+                                                                                        <th className="py-2">Samples</th>
+                                                                                        <th className="py-2">Verified</th>
+                                                                                        <th className="py-2">Bias Acc</th>
+                                                                                        <th className="py-2">Avg Outcome</th>
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody>
+                                                                                    {sessionsScenarioBoard.slice(0, 5).map((row) => (
+                                                                                        <tr key={row.scenario} className="border-b border-white/5">
+                                                                                            <td className="py-2.5">
+                                                                                                <div className="font-semibold text-white">{row.scenario}</div>
+                                                                                                <div className="text-xs text-white/60">{row.label}</div>
+                                                                                            </td>
+                                                                                            <td className="py-2.5 text-white/80">{row.samples || 0}</td>
+                                                                                            <td className="py-2.5 text-[#00D9A5] font-semibold">{fmtNum(row.verified_rate_pct, 1)}%</td>
+                                                                                            <td className="py-2.5 text-cyan-300">{fmtNum(row.bias_accuracy_pct, 1)}%</td>
+                                                                                            <td className={cn("py-2.5 font-semibold", Number(row.avg_outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>{fmtSigned(row.avg_outcome_pips, 1, 'p')}</td>
+                                                                                        </tr>
+                                                                                    ))}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                        <div className="overflow-x-auto">
+                                                                            <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Asset Leaderboard</h4>
+                                                                            <table className="w-full min-w-[560px] text-left">
+                                                                                <thead>
+                                                                                    <tr className="border-b border-white/10 text-xs uppercase text-white/70">
+                                                                                        <th className="py-2">Asset</th>
+                                                                                        <th className="py-2">Samples</th>
+                                                                                        <th className="py-2">Verified</th>
+                                                                                        <th className="py-2">Bias Acc</th>
+                                                                                        <th className="py-2">Avg Range</th>
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody>
+                                                                                    {sessionsAssetBoard.map((row) => (
+                                                                                        <tr key={row.asset} className="border-b border-white/5">
+                                                                                            <td className="py-2.5 font-semibold text-white">{row.asset}</td>
+                                                                                            <td className="py-2.5 text-white/80">{row.samples || 0}</td>
+                                                                                            <td className="py-2.5 text-[#00D9A5] font-semibold">{fmtNum(row.verified_rate_pct, 1)}%</td>
+                                                                                            <td className="py-2.5 text-cyan-300">{fmtNum(row.bias_accuracy_pct, 1)}%</td>
+                                                                                            <td className="py-2.5 text-white/80">{fmtNum(row.avg_ny_range_pips, 1)}p</td>
+                                                                                        </tr>
+                                                                                    ))}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="mt-5">
+                                                                        <div className="text-xs uppercase tracking-wide text-white/60 mb-2">Trend Storico Verifiche (ultimi 60 giorni)</div>
+                                                                        <div className="flex items-end gap-1 h-16">
+                                                                            {sessionsHistTrend.slice(-60).map((row, idx) => {
+                                                                                const val = Number(row?.verified_rate_pct) || 0;
+                                                                                return (
+                                                                                    <div
+                                                                                        key={`${row.rome_day}-${idx}`}
+                                                                                        className={cn("flex-1 rounded-sm", val >= 60 ? "bg-[#00D9A5]/80" : val >= 45 ? "bg-yellow-400/80" : "bg-red-400/80")}
+                                                                                        style={{ height: `${Math.max(8, Math.min(100, val))}%` }}
+                                                                                        title={`${row.rome_day} • verified ${fmtNum(row.verified_rate_pct, 1)}% • outcome ${fmtSigned(row.avg_outcome_pips, 1, 'p')}`}
+                                                                                    />
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                </TechCard>
+
+                                                                <TechCard className="p-6 bg-black/40 border-white/10">
+                                                                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                                                                        <h3 className="text-lg font-semibold text-white">[1] Report Giornaliero Inter-Sessione</h3>
+                                                                        <div className="text-sm text-white/75">
+                                                                            {sessionsSummary?.assets_covered || 0} asset • verified {fmtNum(sessionsSummary?.verified_rate_pct, 1)}% • range medio NY {fmtNum(sessionsSummary?.avg_ny_range_pips, 1)} pips
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="overflow-x-auto">
+                                                                        <table className="w-full min-w-[1220px] text-left">
+                                                                            <thead>
+                                                                                <tr className="border-b border-white/10">
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">Asset</th>
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">Scenario</th>
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">Bias NY</th>
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">Outcome NY</th>
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">Sydney</th>
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">A1 Asian</th>
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">L5 Within</th>
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">C3 Expansion</th>
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">Sweep</th>
+                                                                                    <th className="py-3 text-sm uppercase text-white/80">Verified</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {sessionsRows.map((row, idx) => (
+                                                                                    <tr key={`${row.rome_day}-${row.asset}-${idx}`} className="border-b border-white/5 last:border-0">
+                                                                                        <td className="py-3 font-semibold text-white">{row.asset}</td>
+                                                                                        <td className="py-3 text-white/90">
+                                                                                            <span className="font-semibold">{row.scenario}</span> <span className="text-white/60">({row.scenario_label})</span>
+                                                                                        </td>
+                                                                                        <td className="py-3 text-white/90">{row.bias_direction} • {pct01(row.bias_probability, 0)}</td>
+                                                                                        <td className={cn("py-3 font-semibold", Number(row.outcome_pips) >= 0 ? "text-[#00D9A5]" : "text-red-400")}>
+                                                                                            {fmtSigned(row.outcome_pips, 1, 'p')}
+                                                                                        </td>
+                                                                                        <td className="py-3 text-white/85">
+                                                                                            {fmtNum(row.feature_s0_range_sydney_pips, 1)}p
+                                                                                            <span className="text-white/55 ml-1">
+                                                                                                ({Number(row.feature_s1_sydney_direction) > 0 ? 'L' : Number(row.feature_s1_sydney_direction) < 0 ? 'S' : 'N'})
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td className="py-3 text-white/85">{fmtNum(row.feature_a1_range_asian_pips, 1)}p</td>
+                                                                                        <td className="py-3 text-white/85">{fmtNum(row.feature_l5_within_asian_pct, 1)}%</td>
+                                                                                        <td className="py-3 text-white/85">{fmtNum(row.feature_c3_expansion_potential, 2)}x</td>
+                                                                                        <td className="py-3 text-white/85">{fmtNum(row.feature_c1_sweep_depth_pips, 1)}p</td>
+                                                                                        <td className="py-3">
+                                                                                            <span className={cn(
+                                                                                                "px-2 py-1 rounded border text-xs font-semibold",
+                                                                                                row.scenario_verified ? "text-[#00D9A5] bg-[#00D9A5]/10 border-[#00D9A5]/30" : "text-red-400 bg-red-500/10 border-red-500/30"
+                                                                                            )}>
+                                                                                                {row.scenario_verified ? 'TRUE' : 'FALSE'}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                ))}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                </TechCard>
+
+                                                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                                                    <TechCard className="p-6 bg-black/40 border-white/10">
+                                                                        <h3 className="text-lg font-semibold text-white mb-4">[2] Auto-Analisi AI</h3>
+                                                                        <div className="space-y-3">
+                                                                            {sessionsInsights.length ? sessionsInsights.map((line, idx) => (
+                                                                                <div key={idx} className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white/85 leading-relaxed">
+                                                                                    {line}
+                                                                                </div>
+                                                                            )) : (
+                                                                                <div className="text-sm text-white/60">Insight non ancora disponibili.</div>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="mt-5 pt-4 border-t border-white/10">
+                                                                            <div className="text-sm font-semibold text-white mb-2">Aggiornamenti Pesi Oggi</div>
+                                                                            {sessionsWeightUpdates.length ? (
+                                                                                <div className="space-y-2">
+                                                                                    {sessionsWeightUpdates.map((u, idx) => (
+                                                                                        <div key={idx} className="text-sm text-white/80 bg-white/5 border border-white/10 rounded-lg p-2.5">
+                                                                                            {u.scenario}: P {fmtNum(u.P_vecchia, 3)} → {fmtNum(u.P_nuova, 3)} • N={u.N_campioni} • Brier {fmtNum(u.Brier_pre, 3)} → {fmtNum(u.Brier_post, 3)}
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="text-sm text-white/55">Nessun update pesi nel ciclo corrente.</div>
+                                                                            )}
+                                                                        </div>
+                                                                    </TechCard>
+
+                                                                    <TechCard className="p-6 bg-black/40 border-white/10">
+                                                                        <h3 className="text-lg font-semibold text-white mb-4">[3] Matrice di Correlazione Incrociata</h3>
+                                                                        <div className="space-y-2">
+                                                                            {[...sessionsCorrPrimary, ...sessionsCorrExtra].map((corr, idx) => (
+                                                                                <div key={`${corr.name}-${idx}`} className="grid grid-cols-[1.5fr_auto_auto_auto] gap-3 items-center rounded-lg border border-white/10 bg-white/5 p-2.5">
+                                                                                    <div className="text-sm text-white/85">{corr.name}</div>
+                                                                                    <div className="text-sm font-mono text-white/90">r {fmtNum(corr.r, 3)}</div>
+                                                                                    <div className="text-sm font-mono text-white/90">p {fmtNum(corr.p_value, 3)}</div>
+                                                                                    <span className={cn(
+                                                                                        "text-xs px-2 py-1 rounded border font-semibold text-center",
+                                                                                        corr.interpretation === 'FORTE'
+                                                                                            ? "text-[#00D9A5] border-[#00D9A5]/30 bg-[#00D9A5]/10"
+                                                                                            : corr.interpretation === 'NON SIGNIFICATIVA'
+                                                                                                ? "text-white/60 border-white/20 bg-white/5"
+                                                                                                : "text-yellow-300 border-yellow-300/30 bg-yellow-500/10"
+                                                                                    )}>
+                                                                                        {corr.interpretation}
+                                                                                    </span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </TechCard>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                                                    <TechCard className="p-6 bg-black/40 border-white/10 overflow-x-auto">
+                                                                        <h3 className="text-lg font-semibold text-white mb-3">Matrice Bias × Giorno × Scenario</h3>
+                                                                        <table className="w-full min-w-[560px] text-left">
+                                                                            <thead>
+                                                                                <tr className="border-b border-white/10">
+                                                                                    <th className="py-2 text-xs uppercase text-white/70">Scenario</th>
+                                                                                    {(sessionsScenarioWeekday.days || []).map((d) => (
+                                                                                        <th key={d} className="py-2 text-xs uppercase text-white/70 text-center">{d}</th>
+                                                                                    ))}
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {(sessionsScenarioWeekday.rows || []).map((row) => (
+                                                                                    <tr key={row.scenario} className="border-b border-white/5 last:border-0">
+                                                                                        <td className="py-2.5 font-semibold text-white">{row.scenario}</td>
+                                                                                        {(row.cells || []).map((cell, idx) => (
+                                                                                            <td key={`${row.scenario}-${idx}`} className="py-2.5 text-center">
+                                                                                                <span className={cn("text-xs px-2 py-1 rounded border font-semibold", matrixStateBadgeClass(cell.state))}>
+                                                                                                    {cell.display}
+                                                                                                </span>
+                                                                                            </td>
+                                                                                        ))}
+                                                                                    </tr>
+                                                                                ))}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </TechCard>
+
+                                                                    <TechCard className="p-6 bg-black/40 border-white/10 overflow-x-auto">
+                                                                        <h3 className="text-lg font-semibold text-white mb-3">Matrice Bias × Asset</h3>
+                                                                        <table className="w-full min-w-[520px] text-left">
+                                                                            <thead>
+                                                                                <tr className="border-b border-white/10">
+                                                                                    <th className="py-2 text-xs uppercase text-white/70">Bias</th>
+                                                                                    {(sessionsBiasAsset.assets || []).map((asset) => (
+                                                                                        <th key={asset} className="py-2 text-xs uppercase text-white/70 text-center">{asset}</th>
+                                                                                    ))}
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {(sessionsBiasAsset.rows || []).map((row) => (
+                                                                                    <tr key={row.bias} className="border-b border-white/5 last:border-0">
+                                                                                        <td className="py-2.5 font-semibold text-white">{row.bias}</td>
+                                                                                        {(row.cells || []).map((cell, idx) => (
+                                                                                            <td key={`${row.bias}-${idx}`} className="py-2.5 text-center">
+                                                                                                <span className={cn("text-xs px-2 py-1 rounded border font-semibold", matrixStateBadgeClass(cell.state))}>
+                                                                                                    {cell.display}
+                                                                                                </span>
+                                                                                            </td>
+                                                                                        ))}
+                                                                                    </tr>
+                                                                                ))}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </TechCard>
+                                                                </div>
+                                                            </>
+                                                        )}
+
+                                                        {(sessionsPlaybookToday.length > 0 || sessionsPlaybookWeek.length > 0 || sessionsPlaybookMonth.length > 0) && (
+                                                            <TechCard className="p-6 bg-black/40 border-white/10">
+                                                                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                                                                    <h3 className="text-lg font-semibold text-white">Playbook Statistico Operativo (Giorno / Settimana / Mese)</h3>
+                                                                    <div className="text-sm text-white/70">
+                                                                        aggiornato: {sessionsPlaybook?.generated_at ? new Date(sessionsPlaybook.generated_at).toLocaleString('it-IT') : 'N/A'}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                                                                    <div className="overflow-x-auto">
+                                                                        <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Oggi</h4>
+                                                                        <table className="w-full min-w-[420px] text-left">
+                                                                            <thead>
+                                                                                <tr className="border-b border-white/10 text-xs uppercase text-white/70">
+                                                                                    <th className="py-2">Asset</th>
+                                                                                    <th className="py-2">Bias</th>
+                                                                                    <th className="py-2">Conf.</th>
+                                                                                    <th className="py-2">Samples</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {sessionsPlaybookToday.map((row) => (
+                                                                                    <tr key={`today-${row.asset}`} className="border-b border-white/5">
+                                                                                        <td className="py-2.5 font-semibold text-white">{row.asset}</td>
+                                                                                        <td className={cn(
+                                                                                            "py-2.5 text-xs font-semibold",
+                                                                                            row.bias === 'LONG_BIAS'
+                                                                                                ? "text-[#00D9A5]"
+                                                                                                : row.bias === 'SHORT_BIAS'
+                                                                                                    ? "text-red-400"
+                                                                                                    : "text-white/70"
+                                                                                        )}>{row.bias}</td>
+                                                                                        <td className="py-2.5 text-cyan-300">{fmtNum(row.confidence, 1)}</td>
+                                                                                        <td className="py-2.5 text-white/80">{row.samples || 0}</td>
+                                                                                    </tr>
+                                                                                ))}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+
+                                                                    <div className="overflow-x-auto">
+                                                                        <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Settimana Corrente</h4>
+                                                                        <table className="w-full min-w-[480px] text-left">
+                                                                            <thead>
+                                                                                <tr className="border-b border-white/10 text-xs uppercase text-white/70">
+                                                                                    <th className="py-2">Giorno</th>
+                                                                                    <th className="py-2">Bias Aggregato</th>
+                                                                                    <th className="py-2">Best Asset</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {sessionsPlaybookWeek.map((row) => {
+                                                                                    const signals = Array.isArray(row.asset_signals) ? row.asset_signals : [];
+                                                                                    const best = [...signals].sort((a, b) => (Number(b?.confidence) || 0) - (Number(a?.confidence) || 0))[0] || {};
+                                                                                    return (
+                                                                                        <tr key={`week-${row.date}`} className="border-b border-white/5">
+                                                                                            <td className="py-2.5 text-white/90">{row.weekday}</td>
+                                                                                            <td className={cn(
+                                                                                                "py-2.5 text-xs font-semibold",
+                                                                                                row.aggregate_bias === 'LONG_TILT'
+                                                                                                    ? "text-[#00D9A5]"
+                                                                                                    : row.aggregate_bias === 'SHORT_TILT'
+                                                                                                        ? "text-red-400"
+                                                                                                        : "text-white/70"
+                                                                                            )}>{row.aggregate_bias}</td>
+                                                                                            <td className="py-2.5 text-cyan-300 text-xs">{best?.asset || 'N/A'} • {best?.bias || 'NEUTRAL'} • {fmtNum(best?.confidence, 1)}</td>
+                                                                                        </tr>
+                                                                                    );
+                                                                                })}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+
+                                                                    <div className="overflow-x-auto">
+                                                                        <h4 className="text-sm font-semibold text-white mb-2 uppercase tracking-wide">Mese Corrente</h4>
+                                                                        <table className="w-full min-w-[420px] text-left">
+                                                                            <thead>
+                                                                                <tr className="border-b border-white/10 text-xs uppercase text-white/70">
+                                                                                    <th className="py-2">Asset</th>
+                                                                                    <th className="py-2">Bias</th>
+                                                                                    <th className="py-2">Conf.</th>
+                                                                                    <th className="py-2">Samples</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {sessionsPlaybookMonth.map((row) => (
+                                                                                    <tr key={`month-${row.asset}`} className="border-b border-white/5">
+                                                                                        <td className="py-2.5 font-semibold text-white">{row.asset}</td>
+                                                                                        <td className={cn(
+                                                                                            "py-2.5 text-xs font-semibold",
+                                                                                            row.bias === 'LONG_BIAS'
+                                                                                                ? "text-[#00D9A5]"
+                                                                                                : row.bias === 'SHORT_BIAS'
+                                                                                                    ? "text-red-400"
+                                                                                                    : "text-white/70"
+                                                                                        )}>{row.bias}</td>
+                                                                                        <td className="py-2.5 text-cyan-300">{fmtNum(row.confidence, 1)}</td>
+                                                                                        <td className="py-2.5 text-white/80">{row.samples || 0}</td>
+                                                                                    </tr>
+                                                                                ))}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                </div>
+                                                            </TechCard>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </motion.div>
                             </AnimatePresence>
                         </div>
@@ -2682,11 +2930,11 @@ export default function ResearchPage() {
                                                                         : state === 'POSITIONING_BUILDING' ? 'Posizionamento in costruzione — validare estensioni con follow-through'
                                                                             : state === 'EARLY_SIGNAL_CLUSTER' ? 'Segnale iniziale: struttura in formazione, preferire ingresso selettivo'
                                                                                 : state === 'NO_CLEAR_CLUSTER' ? 'Assenza di cluster dominante — approccio prudente e conferme extra'
-                                                                    : state === 'ACCUMULATION' ? 'Accumulo istituzionale — sizing aggressivo supportato'
-                                                                        : state === 'DISTRIBUTION' ? 'Distribuzione rilevata — ridurre esposizione long'
-                                                                            : state === 'RISK_ON' ? 'Regime risk-on: favorire temi momentum e ciclici'
-                                                                                : state === 'RISK_OFF' ? 'Regime risk-off: posizioni difensive e hedge attivo'
-                                                                                    : 'Attendere conferma multi-layer prima di entrare';
+                                                                                    : state === 'ACCUMULATION' ? 'Accumulo istituzionale — sizing aggressivo supportato'
+                                                                                        : state === 'DISTRIBUTION' ? 'Distribuzione rilevata — ridurre esposizione long'
+                                                                                            : state === 'RISK_ON' ? 'Regime risk-on: favorire temi momentum e ciclici'
+                                                                                                : state === 'RISK_OFF' ? 'Regime risk-off: posizioni difensive e hedge attivo'
+                                                                                                    : 'Attendere conferma multi-layer prima di entrare';
                                                                     const bucketVals = [gs * 0.88, gs * 0.93, gs * 0.97, gs * 1.03, gs].map(v => Math.max(1, v));
                                                                     const maxB = Math.max(...bucketVals);
                                                                     return (

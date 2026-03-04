@@ -17,6 +17,11 @@ if (typeof window !== "undefined") {
 
   window.addEventListener("load", () => {
     sessionStorage.removeItem(PRELOAD_RELOAD_GUARD);
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith("karion_lazy_retry_") || key.startsWith("karion_lazy_reload_")) {
+        sessionStorage.removeItem(key);
+      }
+    }
   });
 }
 

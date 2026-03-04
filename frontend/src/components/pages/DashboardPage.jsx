@@ -859,7 +859,7 @@ const AssetChartPanel = ({
     seasonalityBias,
     weekRule.description
   ]);
-  const screeningFocusNarrative = (() => {
+  const screeningFocusFallbackNarrative = (() => {
     if (!currentAsset) return 'Screening in aggiornamento.';
 
     const assetLabelMap = {
@@ -918,7 +918,7 @@ const AssetChartPanel = ({
     return `${line1}\n${line2}\n${line3}`;
   })();
   const deepInsightNarrative = useMemo(() => {
-    const deepAsset = assets.find((a) => a?.symbol === 'NAS100') || currentAsset;
+    const deepAsset = currentAsset || assets.find((a) => a?.symbol === 'NAS100');
     if (!deepAsset) return 'Analisi Deep Insight in aggiornamento.';
 
     const symbol = deepAsset.symbol || 'NAS100';
@@ -1013,15 +1013,6 @@ const AssetChartPanel = ({
     const generalScore = (biasScore(cotBias) * 0.5) + (biasScore(breadthBias) * 0.3) + (biasScore(macroBias) * 0.2);
     const generalBias = generalScore >= 0.2 ? 'BULLISH' : generalScore <= -0.2 ? 'BEARISH' : 'NEUTRAL';
 
-    let timeframeBridge = 'lettura allineata tra intraday e struttura di settimana';
-    if (dailyCompositeBias === 'BEARISH' && generalBias === 'BULLISH') {
-      timeframeBridge = 'fase di correzione intraday dentro una struttura settimanale ancora rialzista';
-    } else if (dailyCompositeBias === 'BULLISH' && generalBias === 'BEARISH') {
-      timeframeBridge = 'fase di rimbalzo intraday contro una struttura settimanale ancora debole';
-    } else if (dailyCompositeBias === 'NEUTRAL' && generalBias !== 'NEUTRAL') {
-      timeframeBridge = 'intraday in ribilanciamento, con struttura di fondo ancora orientata';
-    }
-
     let optionsLine = 'Il flusso opzioni non e disponibile in live: la lettura intraday pesa di piu su prezzo, rischio e gamma.';
     if (optionsNode) {
       const nearFlatShift = Number.isFinite(flowShiftToPuts) && Math.abs(flowShiftToPuts) < 0.5;
@@ -1065,6 +1056,15 @@ const AssetChartPanel = ({
       } else {
         gexLine = `GEX ${biasToText(gexBias)} (${regimeNote}) in coerenza con la lettura intraday dominante.`;
       }
+    }
+
+    let flowSignalLine = 'Il flusso opzioni e GEX non sono disponibili sul feed attuale.';
+    if (optionsNode && gexProfile.length > 0) {
+      flowSignalLine = `Il flusso opzioni e ${biasToText(optionsBias)}, GEX ${biasToText(gexBias)}.`;
+    } else if (optionsNode) {
+      flowSignalLine = `Il flusso opzioni e ${biasToText(optionsBias)}, GEX non disponibile.`;
+    } else if (gexProfile.length > 0) {
+      flowSignalLine = `Il flusso opzioni non e disponibile, GEX ${biasToText(gexBias)}.`;
     }
 
     const weekText = weekRule?.description || 'n/d';
@@ -1132,14 +1132,38 @@ const AssetChartPanel = ({
     }
     const weeklyStatsLine = `Statistica weekly COT/Breadth/Macro-News: COT ${biasToText(cotBias)}, breadth ${biasToText(breadthBias)}, macro-news ${macroWeeklyLabel}.`;
 
-    return `${assetLabel}: bias intraday ${biasToText(dailyCompositeBias)} al ${confidence}%, rischio ${riskLabel} (VIX ${vixText}, regime ${regimeText}). Bias settimanale ${biasToText(generalBias)}: ${timeframeBridge}.
+    return `${assetLabel}: bias intraday ${biasToText(dailyCompositeBias)} al ${confidence}%, rischio ${riskLabel} (VIX ${vixText}, regime ${regimeText}). Bias settimanale ${biasToText(generalBias)}.
 
+${flowSignalLine}
 Driver intraday essenziali: ${optionsLine} ${gexLine} Quadro attuale a ${convergenceText} tra i driver di giornata.
 
 ${weeklyStatsLine}
 ${statsLine}
 ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
   }, [assets, currentAsset, cotData, breadthData, optionsData, newsEvents, newsSentiment, nextEvent, vix?.current, regime, weekRule?.description, dayRule?.note]);
+
+  const screeningFocusNarrative = useMemo(() => {
+    const source = String(deepInsightNarrative || '')
+      .replace(/\n+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    if (!source) return screeningFocusFallbackNarrative;
+
+    const candidates = source
+      .split(/(?<=[.!?])\s+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter((line) => !/^statistica weekly/i.test(line))
+      .filter((line) => !/^contesto statistico:/i.test(line))
+      .filter((line) => !/^agenda macro/i.test(line));
+
+    const compactLines = candidates.slice(0, 2).map((line) => (
+      line.length > 220 ? `${line.slice(0, 217).trimEnd()}...` : line
+    ));
+
+    if (!compactLines.length) return screeningFocusFallbackNarrative;
+    return compactLines.join('\n');
+  }, [deepInsightNarrative, screeningFocusFallbackNarrative]);
 
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
@@ -1553,29 +1577,29 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
 
 			                <div className="relative rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3 font-apple">
 		                  <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-start">
-		                    <p className="text-[17px] font-medium text-white/95 leading-relaxed tracking-[0.01em] whitespace-pre-line">
+		                    <p className="text-[16px] font-medium text-white/95 leading-relaxed tracking-[0.01em] whitespace-pre-line">
 		                      <TypewriterText text={screeningFocusNarrative} speed={18} delay={400} />
 		                    </p>
 	                    <div className="min-w-[170px] font-apple justify-self-end">
-	                      <p className="text-[14px] font-semibold uppercase tracking-[0.14em] text-white/95 mb-2">
+	                      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-white/95 mb-2">
 	                        Metriche rapide
 	                      </p>
 	                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
 	                        <div>
-	                          <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-white/95">Volatilita</p>
-	                          <p className="text-[18px] leading-none font-semibold text-[#00D9A5]">
+	                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Volatilita</p>
+	                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
 	                            {atrProgress >= 70 ? 'Alta' : atrProgress >= 40 ? 'Media' : 'Bassa'}
 	                          </p>
 	                        </div>
 	                        <div>
-	                          <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-white/95">Impulso</p>
-	                          <p className="text-[18px] leading-none font-semibold text-[#00D9A5]">
+	                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Impulso</p>
+	                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
 	                            {dailyOutlook?.conclusionType === 'bullish' || dailyOutlook?.conclusionType === 'bearish' ? 'Prosegue' : 'Neutro'}
 	                          </p>
 	                        </div>
 	                        <div>
-	                          <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-white/95">Regime</p>
-	                          <p className="text-[18px] leading-none font-semibold text-[#00D9A5]">
+	                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Regime</p>
+	                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
 	                            {dailyOutlook?.conclusionType === 'neutral' ? 'Range' : 'Trend'}
 	                          </p>
 	                        </div>
@@ -4678,7 +4702,7 @@ const DailyBiasHeader = ({ analyses, vix, regime, nextEvent }) => {
               toggleItem('overview');
             }}
             className={cn(
-              "flex items-center gap-2 sm:gap-4 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl transition-all cursor-pointer",
+              "dashboard-overview-tab flex items-center gap-2 sm:gap-4 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl transition-all cursor-pointer",
               expandedItem === 'overview' ? "bg-slate-100 ring-1 ring-slate-300 dark:bg-white/10 dark:ring-[#00D9A5]/50 tab-border-highlight shadow-[0_0_15px_rgba(0,217,165,0.08)]" : "hover:bg-slate-100 dark:hover:bg-white/5"
             )}
           >
@@ -5139,7 +5163,7 @@ export default function DashboardPage() {
   const cursorBlink = introPhase === 'typing' ? 'animate-pulse' : '';
 
   return (
-    <div className="dashboard-page max-sm:px-2" data-testid="dashboard-page" id="dashboard-main" style={{ zoom: 1.05 }}>
+    <div className="dashboard-page max-sm:px-2" data-testid="dashboard-page" id="dashboard-main" style={{ zoom: 0.98 }}>
       {/* Header - Typewriter Animation */}
       {!headerHidden && (
         <motion.div

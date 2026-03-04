@@ -2068,7 +2068,482 @@ def get_session_report_history(limit: int = 30) -> List[Dict[str, Any]]:
     return ordered[:safe]
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PER-SESSION PIPELINE  (CONTRACTION / RANGE / EXPANSION / REBALANCE)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SESSION_ORDER = ("sydney", "asian", "london", "ny")
+_SESSION_FLAGS = {"sydney": "🇦🇺", "asian": "🇯🇵", "london": "🇬🇧", "ny": "🇺🇸"}
+_SESSION_LABELS = {"sydney": "Sydney", "asian": "Asian", "london": "London", "ny": "New York"}
+
+_PIPELINE_CACHE: Dict[str, Any] = {"ts": None, "key": None, "payload": None}
+_PIPELINE_CACHE_TTL = 300  # 5 minutes
+
+
+def _classify_session_type(
+    session_range: float,
+    atr_weekly: float,
+    open_price: float,
+    close_price: float,
+    high_price: float,
+    low_price: float,
+) -> str:
+    """
+    Classify a single session into:
+      CONTRACTION  — range < 35% weekly ATR  → accumulo, alta prob di esplosione
+      RANGE        — range 35-70% weekly ATR → equilibrio
+      EXPANSION    — range > 70% ATR, direzionale (close near high or low)
+      REBALANCE    — range > 70% ATR, V-shape (ma rientra nel range)
+    """
+    if atr_weekly <= 0:
+        return "RANGE"
+    ratio = session_range / atr_weekly
+    if ratio < 0.35:
+        return "CONTRACTION"
+    if ratio < 0.70:
+        return "RANGE"
+    # Large range: check if directional (EXPANSION) or mean-reverting (REBALANCE)
+    if session_range > 0:
+        body = abs(close_price - open_price)
+        body_ratio = body / session_range
+        # If the body takes < 30% of the range → V-shape → REBALANCE
+        if body_ratio < 0.30:
+            return "REBALANCE"
+    return "EXPANSION"
+
+
+def _detect_session_pattern(
+    candles: List[Dict[str, Any]],
+    session_high: float,
+    session_low: float,
+) -> str:
+    """Detect micro liquidity patterns within a session."""
+    if len(candles) < 3 or session_high <= session_low:
+        return "NONE"
+
+    # Track rolling extremes so "sweep" can actually occur on later candles.
+    first_high = _to_float(candles[0].get("high"), session_high)
+    first_low = _to_float(candles[0].get("low"), session_low)
+    rolling_high = first_high
+    rolling_low = first_low
+
+    sweep_high = False
+    sweep_low = False
+    for c in candles[1:]:
+        h = _to_float(c.get("high"))
+        l = _to_float(c.get("low"))
+        cl = _to_float(c.get("close"))
+        if h > rolling_high and cl < rolling_high:
+            sweep_high = True
+        if l < rolling_low and cl > rolling_low:
+            sweep_low = True
+        rolling_high = max(rolling_high, h)
+        rolling_low = min(rolling_low, l)
+
+    if sweep_high and sweep_low:
+        return "DOUBLE_LIQ"
+    if sweep_high:
+        return "SWEEP_HIGH"
+    if sweep_low:
+        return "SWEEP_LOW"
+
+    # Clean break: last candle closes near extreme
+    last_close = _to_float(candles[-1].get("close"))
+    rng = session_high - session_low
+    if rng > 0:
+        pct = (last_close - session_low) / rng
+        if pct >= 0.80:
+            return "CLEAN_BREAK_UP"
+        if pct <= 0.20:
+            return "CLEAN_BREAK_DOWN"
+    return "NONE"
+
+
+def _weekly_atr(candles_all: List[Dict[str, Any]]) -> float:
+    """Estimate a weekly ATR from the available 5m candles by building daily ranges."""
+    if not candles_all:
+        return 0.0
+    by_day: Dict[str, Dict[str, float]] = {}
+    for c in candles_all:
+        day = str(c["ts_rome"].date())
+        h = _to_float(c.get("high"))
+        l = _to_float(c.get("low"))
+        if day not in by_day:
+            by_day[day] = {"high": h, "low": l}
+        else:
+            by_day[day]["high"] = max(by_day[day]["high"], h)
+            by_day[day]["low"] = min(by_day[day]["low"], l)
+    daily_ranges = [v["high"] - v["low"] for v in by_day.values() if v["high"] > v["low"]]
+    if not daily_ranges:
+        return 0.0
+    # Use up to last 5 days
+    return sum(daily_ranges[-5:]) / len(daily_ranges[-5:]) * 5
+
+
+def _session_prediction(
+    session_name: str,
+    prev_type: str,
+    prev_pattern: str,
+    rows: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Look at historical rows to predict next session behavior based on
+    the previous session's type + pattern combination.
+    """
+    if not rows:
+        return {"direction": "UNKNOWN", "confidence": 0, "samples": 0, "avg_outcome_pips": 0.0}
+
+    next_session = str(session_name or "").lower()
+    prev_session_map = {
+        "asian": "sydney",
+        "london": "asian",
+        "ny": "london",
+        "sydney": "ny",  # first session of day: proxy using previous close regime
+    }
+    prev_session = prev_session_map.get(next_session, "london")
+
+    prev_range_key = {
+        "sydney": "feature_s0_range_sydney_pips",
+        "asian": "feature_a1_range_asian_pips",
+        "london": "feature_b1_range_london_pips",
+        "ny": "ny_range_pips",
+    }.get(prev_session, "feature_b1_range_london_pips")
+
+    next_dir_key = {
+        "sydney": "feature_s1_sydney_direction",
+        "asian": "feature_a2_asian_direction",
+        "london": "feature_b2_london_direction",
+        "ny": None,
+    }.get(next_session)
+
+    next_range_key = {
+        "sydney": "feature_s0_range_sydney_pips",
+        "asian": "feature_a1_range_asian_pips",
+        "london": "feature_b1_range_london_pips",
+        "ny": "ny_range_pips",
+    }.get(next_session, "ny_range_pips")
+
+    def _infer_type_from_row(row: Dict[str, Any]) -> str:
+        prev_range = abs(_to_float(row.get(prev_range_key), 0.0))
+        base_range = max(abs(_to_float(row.get("ny_range_pips"), 0.0)), 1e-9)
+        ratio = prev_range / base_range
+        if ratio < 0.35:
+            return "CONTRACTION"
+        if ratio < 0.70:
+            return "RANGE"
+        body_ref = abs(_to_float(row.get("outcome_pips"), 0.0))
+        body_ratio = body_ref / max(prev_range, 1e-9)
+        return "REBALANCE" if body_ratio < 0.30 else "EXPANSION"
+
+    def _infer_pattern_from_row(row: Dict[str, Any]) -> str:
+        scenario = str(row.get("scenario", "E")).upper()
+        outcome = _to_float(row.get("outcome_pips"), 0.0)
+        if scenario == "D":
+            return "DOUBLE_LIQ"
+        if scenario in {"B", "C"}:
+            return "CLEAN_BREAK_UP" if outcome >= 0 else "CLEAN_BREAK_DOWN"
+        if scenario == "A":
+            return "NONE"
+        sweep = abs(_to_float(row.get("feature_c1_sweep_depth_pips"), 0.0))
+        if sweep > 0 and sweep >= max(8.0, abs(_to_float(row.get("ny_range_pips"), 0.0)) * 0.18):
+            return "SWEEP_HIGH" if outcome < 0 else "SWEEP_LOW"
+        return "NONE"
+
+    def _direction_sign_from_row(row: Dict[str, Any]) -> int:
+        if next_dir_key:
+            direct = int(_to_float(row.get(next_dir_key), 0))
+            if direct != 0:
+                return direct
+        bias = str(row.get("bias_direction", "")).upper()
+        if "BULL" in bias or "LONG" in bias:
+            return 1
+        if "BEAR" in bias or "SHORT" in bias:
+            return -1
+        return _sign(_to_float(row.get("outcome_pips"), 0.0))
+
+    filtered = list(rows)
+    if prev_type:
+        filtered_by_type = [r for r in filtered if _infer_type_from_row(r) == prev_type]
+        if len(filtered_by_type) >= 12:
+            filtered = filtered_by_type
+    if prev_pattern and prev_pattern != "NONE":
+        filtered_by_pattern = [r for r in filtered if _infer_pattern_from_row(r) == prev_pattern]
+        if len(filtered_by_pattern) >= 10:
+            filtered = filtered_by_pattern
+
+    if len(filtered) < 8:
+        filtered = list(rows)
+
+    matching = []
+    for row in filtered:
+        verified = bool(row.get("scenario_verified", False))
+        outcome = _to_float(row.get("outcome_pips", 0.0))
+        direction_sign = _direction_sign_from_row(row)
+        target_range = abs(_to_float(row.get(next_range_key), 0.0))
+        matching.append((direction_sign, verified, outcome, target_range))
+
+    if not matching:
+        return {"direction": "UNKNOWN", "confidence": 0, "samples": 0, "avg_outcome_pips": 0.0}
+
+    n = len(matching)
+    bullish = sum(1 for s, v, o, t in matching if s > 0)
+    bearish = sum(1 for s, v, o, t in matching if s < 0)
+    verified_count = sum(1 for s, v, o, t in matching if v)
+    avg_out = sum(o for s, v, o, t in matching) / n
+    avg_target = sum(t for s, v, o, t in matching if t > 0) / max(1, sum(1 for s, v, o, t in matching if t > 0))
+
+    if bullish >= bearish:
+        direction = "BULLISH"
+        confidence = round((bullish / n) * 100)
+    else:
+        direction = "BEARISH"
+        confidence = round((bearish / n) * 100)
+
+    return {
+        "direction": direction,
+        "confidence": confidence,
+        "samples": n,
+        "avg_outcome_pips": round(avg_out, 2),
+        "target_pips_expected": round(avg_target, 1),
+        "bull_pct": round((bullish / n) * 100),
+        "bear_pct": round((bearish / n) * 100),
+        "verified_rate": round((verified_count / n) * 100) if n else 0,
+    }
+
+
+def _build_session_cards_for_day(
+    rome_day: str,
+    asset: str,
+    candles: List[Dict[str, Any]],
+    atr_weekly: float,
+    history_rows: List[Dict[str, Any]],
+    now_rome: datetime,
+) -> List[Dict[str, Any]]:
+    """Build per-session classification cards for a given day + asset."""
+    today = rome_day == now_rome.date().isoformat()
+    now_minute = _minute_of_day(now_rome) if today else 99999
+    cards = []
+
+    for i, sess in enumerate(_SESSION_ORDER):
+        sliced = _slice_session(candles, sess)
+        start_m, end_m = SESSION_WINDOWS[sess]
+
+        # Determine live status
+        if today:
+            if now_minute < start_m:
+                status = "upcoming"
+            elif now_minute <= end_m:
+                status = "live"
+            else:
+                status = "completed"
+        else:
+            status = "completed"
+
+        if not sliced:
+            if status == "upcoming":
+                # Build prediction for upcoming session
+                prev_type = cards[-1]["session_type"] if cards else None
+                prev_pattern = cards[-1]["pattern"] if cards else None
+                pred = _session_prediction(sess, prev_type, prev_pattern, history_rows)
+                cards.append({
+                    "session": sess,
+                    "label": _SESSION_LABELS[sess],
+                    "flag": _SESSION_FLAGS[sess],
+                    "status": "upcoming",
+                    "session_type": None,
+                    "pattern": None,
+                    "direction": None,
+                    "open": None, "close": None, "high": None, "low": None,
+                    "range_pips": None,
+                    "atr_ratio_pct": None,
+                    "candle_count": 0,
+                    "prediction": pred,
+                })
+            continue
+
+        stats = _session_stats(sliced)
+        pip_mult = _pip_multiplier(asset)
+        rng_pips = stats["range"] * pip_mult
+        atr_weekly_pips = atr_weekly * pip_mult
+
+        sess_type = _classify_session_type(
+            stats["range"], atr_weekly, stats["open"] or 0.0,
+            stats["close"] or 0.0, stats["high"] or 0.0, stats["low"] or 0.0
+        )
+        pattern = _detect_session_pattern(sliced, stats["high"] or 0.0, stats["low"] or 0.0)
+        atr_ratio = round((stats["range"] / atr_weekly * 100), 1) if atr_weekly > 0 else 0.0
+        direction_label = _direction_label(stats["direction"])
+
+        # Prediction only for upcoming session (next after this one)
+        prediction = None
+        if status in ("completed", "live") and i < len(_SESSION_ORDER) - 1:
+            next_sess = _SESSION_ORDER[i + 1]
+            next_start_m = SESSION_WINDOWS[next_sess][0]
+            is_next_upcoming = today and now_minute < next_start_m
+            if is_next_upcoming:
+                prediction = _session_prediction(next_sess, sess_type, pattern, history_rows)
+
+        cards.append({
+            "session": sess,
+            "label": _SESSION_LABELS[sess],
+            "flag": _SESSION_FLAGS[sess],
+            "status": status,
+            "session_type": sess_type,
+            "pattern": pattern,
+            "direction": direction_label,
+            "open": round(stats["open"] or 0.0, 5),
+            "close": round(stats["close"] or 0.0, 5),
+            "high": round(stats["high"] or 0.0, 5),
+            "low": round(stats["low"] or 0.0, 5),
+            "range_pips": round(rng_pips, 1),
+            "atr_ratio_pct": atr_ratio,
+            "candle_count": stats["count"],
+            "prediction": prediction,
+        })
+
+    return cards
+
+
+def get_session_pipeline(asset: str = "EURUSD", days_history: int = 7) -> Dict[str, Any]:
+    """
+    Returns per-session classification for today + last N days.
+    Each day has 4 session cards (Sydney/Asian/London/NY) with:
+      - session_type: CONTRACTION / RANGE / EXPANSION / REBALANCE
+      - pattern: SWEEP_HIGH / SWEEP_LOW / DOUBLE_LIQ / CLEAN_BREAK_UP/DOWN / NONE
+      - direction: LONG / SHORT / NEUTRAL
+      - range_pips, atr_ratio_pct
+      - prediction: for the next upcoming session (only for today)
+    """
+    safe_asset = str(asset or "EURUSD").upper().strip()
+    safe_days = max(1, min(int(days_history or 7), 14))
+    stats_lookback_days = 30
+
+    now_rome = datetime.now(ROME_TZ)
+    today_str = now_rome.date().isoformat()
+    cache_key = (safe_asset, safe_days, today_str)
+
+    # Check cache
+    cache_ts = _PIPELINE_CACHE.get("ts")
+    cache_payload = _PIPELINE_CACHE.get("payload")
+    if isinstance(cache_ts, datetime) and isinstance(cache_payload, dict):
+        age = (datetime.now(timezone.utc) - cache_ts).total_seconds()
+        if age < _PIPELINE_CACHE_TTL and _PIPELINE_CACHE.get("key") == cache_key:
+            return cache_payload
+
+    # Collect days to process: enough for requested output + 30d stats
+    needed_days = max(safe_days, stats_lookback_days)
+    days_to_process: List[str] = []
+    target = now_rome.date()
+    for offset in range(90):
+        day = target - timedelta(days=offset)
+        if day.weekday() >= 5:
+            continue
+        days_to_process.append(day.isoformat())
+        if len(days_to_process) >= needed_days:
+            break
+    days_to_process = sorted(days_to_process)
+
+    # Load historical rows for prediction context
+    history_rows = _load_rows() or []
+    asset_rows = [r for r in history_rows if str(r.get("asset", "")).upper() == safe_asset]
+
+    # Fetch candles for each day
+    daily_cards_all: List[Dict[str, Any]] = []
+    for rome_day in days_to_process:
+        # Try 5m summaries first
+        day_summaries = _summaries_for_day(rome_day)
+        if day_summaries:
+            by_asset = _build_candles_by_asset(day_summaries)
+            candles = by_asset.get(safe_asset, [])
+        else:
+            # Fallback: yfinance
+            candles = _fetch_market_candles_for_day(rome_day, safe_asset)
+
+        if not candles:
+            continue
+
+        atr_weekly = _weekly_atr(candles)
+        cards = _build_session_cards_for_day(
+            rome_day, safe_asset, candles, atr_weekly, asset_rows, now_rome
+        )
+        if cards:
+            daily_cards_all.append({
+                "rome_day": rome_day,
+                "weekday": WEEKDAY_EN[datetime.fromisoformat(rome_day).weekday()],
+                "sessions": cards,
+                "atr_weekly_pips": round(atr_weekly * _pip_multiplier(safe_asset), 1),
+            })
+
+    days_payload = daily_cards_all[-safe_days:] if safe_days > 0 else daily_cards_all
+    today_payload = next((d for d in reversed(daily_cards_all) if d.get("rome_day") == today_str), None)
+    if today_payload is None and days_payload:
+        today_payload = days_payload[-1]
+
+    # Current + next session info
+    now_minute = _minute_of_day(now_rome)
+    current_session = None
+    next_session = None
+    for idx, sess in enumerate(_SESSION_ORDER):
+        start_m, end_m = SESSION_WINDOWS[sess]
+        if start_m <= now_minute < end_m:
+            current_session = sess
+            if idx < len(_SESSION_ORDER) - 1:
+                next_session = _SESSION_ORDER[idx + 1]
+            break
+    if current_session is None:
+        # Before first session, point to Sydney. After NY close, next is next-day Sydney.
+        for sess in _SESSION_ORDER:
+            start_m, _end_m = SESSION_WINDOWS[sess]
+            if now_minute < start_m:
+                next_session = sess
+                break
+        if next_session is None:
+            next_session = _SESSION_ORDER[0]
+
+    # Session type statistics (last 30 days per session)
+    session_stats: Dict[str, Dict[str, Any]] = {}
+    for d in daily_cards_all[-stats_lookback_days:]:
+        for card in d.get("sessions", []):
+            sess = card.get("session")
+            stype = card.get("session_type")
+            if not sess or not stype:
+                continue
+            if sess not in session_stats:
+                session_stats[sess] = {"CONTRACTION": 0, "RANGE": 0, "EXPANSION": 0, "REBALANCE": 0, "total": 0}
+            session_stats[sess][stype] = session_stats[sess].get(stype, 0) + 1
+            session_stats[sess]["total"] += 1
+
+    # Compute percentages
+    session_type_pct: Dict[str, Dict[str, float]] = {}
+    for sess, counts in session_stats.items():
+        total = max(int(counts.get("total", 0)), 1)
+        session_type_pct[sess] = {
+            k: round((v / total) * 100, 1)
+            for k, v in counts.items()
+            if k != "total"
+        }
+
+    payload = {
+        "status": "ok",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "asset": safe_asset,
+        "rome_now": now_rome.strftime("%H:%M"),
+        "current_session": current_session,
+        "next_session": next_session,
+        "days": days_payload,
+        "today": today_payload,
+        "session_type_stats_30d": session_type_pct,
+    }
+
+    _PIPELINE_CACHE["ts"] = datetime.now(timezone.utc)
+    _PIPELINE_CACHE["key"] = cache_key
+    _PIPELINE_CACHE["payload"] = payload
+    return payload
+
+
 def run_recent_session_backfill(days: int = 3) -> Dict[str, Any]:
+
     safe_days = max(1, min(int(days or 3), 14))
     end_day = _last_closed_rome_day()
     results: List[Dict[str, Any]] = []
