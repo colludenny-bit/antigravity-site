@@ -548,19 +548,46 @@ const formatStrikeLevel = (value) => {
 const TRADINGVIEW_MINI_SYMBOL = {
   XAUUSD: 'OANDA:XAUUSD',
   NAS100: 'CAPITALCOM:US100',
+  US100: 'CAPITALCOM:US100',
   SP500: 'CAPITALCOM:US500',
+  US500: 'CAPITALCOM:US500',
   DOW: 'CAPITALCOM:US30',
+  US30: 'CAPITALCOM:US30',
   EURUSD: 'OANDA:EURUSD',
-  BTCUSD: 'BINANCE:BTCUSDT'
+  BTCUSD: 'BINANCE:BTCUSDT',
+  BTCUSDT: 'BINANCE:BTCUSDT'
 };
 const TV_CANDLE_UP = '#22c55e';
 const TV_CANDLE_DOWN = '#ef4444';
+const TV_BULL_GOLD = '#E3C98A';
+const TV_PRICE_PURPLE = '#A78BFA';
 
 const buildTradingViewMiniUrl = (assetSymbol, { interval = '15', interactive = false } = {}) => {
-  const tvSymbol = TRADINGVIEW_MINI_SYMBOL[assetSymbol];
+  const normalizedSymbol = String(assetSymbol || '').toUpperCase();
+  const tvSymbol = TRADINGVIEW_MINI_SYMBOL[normalizedSymbol];
   if (!tvSymbol) return null;
+  const fixedInterval = '5';
   const overrides = {
-    "mainSeriesProperties.style": 1,
+    "mainSeriesProperties.style": 2,
+    "mainSeriesProperties.lineStyle.color": TV_PRICE_PURPLE,
+    "mainSeriesProperties.lineStyle.linewidth": 2,
+    "mainSeriesProperties.lineStyle.priceSource": "close",
+    "mainSeriesProperties.priceLineColor": TV_PRICE_PURPLE,
+    "mainSeriesProperties.showPriceLine": true,
+    "mainSeriesProperties.statusViewStyle.symbolTextSource": "description",
+    "scalesProperties.textColor": "#E8EDF3",
+    "scalesProperties.showSeriesLastValue": false,
+    "scalesProperties.showSymbolLabels": false,
+    "paneProperties.legendProperties.showSeriesTitle": false,
+    "paneProperties.legendProperties.showSeriesOHLC": false,
+    "paneProperties.legendProperties.showBarChange": false,
+    "paneProperties.backgroundType": "solid",
+    "paneProperties.background": "#0B0F17",
+    "paneProperties.vertGridProperties.color": "rgba(0, 0, 0, 0)",
+    "paneProperties.vertGridProperties.style": 0,
+    "paneProperties.horzGridProperties.color": "rgba(0, 0, 0, 0)",
+    "paneProperties.horzGridProperties.style": 0,
+    "paneProperties.rightOffset": 14,
     "mainSeriesProperties.candleStyle.upColor": TV_CANDLE_UP,
     "mainSeriesProperties.candleStyle.downColor": TV_CANDLE_DOWN,
     "mainSeriesProperties.candleStyle.drawWick": true,
@@ -570,32 +597,44 @@ const buildTradingViewMiniUrl = (assetSymbol, { interval = '15', interactive = f
     "mainSeriesProperties.candleStyle.borderUpColor": TV_CANDLE_UP,
     "mainSeriesProperties.candleStyle.borderDownColor": TV_CANDLE_DOWN
   };
+  const studiesOverrides = {
+    "VolumeWeightedAveragePrice.plot.color": "#FFD166",
+    "VolumeWeightedAveragePrice.plot.linewidth": 2,
+    "Volume Weighted Average Price.plot.color": "#FFD166",
+    "Volume Weighted Average Price.plot.linewidth": 2,
+    "VolumeWeightedMovingAverage.plot.color": "#7DD3FC",
+    "VolumeWeightedMovingAverage.plot.linewidth": 2
+  };
   const params = new URLSearchParams({
     symbol: tvSymbol,
-    interval,
+    interval: fixedInterval,
     hidesidetoolbar: interactive ? '0' : '1',
+    hide_top_toolbar: interactive ? '0' : '1',
+    hide_legend: interactive ? '0' : '1',
+    hide_volume: interactive ? '0' : '1',
+    hidevolume: interactive ? '0' : '1',
     symboledit: interactive ? '1' : '0',
     saveimage: interactive ? '1' : '0',
     toolbarbg: interactive ? '0f1720' : 'f1f3f6',
-    studies: '[]',
+    studies: '["VolumeWeightedAveragePrice@tv-basicstudies","VWAP@tv-basicstudies","VolumeWeightedMovingAverage@tv-basicstudies"]',
     theme: 'dark',
-    style: '1',
+    style: '2',
     timezone: 'exchange',
     withdateranges: interactive ? '1' : '0',
     showpopupbutton: interactive ? '1' : '0',
-    studies_overrides: '{}',
+    studies_overrides: JSON.stringify(studiesOverrides),
     overrides: JSON.stringify(overrides),
     locale: 'it'
   });
   return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
 };
 
-const TradingViewMiniChart = ({ assetSymbol, title, interval = '15', interactive = false }) => {
+const TradingViewMiniChart = ({ assetSymbol, title, interval = '15', interactive = false, resetNonce = 0 }) => {
   const src = buildTradingViewMiniUrl(assetSymbol, { interval, interactive });
   if (!src) return null;
   return (
     <iframe
-      key={assetSymbol}
+      key={`${assetSymbol}-${resetNonce}`}
       title={title || `tv-mini-${assetSymbol}`}
       src={src}
       style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
@@ -650,7 +689,9 @@ const AssetChartPanel = ({
   const [chartLineColor, setChartLineColor] = useState(() => localStorage.getItem('dashboard_chartLineColor') || '#00D9A5');
   const [syncEnabled, setSyncEnabled] = useState(() => localStorage.getItem('dashboard_syncEnabled') === 'true');
   const [mobileChartIndex, setMobileChartIndex] = useState(0);
+  const [tvResetNonce, setTvResetNonce] = useState(0);
   const isMobile = useIsMobile();
+  const tvResetTimerRef = useRef(null);
   const safeAssets = useMemo(
     () => (Array.isArray(assets)
       ? assets.filter((asset) => asset && typeof asset === 'object' && typeof asset.symbol === 'string' && asset.symbol.trim() !== '')
@@ -734,6 +775,12 @@ const AssetChartPanel = ({
   useEffect(() => {
     localStorage.setItem('dashboard_chartLineColor', chartLineColor);
   }, [chartLineColor]);
+
+  useEffect(() => {
+    return () => {
+      if (tvResetTimerRef.current) clearTimeout(tvResetTimerRef.current);
+    };
+  }, []);
 
   // Filter to show only favorite charts in grid
   const visibleAssets = useMemo(() => {
@@ -966,13 +1013,7 @@ const AssetChartPanel = ({
     const confidence = Math.round(toFiniteNumber(deepAsset?.confidence, 0));
     const priceText = formatAssetPrice(deepAsset?.price, symbol);
     const vixValue = Number(vix?.current);
-    const vixText = Number.isFinite(vixValue) ? vixValue.toFixed(2) : 'n/d';
     const regimeKey = String(regime || 'neutral').toLowerCase();
-    const regimeText = regimeKey === 'risk-on'
-      ? 'risk-on'
-      : regimeKey === 'risk-off'
-        ? 'risk-off'
-        : 'neutrale';
     const structuralRisk = Math.max(
       Number.isFinite(vixValue) ? (vixValue >= 24 ? 78 : vixValue >= 20 ? 58 : vixValue >= 16 ? 42 : 30) : 0,
       regimeKey === 'risk-off' ? 72 : regimeKey === 'risk-on' ? 36 : 48
@@ -1149,11 +1190,15 @@ const AssetChartPanel = ({
     } else if (macroRiskWindow) {
       macroWeeklyLabel = `${biasToText(macroBias)} con finestra macro sensibile`;
     }
+    const cotBiasLabel = cotBias === 'BULLISH' ? 'long' : cotBias === 'BEARISH' ? 'short' : 'neutrale';
+    const cotLine = `COT bias settimanale ${cotBiasLabel}.`;
     const weeklyStatsLine = `Statistica weekly COT/Breadth/Macro-News: COT ${biasToText(cotBias)}, breadth ${biasToText(breadthBias)}, macro-news ${macroWeeklyLabel}.`;
 
-    return `${assetLabel}: bias intraday ${biasToText(dailyCompositeBias)} al ${confidence}%, rischio ${riskLabel} (VIX ${vixText}, regime ${regimeText}). Bias settimanale ${biasToText(generalBias)}.
+    return `${assetLabel}: bias intraday ${biasToText(dailyCompositeBias)} al ${confidence}%.
+Rischio ${riskLabel}. Bias settimanale ${biasToText(generalBias)}.
 
 ${flowSignalLine}
+${cotLine}
 Driver intraday essenziali: ${optionsLine} ${gexLine} Quadro attuale a ${convergenceText} tra i driver di giornata.
 
 ${weeklyStatsLine}
@@ -1178,19 +1223,23 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
 
     const selectedLines = [];
     const leadLine = candidates[0];
+    const riskLine = candidates.find((line) => /^rischio/i.test(line));
+    const cotLine = candidates.find((line) => /^cot bias settimanale/i.test(line));
     const weeklyLine = candidates.find((line) => /^bias settimanale/i.test(line));
     const flowLine = candidates.find((line) => /flusso opzioni|gex/i.test(line));
 
     if (leadLine) selectedLines.push(leadLine);
-    if (weeklyLine && !selectedLines.includes(weeklyLine)) selectedLines.push(weeklyLine);
+    if (riskLine && !selectedLines.includes(riskLine)) selectedLines.push(riskLine);
     if (flowLine && !selectedLines.includes(flowLine)) selectedLines.push(flowLine);
+    if (cotLine && !selectedLines.includes(cotLine)) selectedLines.push(cotLine);
+    if (weeklyLine && !selectedLines.includes(weeklyLine)) selectedLines.push(weeklyLine);
 
     for (const line of candidates) {
-      if (selectedLines.length >= 3) break;
+      if (selectedLines.length >= 4) break;
       if (!selectedLines.includes(line)) selectedLines.push(line);
     }
 
-    const compactLines = selectedLines.slice(0, 3).map((line) => (
+    const compactLines = selectedLines.slice(0, 4).map((line) => (
       line.length > 220 ? `${line.slice(0, 217).trimEnd()}...` : line
     ));
 
@@ -1199,60 +1248,12 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
   }, [deepInsightNarrative, screeningFocusFallbackNarrative]);
 
   const quickMetrics = useMemo(() => {
-    const biasFromText = (raw) => {
-      const txt = String(raw || '').toUpperCase();
-      if (txt.includes('BULL')) return 'rialzista';
-      if (txt.includes('BEAR')) return 'ribassista';
-      return 'neutrale';
-    };
+    const weekText = String(weekRule?.description || 'Poco direzionale').toLowerCase();
+    const dayText = String(dayRule?.note || 'Espansione in ribilanciamento').toLowerCase();
+    const context = `Settimana ${weekText}; ${dayText}. Possibili falsi breakout prima della direzione piena.`;
 
-    const optionsNode = currentAsset ? (optionsData?.[currentAsset.symbol] || null) : null;
-    const gexProfile = Array.isArray(optionsNode?.gex_profile) ? optionsNode.gex_profile : [];
-    const gexNet = gexProfile.reduce((acc, row) => acc + toFiniteNumber(row?.net, 0), 0);
-
-    const optionsBias = optionsNode ? biasFromText(optionsNode?.bias) : null;
-    const gexBias = gexProfile.length > 0 ? (gexNet > 0 ? 'rialzista' : gexNet < 0 ? 'ribassista' : 'neutrale') : null;
-
-    const context = (() => {
-      if (optionsBias && gexBias) {
-        if (optionsBias === gexBias && optionsBias !== 'neutrale') return `Opzioni e GEX ${optionsBias}`;
-        return `Opzioni ${optionsBias} · GEX ${gexBias}`;
-      }
-      const regimeKey = String(regime || '').toLowerCase();
-      if (regimeKey === 'risk-on') return 'Risk-on';
-      if (regimeKey === 'risk-off') return 'Risk-off';
-      return 'In sviluppo';
-    })();
-
-    const volatility = (() => {
-      const volScore = Number(currentAsset?.scores?.volatility);
-      if (Number.isFinite(volScore)) {
-        if (volScore >= 65) return 'Alta';
-        if (volScore >= 45) return 'Media';
-        return 'Bassa';
-      }
-      const vixValue = Number(vix?.current);
-      if (Number.isFinite(vixValue)) {
-        if (vixValue >= 24) return 'Alta';
-        if (vixValue >= 18) return 'Media';
-        return 'Bassa';
-      }
-      return 'Bassa';
-    })();
-
-    const impulse = (() => {
-      const direction = String(currentAsset?.direction || '').toLowerCase();
-      if (direction === 'up' || direction === 'down') return 'Prosegue';
-      return 'Neutro';
-    })();
-
-    const regimeLabel = (() => {
-      const direction = String(currentAsset?.direction || '').toLowerCase();
-      return direction === 'up' || direction === 'down' ? 'Trend' : 'Range';
-    })();
-
-    return { context, volatility, impulse, regime: regimeLabel };
-  }, [currentAsset, optionsData, regime, vix?.current]);
+    return { context };
+  }, [weekRule?.description, dayRule?.note]);
 
   const chartColors = ['#00D9A5', '#8B5CF6', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899'];
 
@@ -1260,6 +1261,13 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
     setSelectedAsset(symbol);
     setViewMode('focus');
   };
+
+  const scheduleChartAutoReset = useCallback(() => {
+    if (tvResetTimerRef.current) clearTimeout(tvResetTimerRef.current);
+    tvResetTimerRef.current = setTimeout(() => {
+      setTvResetNonce((prev) => prev + 1);
+    }, 5 * 60 * 1000);
+  }, []);
 
   if (!currentAsset) {
     return (
@@ -1370,25 +1378,15 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
           showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
         )}
       >
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-5 relative">
           <div className="relative flex items-center gap-2">
-            <div className="flex items-center gap-3 select-none">
-              <div className={cn(
-                "p-2 rounded-lg border transition-all",
-                viewMode === 'focus'
-                  ? "bg-[#00D9A5]/10 border-[#00D9A5]/20 font-bold"
-                  : "bg-white/5 border-white/10 dark:bg-white/5 dark:border-white/10"
-              )}>
-                <BarChart3 className="w-5 h-5 text-[#00D9A5]" />
-              </div>
+            <div className="flex items-center gap-2.5 select-none">
+              <BarChart3 className="w-5 h-5 text-[#00D9A5]" />
               <div className="text-left">
                 <div className="flex items-center gap-2">
-                  <h4 className={cn(
-                    "text-lg font-bold transition-colors select-none",
-                    viewMode === 'focus' ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-white/80"
-                  )}>
-                    {viewMode === 'focus' ? 'Screening' : 'Screening'}
-                  </h4>
+                  <span className="text-[17px] font-bold text-white/95 tracking-tight font-apple">
+                    Screening
+                  </span>
                   {/* Info Button */}
                   <button
                     onClick={() => setShowInfo(!showInfo)}
@@ -1398,6 +1396,14 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
+            <div className="px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl shadow-sm flex items-center justify-center mt-[-2px]">
+              <span className="font-apple text-[14px] sm:text-[15px] font-semibold text-white/95 tracking-[0.06em] uppercase leading-none">
+                {currentAsset?.symbol}
+              </span>
             </div>
           </div>
 
@@ -1664,104 +1670,90 @@ ${correlationLine ? `${correlationLine}\n` : ''}${newsLine}`;
               exit={{ opacity: 0, x: -10 }}
               className="animate-in fade-in slide-in-from-bottom-2 duration-[800ms] min-h-[364px] lg:min-h-[403px]"
             >
-		              <div className="relative">
-	                <div className={cn(
-	                  "space-y-3 transition-all duration-200",
-	                  showDeepInsight && "blur-[6px] opacity-25 pointer-events-none select-none"
-	                )}>
-                <div className="w-full aspect-[16/7] rounded-2xl overflow-hidden border border-white/10 bg-[#0B0F17]">
-                  {animationsReady ? (
-                    <TradingViewMiniChart
-                      assetSymbol={currentAsset.symbol}
-                      title={`tv-focus-${currentAsset.symbol}`}
-                      interval="15"
-                      interactive
-                    />
-                  ) : (
-                    <div className="w-full h-full rounded-lg bg-white/5 animate-pulse" />
-                  )}
-                </div>
+              <div className="relative">
+                <div className={cn(
+                  "space-y-3 transition-all duration-200",
+                  showDeepInsight && "blur-[6px] opacity-25 pointer-events-none select-none"
+                )}>
+                  <div
+                    className="relative w-full aspect-[16/7.5] rounded-2xl overflow-hidden border-x border-y border-x-white/10 border-y-white/5 bg-[#0B0F17]"
+                    onMouseEnter={scheduleChartAutoReset}
+                    onMouseDown={scheduleChartAutoReset}
+                    onWheel={scheduleChartAutoReset}
+                    onTouchStart={scheduleChartAutoReset}
+                  >
 
-			                <div className="relative rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3 font-apple">
-		                  <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-start">
-		                    <p className="text-[16px] font-medium text-white/95 leading-relaxed tracking-[0.01em] whitespace-pre-line">
-		                      <TypewriterText text={screeningFocusNarrative} speed={18} delay={400} />
-		                    </p>
-		                    <div className="min-w-[170px] font-apple justify-self-end">
-		                      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-white/95 mb-2">
-		                        Metriche rapide
-		                      </p>
-		                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                        <div className="col-span-2">
-                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Contesto</p>
-                          <p className="text-[13px] leading-snug font-semibold text-[#00D9A5]">
-                            {quickMetrics.context}
-                          </p>
+                    {animationsReady ? (
+                      <TradingViewMiniChart
+                        assetSymbol={currentAsset.symbol}
+                        title={`tv-focus-${currentAsset.symbol}`}
+                        interval="15"
+                        interactive={false}
+                        resetNonce={tvResetNonce}
+                      />
+                    ) : (
+                      <div className="w-full h-full rounded-lg bg-white/5 animate-pulse" />
+                    )}
+                  </div>
+
+                  <div className="relative rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3 font-apple shadow-[0_10px_24px_rgba(0,0,0,0.22)]">
+                    <div className="pointer-events-none absolute left-0 top-[2px] bottom-[2px] w-[2px] bg-[#D1D5DB] rounded-tl-[16px] rounded-bl-[16px] rounded-tr-[2px] rounded-br-[2px]" />
+                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 items-start">
+                      <p className="text-[16px] font-medium text-white/95 leading-relaxed tracking-[0.01em] whitespace-pre-line">
+                        <TypewriterText text={screeningFocusNarrative} speed={18} delay={400} />
+                      </p>
+                      <div className="min-w-0 lg:w-[244px] lg:max-w-[244px] justify-self-end font-apple">
+                        <p className="text-[16px] leading-none font-semibold tracking-[0.01em] text-white/92 mb-2">
+                          Contesto
+                        </p>
+                        <p className="text-[15px] leading-[1.45] font-normal antialiased whitespace-normal break-words text-[#00D9A5]">
+                          {quickMetrics.context}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeepInsight((prev) => !prev)}
+                      className="relative z-10 mt-3 w-full inline-flex items-center justify-between h-8 px-3 rounded-[8px] border border-[#00D9A5]/45 bg-[#0E221F]/75 text-[#7EF8DB] text-[12px] font-semibold uppercase tracking-[0.12em] shadow-[0_0_14px_rgba(0,217,165,0.18)] hover:bg-[#12312C]/80 transition-colors"
+                    >
+                      <span>Deep Insight - Analisi Tecnica</span>
+                      {showDeepInsight ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <AnimatePresence>
+                  {showDeepInsight && (
+                    <motion.div
+                      initial={dashboardInitial({ opacity: 0, y: 6 })}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute inset-0 z-30 rounded-2xl bg-[#05080D]/72 backdrop-blur-[8px] p-3"
+                    >
+                      <div className="h-full rounded-xl border border-[#00D9A5]/22 bg-[#0F1118]/98 px-4 py-3 overflow-y-auto no-scrollbar font-apple text-[17px]">
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="text-[17px] font-semibold tracking-[0.01em] text-[#7EF8DB]">Deep Insight - Analisi Tecnica</p>
+                          <button
+                            type="button"
+                            onClick={() => setShowDeepInsight(false)}
+                            className="text-[17px] font-medium text-white/80 hover:text-white transition-colors"
+                          >
+                            Chiudi
+                          </button>
                         </div>
-		                        <div>
-		                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Volatilita</p>
-		                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
-		                            {quickMetrics.volatility}
-		                          </p>
-		                        </div>
-		                        <div>
-		                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Impulso</p>
-		                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
-		                            {quickMetrics.impulse}
-		                          </p>
-		                        </div>
-		                        <div>
-		                          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-white/95">Regime</p>
-		                          <p className="text-[17px] leading-none font-semibold text-[#00D9A5]">
-		                            {quickMetrics.regime}
-		                          </p>
-		                        </div>
-			                      </div>
-			                    </div>
-		                  </div>
-		                  <button
-		                    type="button"
-		                    onClick={() => setShowDeepInsight((prev) => !prev)}
-		                    className="relative z-10 mt-3 w-full inline-flex items-center justify-between h-8 px-3 rounded-[8px] border border-[#00D9A5]/45 bg-[#0E221F]/75 text-[#7EF8DB] text-[12px] font-semibold uppercase tracking-[0.12em] shadow-[0_0_14px_rgba(0,217,165,0.18)] hover:bg-[#12312C]/80 transition-colors"
-		                  >
-		                    <span>Deep Insight - Analisi Tecnica</span>
-		                    {showDeepInsight ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-		                  </button>
-			                </div>
-	                </div>
-			                <AnimatePresence>
-			                  {showDeepInsight && (
-			                    <motion.div
-			                      initial={dashboardInitial({ opacity: 0, y: 6 })}
-			                      animate={{ opacity: 1, y: 0 }}
-			                      exit={{ opacity: 0, y: 4 }}
-			                      className="absolute inset-0 z-30 rounded-2xl bg-[#05080D]/72 backdrop-blur-[8px] p-3"
-			                    >
-			                      <div className="h-full rounded-xl border border-[#00D9A5]/22 bg-[#0F1118]/98 px-4 py-3 overflow-y-auto font-apple text-[17px]">
-			                        <div className="mb-2 flex items-center justify-between">
-			                          <p className="text-[17px] font-semibold tracking-[0.01em] text-[#7EF8DB]">Deep Insight - Analisi Tecnica</p>
-			                          <button
-			                            type="button"
-			                            onClick={() => setShowDeepInsight(false)}
-			                            className="text-[17px] font-medium text-white/80 hover:text-white transition-colors"
-			                          >
-			                            Chiudi
-			                          </button>
-			                        </div>
-			                        <p className="text-[17px] font-medium text-white/92 leading-relaxed whitespace-pre-line tracking-[0.01em]">
-			                          {deepInsightNarrative}
-			                        </p>
-			                      </div>
-			                    </motion.div>
-			                  )}
-			                </AnimatePresence>
-		              </div>
-		            </motion.div>
-	          )}
-	        </AnimatePresence>
-	      </div>
-	    </TechCard >
-	  );
+                        <p className="text-[17px] font-medium text-white/92 leading-relaxed whitespace-pre-line tracking-[0.01em]">
+                          {deepInsightNarrative}
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </TechCard >
+  );
 };
 
 const MarketBreadthPanel = ({ breadthData, vix, className = '' }) => {
@@ -2635,9 +2627,9 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
   }, [model]);
 
   const radarChart = useMemo(() => {
-    const size = compact ? 380 : 500;
+    const size = compact ? 310 : 500;
     const center = size / 2;
-    const radius = compact ? 155 : 214;
+    const radius = compact ? 125 : 214;
     const labelRadius = radius + (compact ? 12 : 14);
     const ringLevels = [0.2, 0.4, 0.6, 0.8, 1];
     const axisCount = radarAxes.length;
@@ -2705,19 +2697,19 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
             ? 'Sentiment difensivo: meglio setup selettivi e gestione stretta del rischio.'
             : 'Sentiment neutrale: privilegia setup bilanciati e conferme multiple.';
 
-    const regimeLine = regime === 'risk-on'
-      ? `Regime RISK ON con VIX ${vixCurrentValue.toFixed(1)}: contesto pro-ciclico finche la volatilita resta compressa.`
-      : regime === 'risk-off'
-        ? `Regime RISK OFF con VIX ${vixCurrentValue.toFixed(1)}: ridurre size e aumentare la selettivita degli ingressi.`
-        : `Regime neutrale con VIX ${vixCurrentValue.toFixed(1)}: operativita tattica, meglio evitare esposizioni sbilanciate.`;
+    const insightLine = model.drivers.conviction >= 70
+      ? 'Convinzione istituzionale solida: il sentiment attuale è supportato da flussi armonici.'
+      : model.drivers.conviction <= 35
+        ? 'Bassa convinzione: il sentiment attuale manca di un supporto istituzionale netto.'
+        : 'Partecipazione moderata: il sentiment è in fase di assestamento senza eccessi di flusso.';
 
-    const riskLine = model.riskPressure >= 66
-      ? `Pressione rischio alta (${model.riskPressure}%): stop piu stretti e leva contenuta.`
-      : model.riskPressure >= 45
-        ? `Pressione rischio moderata (${model.riskPressure}%): mantenere disciplina su livelli e invalidazioni.`
-        : `Pressione rischio contenuta (${model.riskPressure}%): possibile aumentare gradualmente la size.`;
+    const dynamicLine = model.drivers.vix >= 80
+      ? 'Volatilità compressa: eccesso di autocompiacimento, monitorare spikes improvvisi.'
+      : model.drivers.vix <= 30
+        ? 'Volatilità estrema: panico elevato, possibile esaurimento della pressione di vendita.'
+        : 'Volatilità stabile: il mercato sta prezzando correttamente le incertezze attuali.';
 
-    return [sentimentLine, regimeLine, riskLine];
+    return [sentimentLine, insightLine, dynamicLine];
   }, [model.riskPressure, model.score, regime, vixCurrentValue]);
 
   return (
@@ -2819,7 +2811,7 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
         </div>
 
         <div className="relative">
-          <div className={cn("relative mx-auto flex justify-center items-center overflow-visible", compact ? "h-[320px] w-full max-w-[350px] -mt-1" : "h-[470px] w-full max-w-[500px]")}>
+          <div className={cn("relative mx-auto flex justify-center items-center overflow-visible", compact ? "h-[260px] w-full max-w-[320px] -mt-1" : "h-[470px] w-full max-w-[500px]")}>
             <svg
               className="h-full w-full overflow-visible"
               viewBox={`0 0 ${radarChart.size} ${radarChart.size}`}
@@ -2898,7 +2890,7 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
                   textAnchor={labelPoint.anchor}
                   dominantBaseline="middle"
                   fill="rgba(245,245,245,0.92)"
-                  fontSize={compact ? 17 : 19}
+                  fontSize={compact ? 18.5 : 21}
                   fontWeight="700"
                   letterSpacing="0.3"
                 >
@@ -2965,7 +2957,7 @@ const FearGreedPanel = React.memo(({ analyses, vix, regime, compact = true }) =>
           </div>
 
           <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2.5" : "mt-2.5 p-3")}>
-            <ul className={cn("text-white/85 space-y-1.5", compact ? "text-sm" : "text-[12px]")}>
+            <ul className="space-y-1.5 text-[16px] font-medium text-white/95 leading-relaxed tracking-[0.01em]">
               {fearSummaryLines.map((line, idx) => (
                 <li key={idx} className="flex items-start gap-2">
                   <span className={idx === 2 ? "text-[#FF99AF] mt-0.5" : "text-[#00D9A5] mt-0.5"}>•</span>
@@ -3112,14 +3104,13 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
   return (
     <TechCard className="dashboard-panel-glass-boost glass-edge panel-left-edge fine-gray-border p-4 h-full font-apple bg-[#0F1115] border-[#1C1F26] rounded-[32px] shadow-2xl relative flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 relative">
         <div className={cn(
           "flex items-center gap-2 transition-all duration-200",
           showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
         )}>
           <Users className="w-5 h-5 text-[#00D9A5]" />
           <span className="font-medium text-base text-white/90">COT Institutional</span>
-          {/* Info Button */}
           <div className="relative">
             <button
               onClick={() => setShowInfo(!showInfo)}
@@ -3127,6 +3118,14 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
             >
               <Info className="w-3 h-3 text-white" />
             </button>
+          </div>
+        </div>
+
+        <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
+          <div className="px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl shadow-sm flex items-center justify-center mt-[-2px]">
+            <span className="font-apple text-[14px] sm:text-[15px] font-semibold text-white/95 tracking-[0.06em] uppercase leading-none">
+              {currentSymbol || '-'}
+            </span>
           </div>
         </div>
 
@@ -3272,7 +3271,7 @@ const COTPanel = React.memo(({ cotData, favoriteCOT, onFavoriteCOTChange, animat
         {/* Left Stack Title & NetPos */}
         {/* Left Stack Title & NetPos - Big & Spaced */}
         <div className="flex flex-col items-start px-2 mb-2 shrink-0">
-          <h2 className="text-xl font-bold text-white leading-none mb-0.5">{currentSymbol || '-'}</h2>
+
           <div className="flex flex-col items-start mt-1">
             <span className="text-xs text-white/70 font-bold uppercase tracking-wider leading-none mb-1">Net Position</span>
             <span className={cn(
@@ -3505,7 +3504,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
         "transition-all duration-200",
         showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
       )}>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 relative">
           <div className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-[#00D9A5]" />
             <span className="font-medium text-base text-white/90">Options Flow</span>
@@ -3516,6 +3515,14 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
             >
               <Info className="w-3 h-3 text-white" />
             </button>
+          </div>
+
+          <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
+            <div className="px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl shadow-sm flex items-center justify-center mt-[-2px]">
+              <span className="font-apple text-[14px] sm:text-[15px] font-semibold text-white/95 tracking-[0.06em] uppercase leading-none">
+                {selectedAsset}
+              </span>
+            </div>
           </div>
           {/* Eye Icon Selector */}
           <div className="relative" onMouseLeave={() => setShowSelector(false)}>
@@ -3561,7 +3568,7 @@ const OptionsPanel = React.memo(({ animationsReady = false, selectedAsset: propA
 
         {/* Asset Name - Prominent Display */}
         <div className="flex items-center justify-between mb-1 px-2">
-          <span className="text-xl font-bold text-white">{selectedAsset}</span>
+
           <span className={cn(
             "px-2 py-1 rounded text-sm font-semibold",
             currentData.bias === 'bullish' ? "bg-[#00D9A5]/20 text-[#00D9A5]" :
@@ -3935,11 +3942,11 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
         "transition-all duration-200",
         showInfo && "blur-[8px] opacity-30 pointer-events-none select-none"
       )}>
-        <div className={cn("flex items-start justify-between px-1", compact ? "mb-2.5" : "mb-3")}>
+        <div className={cn("flex items-start justify-between px-1 relative", compact ? "mb-2.5" : "mb-3")}>
           <div className="flex flex-col items-start mt-[2px]">
             <div className="inline-flex items-center gap-2">
               <Gauge className="w-5 h-5 text-[#00D9A5]" />
-              <span className="font-medium text-base text-white/90">
+              <span className="font-semibold text-[15px] text-white/95 tracking-tight font-apple">
                 GEX 0DTE
               </span>
               <button
@@ -3949,12 +3956,20 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
                 <Info className="w-3 h-3 text-white" />
               </button>
             </div>
-            <span className="mt-1.5 font-apple text-xl font-bold leading-none text-white">{selectedAsset}</span>
           </div>
+
+          <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none mt-[2px]">
+            <div className="px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl shadow-sm flex items-center justify-center mt-[-4px]">
+              <span className="font-apple text-[14px] sm:text-[15px] font-semibold text-white/95 tracking-[0.06em] uppercase leading-none">
+                {selectedAsset}
+              </span>
+            </div>
+          </div>
+
           <div className="flex items-center gap-1.5">
             <span className={cn(
-              "inline-flex items-center justify-center rounded-full border px-3 py-1.5 font-black uppercase tracking-[0.1em] leading-none whitespace-nowrap",
-              compact ? "text-[10px]" : "text-[10px]",
+              "inline-flex items-center justify-center rounded-full border px-3 py-1.5 font-bold uppercase tracking-[0.05em] leading-none whitespace-nowrap font-apple",
+              compact ? "text-[12px]" : "text-[12px]",
               gexStats.totalNet >= 0
                 ? "text-[#00D9A5] border-[#00D9A5]/35 bg-[#001812]"
                 : "text-red-300 border-red-400/35 bg-[#22090F]"
@@ -3989,13 +4004,13 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
                           key={asset}
                           onClick={() => handleAssetChange(asset)}
                           className={cn(
-                            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors font-medium",
+                            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors font-semibold font-apple",
                             selectedAsset === asset
                               ? "bg-[#00D9A5]/10 text-[#00D9A5]"
                               : "bg-transparent text-slate-500 hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/5"
                           )}
                         >
-                          <span>{asset}</span>
+                          <span className="tracking-tight">{asset}</span>
                         </button>
                       ))}
                     </div>
@@ -4006,28 +4021,28 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
           </div>
         </div>
 
-        <div className={cn("grid grid-cols-[1fr_auto_1fr] items-center", compact ? "mb-2 text-[12px]" : "mb-2 text-[12px]")}>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-[#B574FF]/35 bg-[#B574FF]/10 px-2 py-1 font-semibold text-[#D9B9FF] justify-self-start">
+        <div className={cn("grid grid-cols-[1fr_auto_1fr] items-center font-apple", compact ? "mb-2 text-[13px]" : "mb-2 text-[13px]")}>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-[#B574FF]/35 bg-[#B574FF]/10 px-2.5 py-1.5 font-semibold text-[#D9B9FF] justify-self-start tracking-tight">
             Put Wall
-            <span className="font-black text-white">{formatStrikeLevel(gexStats.putWall?.strike)}</span>
+            <span className="font-bold text-white ml-0.5">{formatStrikeLevel(gexStats.putWall?.strike)}</span>
           </span>
           <span className={cn(
-            "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-semibold justify-self-center translate-x-[6px]",
+            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-semibold justify-self-center translate-x-[6px] tracking-tight",
             gexStats.totalNet >= 0
               ? "border-[#00D9A5]/35 bg-[#00D9A5]/10 text-[#A7FFE7]"
               : "border-red-400/35 bg-red-500/10 text-red-300"
           )}>
             Net GEX
-            <span className="font-black text-white">{formatSignedGammaExposure(gexStats.totalNet)}</span>
+            <span className="font-bold text-white ml-0.5">{formatSignedGammaExposure(gexStats.totalNet)}</span>
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-[#E3C98A]/35 bg-[#E3C98A]/10 px-2 py-1 font-semibold text-[#F4DFB4] justify-self-end">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-[#E3C98A]/35 bg-[#E3C98A]/10 px-2.5 py-1.5 font-semibold text-[#F4DFB4] justify-self-end tracking-tight">
             Call Wall
-            <span className="font-black text-white">{formatStrikeLevel(gexStats.callWall?.strike)}</span>
+            <span className="font-bold text-white ml-0.5">{formatStrikeLevel(gexStats.callWall?.strike)}</span>
           </span>
         </div>
 
         <div className={cn("rounded-xl bg-white/[0.03] border border-white/10 mx-auto", compact ? "p-2 max-w-full" : "p-2 max-w-full")}>
-          <div className={cn("space-y-1 overflow-y-auto scrollbar-thin pr-1", compact ? "max-h-[250px]" : "max-h-[220px]")}>
+          <div className={cn("space-y-1 overflow-y-auto scrollbar-thin pr-1", compact ? "max-h-[190px]" : "max-h-[172px]")}>
             {normalizedProfile.map((row, idx) => {
               const putWidth = Math.min((Math.abs(row.put || 0) / maxGamma) * 50, 50);
               const callWidth = Math.min((Math.abs(row.call || 0) / maxGamma) * 50, 50);
@@ -4036,8 +4051,8 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
               const isNetPositive = netValue >= 0;
 
               return (
-                <div key={`${row.strike}-${idx}`} className={cn("grid items-center gap-1.5", compact ? "grid-cols-[56px_1fr]" : "grid-cols-[60px_1fr]")}>
-                  <span className={cn("text-right font-bold text-white/90", compact ? "text-[13px]" : "text-[13px]")}>
+                <div key={`${row.strike}-${idx}`} className={cn("grid items-center gap-1.5 font-apple", compact ? "grid-cols-[56px_1fr]" : "grid-cols-[60px_1fr]")}>
+                  <span className={cn("text-right font-semibold text-white/95 tracking-tight", compact ? "text-[12px]" : "text-[12px]")}>
                     {formatStrikeLevel(row.strike)}
                   </span>
                   <div className={cn("relative rounded-md bg-black/20 overflow-hidden", compact ? "h-[15px]" : "h-3")}>
@@ -4081,58 +4096,58 @@ const GammaExposurePanel = React.memo(({ selectedAsset: propAsset, onAssetChange
 
           <div className={cn("mt-1.5 grid items-center gap-1.5", compact ? "grid-cols-[56px_1fr]" : "grid-cols-[60px_1fr]")}>
             <span />
-            <div className={cn("flex items-center justify-between text-white font-bold tabular-nums", compact ? "text-[13px]" : "text-[13px]")}>
-              <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">-{formatGammaScale(maxGamma)}</span>
-              <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">0</span>
-              <span className="drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]">{formatGammaScale(maxGamma)}</span>
+            <div className={cn("flex items-center justify-between text-white/95 font-semibold tracking-tighter tabular-nums font-apple", compact ? "text-[12px]" : "text-[12px]")}>
+              <span className="opacity-80">-{formatGammaScale(maxGamma)}</span>
+              <span className="opacity-80">0</span>
+              <span className="opacity-80">{formatGammaScale(maxGamma)}</span>
             </div>
           </div>
         </div>
 
         <div className={cn("grid gap-2", compact ? "mt-2.5 mb-2.5 grid-cols-2" : "mt-3 mb-3 grid-cols-2")}>
           {gexKpiCards.map((item) => (
-            <div key={item.key} className="rounded-md border border-white/10 bg-black/20 px-2.5 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] uppercase tracking-[0.08em] leading-none text-white/80 whitespace-nowrap font-semibold">
-                  {item.label}
-                </p>
-                <p className={cn(
-                  "font-bold leading-none whitespace-nowrap text-right",
-                  compact ? "text-[16px]" : "text-[17px]",
-                  item.valueClass
-                )}>
-                  {item.value}
-                </p>
-              </div>
+            <div key={item.key} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 flex flex-col items-center justify-center gap-0.5 shadow-sm transition-all hover:bg-white/5">
+              <span className="font-apple text-[13px] font-bold uppercase tracking-[0.1em] text-white/85 leading-tight">
+                {item.label}
+              </span>
+              <span className={cn(
+                "font-apple font-bold tabular-nums tracking-tight",
+                compact ? "text-[15.5px]" : "text-[15.5px]",
+                item.valueClass
+              )}>
+                {item.value}
+              </span>
             </div>
           ))}
         </div>
 
-        <div className={cn("flex items-center justify-between", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
-          <span className={cn("uppercase tracking-[0.1em] text-white/85 font-bold", compact ? "text-[12px]" : "text-[12px]")}>
+        <div className={cn("flex items-center justify-between font-apple", compact ? "mb-1.5 px-1" : "mb-1.5 px-1")}>
+          <span className={cn("uppercase tracking-[0.1em] text-white/88 font-bold", compact ? "text-[14px]" : "text-[14px]")}>
             Net GEX
           </span>
           <span className={cn(
-            "font-black tabular-nums drop-shadow-[0_0_6px_rgba(255,255,255,0.18)]",
-            compact ? "text-[15px]" : "text-[15px]",
+            "font-bold tabular-nums tracking-tight font-apple",
+            compact ? "text-[17px]" : "text-[18px]",
             gexStats.totalNet >= 0 ? "text-[#00D9A5]" : "text-red-400"
           )}>
             {formatSignedGammaExposure(gexStats.totalNet)}
           </span>
         </div>
 
-        <div className={cn("bg-white/10 rounded-full overflow-hidden flex items-center", compact ? "mb-2 h-2" : "mb-2 h-2")}>
+        <div className={cn("bg-white/10 rounded-full overflow-hidden", compact ? "mb-2 h-[7.2px]" : "mb-2 h-[7.2px]")}>
           <div
             className={cn(
-              "h-1.5 rounded-full transition-all",
-              gexStats.totalNet >= 0 ? "bg-[#00D9A5]" : "bg-red-400"
+              "h-full rounded-full transition-all",
+              gexStats.totalNet >= 0
+                ? "bg-gradient-to-r from-[#003B2D] via-[#00A37A] to-[#00D9A5] shadow-[0_0_8px_rgba(0,217,165,0.45)]"
+                : "bg-gradient-to-r from-[#3D0C15] via-[#9E2A43] to-[#FF4D4D] shadow-[0_0_8px_rgba(255,77,77,0.45)]"
             )}
             style={{ width: `${Math.max(netIntensity, 8)}%` }}
           />
         </div>
 
         <div className={cn("rounded-xl bg-white/5 border border-white/10", compact ? "mt-2 p-2.5" : "mt-2.5 p-3")}>
-          <ul className={cn("text-white/85 space-y-1.5", compact ? "text-sm" : "text-[12px]")}>
+          <ul className="space-y-1.5 text-[16px] font-medium text-white/95 leading-relaxed tracking-[0.01em] whitespace-pre-line">
             {gexActionPlan.slice(0, 3).map((line, idx) => (
               <li key={idx} className="flex items-start gap-2">
                 <span className="text-[#00D9A5] mt-0.5">•</span>
@@ -4416,13 +4431,14 @@ const inferEventDate = (event, baseDate, fallbackOffset = 0) => {
 };
 
 const FALLBACK_NEWS_EVENTS = [
-  { title: 'NFP (Jan)', time: '14:30', impact: 'high', currency: 'USD', forecast: '65K', previous: '256K', actual: '130K', countdown: 'Uscito', summary: 'Payrolls a 130K, il doppio delle attese. Disoccupazione scesa a 4.3%. Mercato prezza taglio Fed a luglio, non più giugno.' },
-  { title: 'Unemployment Rate', time: '14:30', impact: 'high', currency: 'USD', forecast: '4.4%', previous: '4.4%', actual: '4.3%', countdown: 'Uscito', summary: 'Tasso disoccupazione migliorato. Mercato lavoro solido nonostante revisioni al ribasso del 2025 (-862K).' },
-  { title: 'Average Hourly Earnings', time: '14:30', impact: 'high', currency: 'USD', forecast: '3.5%', previous: '3.6%', actual: '3.7%', countdown: 'Uscito', summary: 'Salari in crescita 3.7% YoY, sopra inflazione. Pressione hawkish sulla Fed.' },
-  { title: 'Fed Speeches', time: '16:00', impact: 'medium', currency: 'USD', forecast: '-', previous: '-', actual: null, countdown: '15m', summary: 'Diversi policymaker Fed in programma. Tono atteso post-NFP forte: cautela sui tagli.' },
-  { title: 'US 10Y Auction', time: '19:00', impact: 'medium', currency: 'USD', forecast: '4.18%', previous: '4.14%', actual: null, countdown: '3h', summary: 'Asta Treasury 10Y. Yield salito a 4.18% dopo NFP. Monitorare domanda istituzionale.' },
-  { title: 'CPI (Jan)', time: 'Ven 14:30', impact: 'high', currency: 'USD', forecast: '2.5%', previous: '2.9%', actual: null, countdown: '2 giorni', summary: 'Dato inflazione cruciale dopo NFP forte. Se sopra attese, taglio Fed rinviato ulteriormente.' },
-  { title: 'CBO Budget Outlook', time: '18:00', impact: 'medium', currency: 'USD', forecast: '-', previous: '-', actual: null, countdown: '2h', summary: 'Pubblicazione outlook fiscale CBO. Focus su deficit e traiettoria debito pubblico USA.' },
+  { title: 'Retail Sales (Dec)', time: '14:30', impact: 'high', currency: 'USD', countdown: 'Uscito', timestamp: new Date('2026-03-03T14:30:00Z').toISOString(), summary: 'Consumi forti negli USA, oltre le attese. Supporta tesi di economia resiliente.' },
+  { title: 'ADP Employment', time: '14:15', impact: 'medium', currency: 'USD', countdown: 'Uscito', timestamp: new Date('2026-03-04T14:15:00Z').toISOString(), summary: 'Occupazione privata stabile. Precursore NFP moderatamente positivo.' },
+  { title: 'US Core CPI m/m', time: '14:30', impact: 'high', currency: 'USD', forecast: '0.3%', actual: '0.3%', countdown: 'Uscito', timestamp: new Date('2026-03-05T14:30:00Z').toISOString(), summary: 'Inflazione core in linea con le attese. Nessun allarme immediato per la Fed.' },
+  { title: 'NFP (Jan)', time: '15:00', impact: 'high', currency: 'USD', forecast: '65K', actual: '130K', countdown: 'Uscito', timestamp: new Date('2026-03-05T15:00:00Z').toISOString(), summary: 'Payrolls a 130K, il doppio delle attese. Mercato lavoro solido.' },
+  { title: 'Fed Speeches', time: '16:00', impact: 'medium', currency: 'USD', countdown: '1h 20m', timestamp: new Date('2026-03-05T16:00:00Z').toISOString(), summary: 'Diversi policymaker Fed in programma. Monitorare commenti post-dati.' },
+  { title: 'US 10Y Auction', time: '19:00', impact: 'medium', currency: 'USD', countdown: '4h', timestamp: new Date('2026-03-05T19:00:00Z').toISOString(), summary: 'Asta Treasury 10Y. Monitorare domanda istituzionale.' },
+  { title: 'CPI (Jan)', time: '14:30', impact: 'high', currency: 'USD', forecast: '2.5%', countdown: '1 giorno', timestamp: new Date('2026-03-06T14:30:00Z').toISOString(), summary: 'Dato inflazione cruciale. Se sopra attese, tassi alti più a lungo.' },
+  { title: 'Consumer Sentiment', time: '16:00', impact: 'medium', currency: 'USD', countdown: '1 giorno', timestamp: new Date('2026-03-06T16:00:00Z').toISOString(), summary: 'Fiducia dei consumatori Michigan. Focus su aspettative inflazione.' },
 ];
 
 // News & Activity Sidebar
@@ -4502,7 +4518,8 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
   }, [normalizedNewsData]);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 h-full">
+      {/* Calendar Section - Compact version */}
       <TechCard className="dashboard-panel-glass-boost p-4 font-apple glass-edge panel-left-edge fine-gray-border lg:w-full lg:ml-0 xl:w-[118%] xl:-ml-[17%] xl:relative xl:z-10">
         <div className="mb-4">
           <p className="text-3xl font-bold text-white/90 tracking-tight leading-none">{calendarModel.monthLabel}</p>
@@ -4532,128 +4549,146 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
                 className={cn(
                   "relative mx-auto h-9 w-9 rounded-full text-lg font-semibold transition-all flex items-center justify-center border border-transparent",
                   cell.inCurrentMonth ? "text-white/90" : "text-white/25",
-                  !hasEvents && !isSelected && cell.inCurrentMonth && "hover:bg-white/10",
-                  hasHighImpact && "bg-[linear-gradient(180deg,rgba(239,68,68,0.28)_0%,rgba(239,68,68,0.12)_100%)] backdrop-blur-[6px] border-red-300/52 ring-1 ring-red-300/38 shadow-[inset_0_1px_0_rgba(255,255,255,0.34),0_0_18px_rgba(239,68,68,0.24)] text-white",
-                  isSelected && !hasEvents && "bg-white/[0.14] ring-1 ring-white/35",
-                  isToday && "ring-1 ring-[#64E9FF]/90 shadow-[0_0_10px_rgba(100,233,255,0.7)]"
+                  isSelected ? "bg-white/10 ring-1 ring-white/20" : "hover:bg-white/5",
+                  isToday && "ring-1 ring-[#00D9A5]/50 text-[#00D9A5]"
                 )}
               >
                 {cell.day}
-                {hasEvents && !hasHighImpact && (
-                  <span className={cn(
-                    "absolute -bottom-1 h-1.5 w-1.5 rounded-full",
-                    "bg-[#00D9A5]"
-                  )} />
+                {hasEvents && !isSelected && (
+                  <span className="absolute -bottom-1 h-1 w-1 rounded-full bg-[#00D9A5]" />
                 )}
               </button>
             );
           })}
         </div>
-
       </TechCard>
 
-      <div>
-        {/* News Section */}
-        <TechCard className="dashboard-panel-glass-boost p-4 font-apple flex flex-col glass-edge panel-left-edge fine-gray-border lg:h-[932px] lg:w-full lg:ml-0 xl:w-[118%] xl:-ml-[17%] xl:relative xl:z-10" style={{ maxHeight: '932px' }}>
-          {/* Sticky Header */}
-          <h4 className="text-base font-medium text-white/90 mb-3 flex items-center gap-2 sticky top-0 bg-inherit z-10 pb-2">
-            <Newspaper className="w-5 h-5 text-[#00D9A5]" />
-            News
-          </h4>
-          {/* Scrollable Content */}
-          <div className="space-y-2 overflow-y-auto flex-1 scrollbar-thin pb-6 lg:max-h-[675px]">
-            {newsData.map((item, i) => (
-              <div
-                key={i}
-                onClick={() => setExpandedNews(expandedNews === i ? null : i)}
-                onMouseLeave={() => expandedNews === i && setExpandedNews(null)}
-                className={cn(
-                  "p-2.5 rounded-lg transition-all cursor-pointer border-[0.85px] border-slate-300 bg-slate-50 dark:bg-white/[0.06] dark:border-[rgba(255,255,255,0.16)] dark:border-t-[rgba(255,255,255,0.28)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] hover:bg-slate-100 dark:hover:bg-white/[0.09]",
-                  expandedNews === i && "ring-1 ring-slate-300 dark:ring-white/24"
-                )}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-base font-medium text-slate-900 dark:text-white/90">{item.title}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "text-sm",
-                      item.countdown === 'Uscito' ? "text-[#00D9A5]" : "text-yellow-400/80"
-                    )}>{item.countdown}</span>
-                    <span className="text-base font-medium text-[#00D9A5]">{item.time}</span>
-                    <ChevronDown className={cn(
-                      "w-4 h-4 text-slate-400 dark:text-white/30 transition-transform",
-                      expandedNews === i && "rotate-180"
-                    )} />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "text-base font-medium",
-                      item.currency === 'USD' ? "text-[#D4AF37]" : "text-slate-400 dark:text-white/40"
-                    )}>
-                      {item.currency}
-                    </span>
-                    <div className={cn(
-                      "w-1.5 h-1.5 rounded-full",
-                      item.impact === 'high' ? "bg-red-400" : "bg-yellow-400"
-                    )} />
-                  </div>
-                  <div className="flex items-center gap-3 text-base">
-                    <span className="text-slate-500 dark:text-white/50">P: <span className="font-bold text-slate-700 dark:text-white/80">{item.previous}</span></span>
-                    <span className="text-slate-500 dark:text-white/50">F: <span className="font-bold text-slate-900 dark:text-white">{item.forecast}</span></span>
-                    {item.actual && (
-                      <span className="text-slate-500 dark:text-white/50">A: <span className="font-bold text-lg text-[#00D9A5]">{item.actual}</span></span>
-                    )}
-                  </div>
-                </div>
-                {/* Expanded Summary */}
-                <AnimatePresence>
-                  {expandedNews === i && (
-                    <motion.div
-                      initial={dashboardInitial({ height: 0, opacity: 0 })}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.4 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-3 p-3 bg-white border-[0.85px] border-slate-300 rounded-lg dark:bg-white/[0.06] dark:border-[rgba(255,255,255,0.16)] dark:border-t-[rgba(255,255,255,0.28)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
-                        <p className="text-base text-slate-700 leading-relaxed dark:text-white/90">
-                          <span className="text-[#00D9A5] font-bold block mb-1">Prospettiva</span>
-                          {item.summary}
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            ))}
+      {/* News Section - Allungata per coprire più spazio verticale */}
+      <div className="flex-1 min-h-[500px]">
+        <TechCard className="dashboard-panel-glass-boost pt-2 px-4 pb-4 font-apple flex flex-col glass-edge panel-left-edge fine-gray-border h-full lg:w-full lg:ml-0 xl:w-[118%] xl:-ml-[17%] xl:relative xl:z-10" style={{ maxHeight: 'calc(100vh - 85px)', minHeight: '750px' }}>
+          {/* Fixed Main Header - High Contrast */}
+          <div className="bg-[#0F1115] px-4 py-2 flex items-center gap-2 border-b border-white/5">
+            <Newspaper className="w-3.5 h-3.5 text-[#00D9A5]" />
+            <h4 className="text-[12px] font-bold text-white/40 uppercase tracking-[0.2em]">News</h4>
           </div>
 
-          <div className="mt-5 px-4 pt-1 pb-3 rounded-xl bg-white/5 border border-white/10 min-h-[145px]">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="w-5 h-5 text-[#00D9A5]" />
-              <h5 className="text-base font-semibold text-white/90 uppercase tracking-[0.08em]">Sintesi News</h5>
+          {/* Scrollable Feed */}
+          <div className="flex-1 overflow-y-auto scrollbar-thin px-4 pt-1">
+            <div className="pb-4">
+              {Object.keys(eventsByDay).sort((a, b) => b.localeCompare(a)).map((dateKey) => {
+                const dayEvents = eventsByDay[dateKey];
+                const dateObj = dayEvents[0]._date;
+                const isToday = dateKey === todayKey;
+
+                const dayLabel = isToday ? 'Oggi' : new Intl.DateTimeFormat('it-IT', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'short'
+                }).format(dateObj);
+                return (
+                  <div key={dateKey} className="mb-10 first:mt-2">
+                    {/* Day Separator - Silver & Smoke, Fixed Overlap */}
+                    <div className="sticky top-0 bg-[#0F1115] z-[45] py-4 flex items-center gap-4 border-b border-white/10 shadow-lg">
+                      <span className="text-[11px] font-black uppercase tracking-[0.4em] text-[#C0C0C0]">
+                        {dayLabel}
+                      </span>
+                      <div className="h-[1px] flex-1 bg-[linear-gradient(90deg,rgba(192,192,192,0.4)_0%,rgba(192,192,192,0.1)_30%,transparent_100%)]" />
+                    </div>
+
+                    {/* Daily Items - Original Character Design */}
+                    <div className="space-y-2 mt-4">
+                      {dayEvents.map((item) => {
+                        const i = item._newsIndex;
+                        return (
+                          <div
+                            key={`${dateKey}-${i}`}
+                            onClick={() => setExpandedNews(expandedNews === i ? null : i)}
+                            className={cn(
+                              "p-3 rounded-xl transition-all cursor-pointer border border-slate-300 bg-slate-50 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] hover:bg-slate-100 dark:hover:bg-white/[0.07] group/item",
+                              expandedNews === i && "ring-1 ring-white/20 bg-white/[0.08]"
+                            )}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[14px] font-bold text-slate-900 dark:text-white/95 leading-tight group-hover/item:text-black dark:group-hover/item:text-white transition-colors">
+                                {item.title}
+                              </span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-[13px] font-bold text-[#00D9A5]">{item.time}</span>
+                                <ChevronDown className={cn(
+                                  "w-4 h-4 text-white/20 transition-transform duration-300",
+                                  expandedNews === i && "rotate-180"
+                                )} />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2.5">
+                                {item.countdown && (
+                                  <span className={cn(
+                                    "text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-sm",
+                                    item.countdown === 'Uscito' ? "text-[#00D9A5] bg-[#00D9A5]/5" : "text-yellow-400/70 bg-yellow-400/5"
+                                  )}>{item.countdown}</span>
+                                )}
+                                <span className="text-[12px] font-bold text-white/40">{item.currency || 'USD'}</span>
+                                <div className={cn(
+                                  "w-1.5 h-1.5 rounded-full",
+                                  item.impact === 'high' ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]" : "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.4)]"
+                                )} />
+                              </div>
+                              <div className="flex items-center gap-3 text-[11px] font-medium text-white/25">
+                                {item.actual && <span>A: <span className="text-[#00D9A5] font-bold">{item.actual}</span></span>}
+                                {item.forecast && <span className="text-white/40">F: {item.forecast}</span>}
+                                {item.previous && <span className="text-white/40">P: {item.previous}</span>}
+                              </div>
+                            </div>
+
+                            <AnimatePresence>
+                              {expandedNews === i && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="pt-3 mt-3 border-t border-white/5">
+                                    <p className="text-sm text-white/50 leading-relaxed italic">
+                                      {item.summary || 'Nessun dettaglio aggiuntivo.'}
+                                    </p>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <ul className="space-y-2 text-base text-white/85 leading-relaxed">
-              {(newsSummaries?.three_hour
-                ? newsSummaries.three_hour
-                  .split('.')
-                  .map((line) => line.trim())
-                  .filter(Boolean)
-                  .slice(0, 4)
-                : ['Nessun riassunto disponibile al momento.']
-              ).map((line, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <span className="text-[#00D9A5] mt-0.5">•</span>
-                  <span>{line.endsWith('.') ? line : `${line}.`}</span>
-                </li>
-              ))}
+          </div>
+
+          {/* Sintesi News Box */}
+          <div className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-white/5">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-4 h-4 text-[#00D9A5]" />
+              <h5 className="text-[12px] font-bold text-white/60 uppercase tracking-widest">Sintesi News</h5>
+            </div>
+            <ul className="space-y-1.5 text-[13px] text-white/50 leading-relaxed">
+              {(newsSummaries?.three_hour || "Nessun riassunto disponibile.")
+                .split('.')
+                .filter(Boolean)
+                .slice(0, 3)
+                .map((line, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-[#00D9A5]">•</span>
+                    <span>{line.trim()}.</span>
+                  </li>
+                ))}
             </ul>
           </div>
         </TechCard>
-      </div>
-
-    </div>
+      </div >
+    </div >
   );
 };
 
@@ -5355,22 +5390,22 @@ export default function DashboardPage() {
           {/* CENTER: Charts + COT + Market Breadth */}
           <div className="lg:col-span-8 flex flex-col gap-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-start lg:gap-4">
-	              <AssetChartPanel
-	                assets={assetsList}
-	                favoriteCharts={favoriteCharts}
-	                onFavoriteChange={setFavoriteCharts}
-	                animationsReady={headerHidden}
-	                onSyncAsset={handleSyncAsset}
-	                vix={vix}
-	                regime={regime}
-	                cotData={cotDataToUse}
-	                breadthData={marketBreadth}
-	                optionsData={optionsFlowData}
-	                newsEvents={newsBriefing?.events}
-	                newsSentiment={newsBriefing?.sentiment}
-	                nextEvent={next_event}
-	                className="lg:w-[calc(44%+1px)]"
-	              />
+              <AssetChartPanel
+                assets={assetsList}
+                favoriteCharts={favoriteCharts}
+                onFavoriteChange={setFavoriteCharts}
+                animationsReady={headerHidden}
+                onSyncAsset={handleSyncAsset}
+                vix={vix}
+                regime={regime}
+                cotData={cotDataToUse}
+                breadthData={marketBreadth}
+                optionsData={optionsFlowData}
+                newsEvents={newsBriefing?.events}
+                newsSentiment={newsBriefing?.sentiment}
+                nextEvent={next_event}
+                className="lg:w-[calc(44%+1px)]"
+              />
               <div className="lg:w-[calc(40%+1px)] lg:-ml-[4px]">
                 <GammaExposurePanel
                   selectedAsset={optionsSelectedAsset}
