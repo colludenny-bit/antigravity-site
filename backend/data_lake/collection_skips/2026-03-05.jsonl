@@ -429,3 +429,9 @@
 {"ts_utc":"2026-03-05T02:27:42.245396+00:00","stream":"collection_skips","payload":{"job":"matrix_snapshot","reason":"manual_pause","asset":"NAS100"}}
 {"ts_utc":"2026-03-05T02:27:42.250605+00:00","stream":"collection_skips","payload":{"job":"matrix_snapshot","reason":"manual_pause","asset":"SP500"}}
 {"ts_utc":"2026-03-05T02:27:42.255237+00:00","stream":"collection_skips","payload":{"job":"matrix_snapshot","reason":"manual_pause","asset":"EURUSD"}}
+{"ts_utc":"2026-03-05T02:31:57.925412+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-05T02:31:57.930164+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
+{"ts_utc":"2026-03-05T02:31:57.930828+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-05T02:36:57.914104+00:00","stream":"collection_skips","payload":{"job":"telemetry_snapshot_5m","reason":"manual_pause"}}
+{"ts_utc":"2026-03-05T02:36:58.006047+00:00","stream":"collection_skips","payload":{"job":"forensics_matrix_daemon","reason":"manual_pause"}}
+{"ts_utc":"2026-03-05T02:36:58.006930+00:00","stream":"collection_skips","payload":{"job":"summary_capture_5m","reason":"manual_pause"}}

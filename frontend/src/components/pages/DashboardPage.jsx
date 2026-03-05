@@ -4447,7 +4447,33 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(todayKey);
   const newsData = useMemo(() => {
-    return Array.isArray(news) && news.length > 0 ? news : FALLBACK_NEWS_EVENTS;
+    const liveEvents = Array.isArray(news)
+      ? news.filter((item) => item && typeof item === 'object')
+      : [];
+    if (liveEvents.length === 0) return FALLBACK_NEWS_EVENTS;
+
+    const baseDate = new Date();
+    baseDate.setHours(0, 0, 0, 0);
+    const eventKey = (item, idx = 0) => {
+      const eventDate = inferEventDate(item, baseDate, idx);
+      const dateKey = toDateKey(eventDate);
+      const titleKey = String(item?.title || item?.event || '').trim().toLowerCase();
+      const timeKey = String(item?.time || '').trim();
+      const currencyKey = String(item?.currency || '').trim().toUpperCase();
+      return `${dateKey}|${timeKey}|${currencyKey}|${titleKey}`;
+    };
+
+    const mergedEvents = [...FALLBACK_NEWS_EVENTS];
+    const seenKeys = new Set(mergedEvents.map((item, idx) => eventKey(item, idx)));
+
+    liveEvents.forEach((item, idx) => {
+      const key = eventKey(item, idx + FALLBACK_NEWS_EVENTS.length);
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      mergedEvents.push(item);
+    });
+
+    return mergedEvents;
   }, [news]);
 
   const normalizedNewsData = useMemo(() => {
