@@ -4431,14 +4431,14 @@ const inferEventDate = (event, baseDate, fallbackOffset = 0) => {
 };
 
 const FALLBACK_NEWS_EVENTS = [
-  { title: 'Retail Sales (Dec)', time: '14:30', impact: 'high', currency: 'USD', countdown: 'Uscito', timestamp: new Date('2026-03-03T14:30:00Z').toISOString(), summary: 'Consumi forti negli USA, oltre le attese. Supporta tesi di economia resiliente.' },
-  { title: 'ADP Employment', time: '14:15', impact: 'medium', currency: 'USD', countdown: 'Uscito', timestamp: new Date('2026-03-04T14:15:00Z').toISOString(), summary: 'Occupazione privata stabile. Precursore NFP moderatamente positivo.' },
-  { title: 'US Core CPI m/m', time: '14:30', impact: 'high', currency: 'USD', forecast: '0.3%', actual: '0.3%', countdown: 'Uscito', timestamp: new Date('2026-03-05T14:30:00Z').toISOString(), summary: 'Inflazione core in linea con le attese. Nessun allarme immediato per la Fed.' },
-  { title: 'NFP (Jan)', time: '15:00', impact: 'high', currency: 'USD', forecast: '65K', actual: '130K', countdown: 'Uscito', timestamp: new Date('2026-03-05T15:00:00Z').toISOString(), summary: 'Payrolls a 130K, il doppio delle attese. Mercato lavoro solido.' },
-  { title: 'Fed Speeches', time: '16:00', impact: 'medium', currency: 'USD', countdown: '1h 20m', timestamp: new Date('2026-03-05T16:00:00Z').toISOString(), summary: 'Diversi policymaker Fed in programma. Monitorare commenti post-dati.' },
-  { title: 'US 10Y Auction', time: '19:00', impact: 'medium', currency: 'USD', countdown: '4h', timestamp: new Date('2026-03-05T19:00:00Z').toISOString(), summary: 'Asta Treasury 10Y. Monitorare domanda istituzionale.' },
-  { title: 'CPI (Jan)', time: '14:30', impact: 'high', currency: 'USD', forecast: '2.5%', countdown: '1 giorno', timestamp: new Date('2026-03-06T14:30:00Z').toISOString(), summary: 'Dato inflazione cruciale. Se sopra attese, tassi alti più a lungo.' },
-  { title: 'Consumer Sentiment', time: '16:00', impact: 'medium', currency: 'USD', countdown: '1 giorno', timestamp: new Date('2026-03-06T16:00:00Z').toISOString(), summary: 'Fiducia dei consumatori Michigan. Focus su aspettative inflazione.' },
+  { title: 'Retail Sales (Dec)', time: '14:30', impact: 'high', currency: 'USD', forecast: '0.2%', actual: '0.6%', countdown: 'Uscito', timestamp: new Date('2026-03-03T14:30:00Z').toISOString(), summary: 'Post-release (alto impatto): esito buono per il dollaro. Prospettive: possibile rafforzamento USD e pressione su oro/asset growth.' },
+  { title: 'ADP Employment', time: '14:15', impact: 'medium', currency: 'USD', forecast: '150K', actual: '171K', countdown: 'Uscito', timestamp: new Date('2026-03-04T14:15:00Z').toISOString(), summary: 'Post-release (impatto medio): esito buono per il dollaro. Prospettive: mercato lavoro resiliente, bias USD in supporto.' },
+  { title: 'US Core CPI m/m', time: '14:30', impact: 'high', currency: 'USD', forecast: '0.3%', actual: '0.3%', countdown: 'Uscito', timestamp: new Date('2026-03-05T14:30:00Z').toISOString(), summary: 'Post-release (alto impatto): esito in linea col consenso. Prospettive: dollaro in consolidamento, direzione guidata da rischio generale.' },
+  { title: 'NFP (Jan)', time: '15:00', impact: 'high', currency: 'USD', forecast: '65K', actual: '130K', countdown: 'Uscito', timestamp: new Date('2026-03-05T15:00:00Z').toISOString(), summary: 'Post-release (alto impatto): esito buono per il dollaro. Prospettive: rendimenti in tenuta e possibile pressione tattica su oro.' },
+  { title: 'Fed Speeches', time: '16:00', impact: 'medium', currency: 'USD', countdown: '1h 20m', timestamp: new Date('2026-03-05T16:00:00Z').toISOString(), summary: 'Pre-release (impatto medio): finestra di volatilita in apertura. Prospettive: conferma su DXY prima di aumentare size.' },
+  { title: 'US 10Y Auction', time: '19:00', impact: 'medium', currency: 'USD', countdown: '4h', timestamp: new Date('2026-03-05T19:00:00Z').toISOString(), summary: 'Pre-release (impatto medio): focus su domanda istituzionale. Prospettive: asta forte = supporto al dollaro, asta debole = pressione USD.' },
+  { title: 'CPI (Jan)', time: '14:30', impact: 'high', currency: 'USD', forecast: '2.5%', countdown: '1 giorno', timestamp: new Date('2026-03-06T14:30:00Z').toISOString(), summary: 'Pre-release (alto impatto): dato chiave inflazione. Prospettive: sopra consenso favorisce rafforzamento USD; sotto consenso favorisce indebolimento USD.' },
+  { title: 'Consumer Sentiment', time: '16:00', impact: 'medium', currency: 'USD', forecast: '79.0', previous: '78.4', countdown: '1 giorno', timestamp: new Date('2026-03-06T16:00:00Z').toISOString(), summary: 'Pre-release (impatto medio): consenso moderatamente costruttivo. Prospettive: sorpresa positiva puo estendere forza del dollaro.' },
 ];
 
 // News & Activity Sidebar
@@ -4543,6 +4543,27 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
     return { cells, monthLabel, year };
   }, [normalizedNewsData]);
 
+  const selectedDayEvents = useMemo(() => {
+    const rows = Array.isArray(eventsByDay[selectedCalendarDay]) ? eventsByDay[selectedCalendarDay] : [];
+    return [...rows].sort((a, b) => (a?._sortTs || 0) - (b?._sortTs || 0));
+  }, [eventsByDay, selectedCalendarDay]);
+
+  const selectedDayLabel = useMemo(() => {
+    if (!selectedCalendarDay) return 'Seleziona un giorno';
+    if (selectedCalendarDay === todayKey) return 'Oggi';
+    const parsed = new Date(`${selectedCalendarDay}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return selectedCalendarDay;
+    return new Intl.DateTimeFormat('it-IT', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short'
+    }).format(parsed);
+  }, [selectedCalendarDay, todayKey]);
+
+  useEffect(() => {
+    setExpandedNews(null);
+  }, [selectedCalendarDay]);
+
   return (
     <div className="flex flex-col gap-4 h-full">
       {/* Calendar Section - Compact version */}
@@ -4575,13 +4596,19 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
                 className={cn(
                   "relative mx-auto h-9 w-9 rounded-full text-lg font-semibold transition-all flex items-center justify-center border border-transparent",
                   cell.inCurrentMonth ? "text-white/90" : "text-white/25",
-                  isSelected ? "bg-white/10 ring-1 ring-white/20" : "hover:bg-white/5",
+                  hasHighImpact && "shadow-[0_0_0_1px_rgba(239,68,68,0.28)]",
+                  isSelected
+                    ? (hasHighImpact ? "bg-red-500/20 ring-1 ring-red-400/70 text-red-100" : "bg-white/10 ring-1 ring-white/20")
+                    : (hasHighImpact ? "text-red-300 border border-red-400/35 hover:bg-red-500/10" : "hover:bg-white/5"),
                   isToday && "ring-1 ring-[#00D9A5]/50 text-[#00D9A5]"
                 )}
               >
                 {cell.day}
                 {hasEvents && !isSelected && (
-                  <span className="absolute -bottom-1 h-1 w-1 rounded-full bg-[#00D9A5]" />
+                  <span className={cn(
+                    "absolute -bottom-1 h-1 w-1 rounded-full",
+                    hasHighImpact ? "bg-red-400" : "bg-[#00D9A5]"
+                  )} />
                 )}
               </button>
             );
@@ -4601,112 +4628,106 @@ const ActivitySidebar = ({ news, strategiesProjections, strategiesCatalog, newsS
           {/* Scrollable Feed */}
           <div className="flex-1 overflow-y-auto scrollbar-thin px-4 pt-1">
             <div className="pb-4">
-              {Object.keys(eventsByDay).sort((a, b) => b.localeCompare(a)).map((dateKey) => {
-                const dayEvents = eventsByDay[dateKey];
-                const dateObj = dayEvents[0]._date;
-                const isToday = dateKey === todayKey;
+              <div className="mb-10 first:mt-2">
+                {/* Day Separator - Silver & Smoke, Fixed Overlap */}
+                <div className="sticky top-0 bg-[#0F1115] z-[45] py-4 flex items-center gap-4 border-b border-white/10 shadow-lg">
+                  <span className="text-[11px] font-black uppercase tracking-[0.4em] text-[#C0C0C0]">
+                    {selectedDayLabel}
+                  </span>
+                  <div className="h-[1px] flex-1 bg-[linear-gradient(90deg,rgba(192,192,192,0.4)_0%,rgba(192,192,192,0.1)_30%,transparent_100%)]" />
+                </div>
 
-                const dayLabel = isToday ? 'Oggi' : new Intl.DateTimeFormat('it-IT', {
-                  weekday: 'long',
-                  day: 'numeric',
-                  month: 'short'
-                }).format(dateObj);
-                return (
-                  <div key={dateKey} className="mb-10 first:mt-2">
-                    {/* Day Separator - Silver & Smoke, Fixed Overlap */}
-                    <div className="sticky top-0 bg-[#0F1115] z-[45] py-4 flex items-center gap-4 border-b border-white/10 shadow-lg">
-                      <span className="text-[11px] font-black uppercase tracking-[0.4em] text-[#C0C0C0]">
-                        {dayLabel}
-                      </span>
-                      <div className="h-[1px] flex-1 bg-[linear-gradient(90deg,rgba(192,192,192,0.4)_0%,rgba(192,192,192,0.1)_30%,transparent_100%)]" />
+                {/* Daily Items - Filtered by selected calendar day */}
+                <div className="space-y-2 mt-4">
+                  {selectedDayEvents.length === 0 && (
+                    <div className="p-3 rounded-xl border border-white/10 bg-white/[0.03] text-[13px] text-white/50">
+                      Nessuna news caricata per questo giorno.
                     </div>
-
-                    {/* Daily Items - Original Character Design */}
-                    <div className="space-y-2 mt-4">
-                      {dayEvents.map((item) => {
-                        const i = item._newsIndex;
-                        return (
-                          <div
-                            key={`${dateKey}-${i}`}
-                            onClick={() => setExpandedNews(expandedNews === i ? null : i)}
-                            className={cn(
-                              "p-3 rounded-xl transition-all cursor-pointer border border-slate-300 bg-slate-50 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] hover:bg-slate-100 dark:hover:bg-white/[0.07] group/item",
-                              expandedNews === i && "ring-1 ring-white/20 bg-white/[0.08]"
-                            )}>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-[14px] font-bold text-slate-900 dark:text-white/95 leading-tight group-hover/item:text-black dark:group-hover/item:text-white transition-colors">
-                                {item.title}
-                              </span>
-                              <div className="flex items-center gap-3">
-                                <span className="text-[13px] font-bold text-[#00D9A5]">{item.time}</span>
-                                <ChevronDown className={cn(
-                                  "w-4 h-4 text-white/20 transition-transform duration-300",
-                                  expandedNews === i && "rotate-180"
-                                )} />
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2.5">
-                                {item.countdown && (
-                                  <span className={cn(
-                                    "text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-sm",
-                                    item.countdown === 'Uscito' ? "text-[#00D9A5] bg-[#00D9A5]/5" : "text-yellow-400/70 bg-yellow-400/5"
-                                  )}>{item.countdown}</span>
-                                )}
-                                <span className="text-[12px] font-bold text-white/40">{item.currency || 'USD'}</span>
-                                <div className={cn(
-                                  "w-1.5 h-1.5 rounded-full",
-                                  item.impact === 'high' ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]" : "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.4)]"
-                                )} />
-                              </div>
-                              <div className="flex items-center gap-3 text-[11px] font-medium text-white/25">
-                                {item.actual && <span>A: <span className="text-[#00D9A5] font-bold">{item.actual}</span></span>}
-                                {item.forecast && <span className="text-white/40">F: {item.forecast}</span>}
-                                {item.previous && <span className="text-white/40">P: {item.previous}</span>}
-                              </div>
-                            </div>
-
-                            <AnimatePresence>
-                              {expandedNews === i && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="overflow-hidden"
-                                >
-                                  <div className="pt-3 mt-3 border-t border-white/5">
-                                    <p className="text-sm text-white/50 leading-relaxed italic">
-                                      {item.summary || 'Nessun dettaglio aggiuntivo.'}
-                                    </p>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                  )}
+                  {selectedDayEvents.map((item) => {
+                    const i = item._newsIndex;
+                    return (
+                      <div
+                        key={`${selectedCalendarDay}-${i}`}
+                        onClick={() => setExpandedNews(expandedNews === i ? null : i)}
+                        className={cn(
+                          "p-3 rounded-xl transition-all cursor-pointer border border-slate-300 bg-slate-50 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] hover:bg-slate-100 dark:hover:bg-white/[0.07] group/item",
+                          expandedNews === i && "ring-1 ring-white/20 bg-white/[0.08]"
+                        )}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[14px] font-bold text-slate-900 dark:text-white/95 leading-tight group-hover/item:text-black dark:group-hover/item:text-white transition-colors">
+                            {item.title}
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[13px] font-bold text-[#00D9A5]">{item.time}</span>
+                            <ChevronDown className={cn(
+                              "w-4 h-4 text-white/20 transition-transform duration-300",
+                              expandedNews === i && "rotate-180"
+                            )} />
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            {item.countdown && (
+                              <span className={cn(
+                                "text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-sm",
+                                item.countdown === 'Uscito' ? "text-[#00D9A5] bg-[#00D9A5]/5" : "text-yellow-400/70 bg-yellow-400/5"
+                              )}>{item.countdown}</span>
+                            )}
+                            <span className="text-[12px] font-bold text-white/40">{item.currency || 'USD'}</span>
+                            <div className={cn(
+                              "w-1.5 h-1.5 rounded-full",
+                              String(item.impact).toLowerCase() === 'high'
+                                ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]"
+                                : "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.4)]"
+                            )} />
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] font-medium text-white/25">
+                            {item.actual && <span>A: <span className="text-[#00D9A5] font-bold">{item.actual}</span></span>}
+                            {item.forecast && <span className="text-white/40">F: {item.forecast}</span>}
+                            {item.previous && <span className="text-white/40">P: {item.previous}</span>}
+                          </div>
+                        </div>
+
+                        <AnimatePresence>
+                          {expandedNews === i && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-3 mt-3 border-t border-white/5">
+                                <p className="text-sm text-white/50 leading-relaxed italic">
+                                  {item.summary || 'Nessun dettaglio aggiuntivo.'}
+                                </p>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Sintesi News Box */}
-          <div className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-white/5">
+          <div className="mt-4 rounded-2xl border border-white/10 bg-[#13171C]/85 px-4 py-3 font-apple shadow-[0_10px_24px_rgba(0,0,0,0.22)]">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-4 h-4 text-[#00D9A5]" />
-              <h5 className="text-[12px] font-bold text-white/60 uppercase tracking-widest">Sintesi News</h5>
+              <h5 className="text-[16px] leading-none font-semibold tracking-[0.01em] text-white/92">Sintesi News</h5>
             </div>
-            <ul className="space-y-1.5 text-[13px] text-white/50 leading-relaxed">
+            <ul className="space-y-1.5 text-[15px] font-medium text-white/90 leading-relaxed tracking-[0.01em]">
               {(newsSummaries?.three_hour || "Nessun riassunto disponibile.")
                 .split('.')
                 .filter(Boolean)
                 .slice(0, 3)
                 .map((line, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <span className="text-[#00D9A5]">•</span>
+                    <span className="text-[#00D9A5] mt-0.5">•</span>
                     <span>{line.trim()}.</span>
                   </li>
                 ))}

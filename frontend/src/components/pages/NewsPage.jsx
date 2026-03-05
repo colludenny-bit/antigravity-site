@@ -36,6 +36,12 @@ const initialCalendar = [
   { id: 8, time: '23:00', country: 'cn', flag: '🇨🇳', event: 'Caixin Services PMI', importance: 2, actual: null, forecast: '52.9', released: false },
 ];
 
+const fallbackLiveNews = [
+  { id: 'fb-1', time: '14:30', currency: 'USD', sentiment: 'Bullish', impact: 'High', title: 'US Core CPI m/m in linea al consenso' },
+  { id: 'fb-2', time: '15:00', currency: 'USD', sentiment: 'Bullish', impact: 'High', title: 'NFP sopra le attese, mercato lavoro resiliente' },
+  { id: 'fb-3', time: '20:00', currency: 'USD', sentiment: 'Bearish', impact: 'High', title: 'FOMC speech atteso: possibile aumento volatilita' },
+];
+
 const LiveNewsItem = ({ news, onClick }) => (
   <motion.div
     layout
@@ -124,7 +130,9 @@ export default function NewsPage() {
   const [calendarData, setCalendarData] = useState(initialCalendar);
   const [analyzingNews, setAnalyzingNews] = useState(null);
 
-  const liveNews = marketData?.news || [];
+  const liveNews = Array.isArray(marketData?.news) && marketData.news.length > 0
+    ? marketData.news
+    : fallbackLiveNews;
 
   // Simulate Calendar Releases
   useEffect(() => {

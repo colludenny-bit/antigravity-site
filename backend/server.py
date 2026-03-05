@@ -3807,39 +3807,215 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _format_countdown_from_event_time(now_utc: datetime, time_label: str) -> str:
+NEWS_BRIEFING_EVENTS_TEMPLATE = [
+    {"day_offset": -2, "time": "14:30", "event": "US Retail Sales m/m", "impact": "high", "consensus": "0.2%", "previous": "-0.1%", "actual": "0.6%"},
+    {"day_offset": -2, "time": "16:00", "event": "US ISM Services PMI", "impact": "medium", "consensus": "52.0", "previous": "51.4", "actual": "52.5"},
+    {"day_offset": -1, "time": "14:15", "event": "ADP Employment Change", "impact": "medium", "consensus": "150K", "previous": "130K", "actual": "171K"},
+    {"day_offset": -1, "time": "16:30", "event": "EIA Crude Oil Stocks", "impact": "medium", "consensus": "-2.1M", "previous": "-1.7M", "actual": "-2.8M"},
+    {"day_offset": 0, "time": "14:30", "event": "US Core CPI m/m", "impact": "high", "consensus": "0.3%", "previous": "0.3%", "actual": "0.3%"},
+    {"day_offset": 0, "time": "20:00", "event": "FOMC Member Speech", "impact": "high", "consensus": "-", "previous": "-", "actual": None},
+    {"day_offset": 1, "time": "14:30", "event": "US Non-Farm Payrolls", "impact": "high", "consensus": "180K", "previous": "142K", "actual": None},
+    {"day_offset": 1, "time": "14:30", "event": "US Unemployment Rate", "impact": "high", "consensus": "4.1%", "previous": "4.0%", "actual": None},
+    {"day_offset": 2, "time": "16:00", "event": "US Consumer Sentiment", "impact": "medium", "consensus": "79.0", "previous": "78.4", "actual": None},
+    {"day_offset": 2, "time": "20:00", "event": "ECB President Lagarde Speech", "impact": "medium", "consensus": "-", "previous": "-", "actual": None},
+    {"day_offset": 3, "time": "14:30", "event": "US PPI m/m", "impact": "high", "consensus": "0.2%", "previous": "0.3%", "actual": None},
+    {"day_offset": 3, "time": "14:30", "event": "US Initial Jobless Claims", "impact": "medium", "consensus": "224K", "previous": "231K", "actual": None},
+]
+
+
+def _parse_macro_value(raw: Any) -> Optional[float]:
+    if raw is None:
+        return None
+    text = str(raw).strip().upper().replace(",", ".")
+    if text in {"", "-", "N/A", "NA", "NONE"}:
+        return None
+    mult = 1.0
+    if text.endswith("%"):
+        text = text[:-1]
+    elif text.endswith("K"):
+        mult = 1_000.0
+        text = text[:-1]
+    elif text.endswith("M"):
+        mult = 1_000_000.0
+        text = text[:-1]
+    elif text.endswith("B"):
+        mult = 1_000_000_000.0
+        text = text[:-1]
+    text = re.sub(r"[^0-9+\-\.]", "", text)
+    if text in {"", "+", "-", "."}:
+        return None
     try:
-        hh, mm = [int(part) for part in str(time_label).split(":")]
+        return float(text) * mult
     except Exception:
-        return "N/A"
-    event_dt = now_utc.replace(hour=hh, minute=mm, second=0, microsecond=0)
-    if event_dt < now_utc:
-        event_dt += timedelta(days=1)
-    delta_min = int((event_dt - now_utc).total_seconds() // 60)
-    if delta_min <= 0:
+        return None
+
+
+def _macro_event_higher_is_usd_positive(event_name: str) -> Optional[bool]:
+    key = str(event_name or "").lower()
+    if any(token in key for token in ("jobless", "unemployment rate", "claims")):
+        return False
+    if any(token in key for token in ("cpi", "pce", "ppi", "inflation", "payroll", "employment", "nfp", "retail", "sales", "pmi", "ism", "gdp", "durable")):
+        return True
+    return None
+
+
+def _format_countdown_from_datetime(now_utc: datetime, event_dt: datetime) -> str:
+    delta_s = int((event_dt - now_utc).total_seconds())
+    if delta_s <= 0:
         return "Uscito"
+    delta_min = (delta_s + 59) // 60
+    if delta_min >= 1440:
+        days = delta_min // 1440
+        return f"{days} giorno" if days == 1 else f"{days} giorni"
     if delta_min >= 60:
-        return f"{delta_min // 60}h"
+        hours = delta_min // 60
+        minutes = delta_min % 60
+        return f"{hours}h" if minutes == 0 else f"{hours}h {minutes}m"
     return f"{delta_min}m"
 
 
+def _build_macro_event_summary(
+    *,
+    event_name: str,
+    impact: str,
+    consensus: Any,
+    previous: Any,
+    actual: Any,
+    released: bool,
+) -> str:
+    impact_label = "alto impatto" if str(impact).lower() == "high" else "impatto medio"
+    higher_is_positive = _macro_event_higher_is_usd_positive(event_name)
+    consensus_v = _parse_macro_value(consensus)
+    previous_v = _parse_macro_value(previous)
+    actual_v = _parse_macro_value(actual)
+
+    if not released:
+        if consensus_v is not None and previous_v is not None and higher_is_positive is not None:
+            delta = consensus_v - previous_v
+            tol = max(abs(previous_v) * 0.03, 0.01)
+            if abs(delta) <= tol:
+                expected = "attesa in linea con il precedente"
+                outlook = "dollaro probabilmente stabile; breakout solo con sorpresa netta sul dato."
+            else:
+                setup_is_usd_positive = (delta > 0 and higher_is_positive) or (delta < 0 and not higher_is_positive)
+                if setup_is_usd_positive:
+                    expected = "consenso orientato in favore del dollaro"
+                    outlook = "se confermato, possibile rafforzamento USD e pressione su oro/asset growth."
+                else:
+                    expected = "consenso orientato contro il dollaro"
+                    outlook = "se confermato, possibile indebolimento USD e supporto a oro/asset growth."
+            return f"Pre-release ({impact_label}): {expected}. Prospettive: {outlook}"
+        return (
+            f"Pre-release ({impact_label}): finestra di volatilita in apertura su {event_name}. "
+            "Prospettive: attendere conferma post-dato su DXY e rendimenti prima di inseguire la direzione."
+        )
+
+    if actual_v is not None and consensus_v is not None and higher_is_positive is not None:
+        delta = actual_v - consensus_v
+        tol = max(abs(consensus_v) * 0.03, 0.01)
+        if abs(delta) <= tol:
+            verdict = "esito in linea col consenso"
+            outlook = "scenario neutrale: il dollaro tende a consolidare, direzione guidata dal rischio generale."
+        else:
+            usd_positive = (delta > 0 and higher_is_positive) or (delta < 0 and not higher_is_positive)
+            if usd_positive:
+                verdict = "esito buono per il dollaro"
+                outlook = "prospettive: probabile rafforzamento USD, rendimenti in tenuta e pressione su oro."
+            else:
+                verdict = "esito debole per il dollaro"
+                outlook = "prospettive: possibile indebolimento USD, supporto tattico a oro e Nasdaq."
+        return f"Post-release ({impact_label}): {verdict}. {outlook}"
+
+    if actual is not None and str(actual).strip() not in {"", "-", "None"}:
+        return (
+            f"Post-release ({impact_label}): dato pubblicato ({actual}). "
+            "Prospettive: monitorare follow-through su dollaro e rendimenti nelle prossime sessioni."
+        )
+    return (
+        f"Post-release ({impact_label}): dato uscito ma feed live incompleto su actual. "
+        "Prospettive: attendere conferma direzionale su DXY prima di aumentare rischio."
+    )
+
+
 def _build_news_events_payload(now_utc: datetime) -> List[Dict[str, Any]]:
-    events = []
-    for event in MACRO_EVENTS:
-        countdown = _format_countdown_from_event_time(now_utc, event.get("time", "00:00"))
+    events: List[Dict[str, Any]] = []
+    base_day = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    for template in NEWS_BRIEFING_EVENTS_TEMPLATE:
+        time_label = str(template.get("time", "00:00"))
+        try:
+            hh, mm = [int(part) for part in time_label.split(":")]
+        except Exception:
+            hh, mm = 0, 0
+        event_dt = base_day + timedelta(days=int(template.get("day_offset", 0)))
+        event_dt = event_dt.replace(hour=hh, minute=mm)
+        released = event_dt <= now_utc
+        countdown = _format_countdown_from_datetime(now_utc, event_dt)
+        event_name = str(template.get("event", "Macro Event"))
+        impact = str(template.get("impact", "medium")).lower()
+        consensus = template.get("consensus", "-")
+        previous = template.get("previous", "-")
+        actual = template.get("actual")
+        actual_value = actual if released else None
+        summary = _build_macro_event_summary(
+            event_name=event_name,
+            impact=impact,
+            consensus=consensus,
+            previous=previous,
+            actual=actual_value,
+            released=released,
+        )
         events.append({
-            "title": event.get("event", "Macro Event"),
-            "time": event.get("time", "N/A"),
-            "impact": event.get("impact", "medium"),
-            "currency": "USD",
-            "forecast": event.get("consensus", "-"),
-            "previous": event.get("previous", "-"),
-            "actual": None,
+            "title": event_name,
+            "time": time_label,
+            "impact": impact,
+            "currency": str(template.get("currency", "USD")),
+            "forecast": consensus,
+            "previous": previous,
+            "actual": actual_value,
             "countdown": countdown,
-            "summary": f"Evento macro {event.get('impact', 'medium')} impact. Consenso: {event.get('consensus', '-')}.",
-            "timestamp": now_utc.isoformat(),
+            "summary": summary,
+            "timestamp": event_dt.isoformat(),
         })
+    events.sort(key=lambda row: str(row.get("timestamp", "")))
     return events
+
+
+def _build_news_briefing_summaries(events: List[Dict[str, Any]], regime: str) -> Dict[str, str]:
+    ordered = sorted(events or [], key=lambda row: str(row.get("timestamp", "")))
+    released = [row for row in ordered if str(row.get("countdown", "")).lower() == "uscito"]
+    upcoming = [row for row in ordered if str(row.get("countdown", "")).lower() != "uscito"]
+    upcoming_high = [row for row in upcoming if str(row.get("impact", "")).lower() == "high"]
+
+    regime_line = (
+        "Regime risk-on: finestra macro da usare per continuazione."
+        if "risk-on" in str(regime).lower()
+        else "Regime risk-off: privilegiare selettivita e size ridotta su pre-news."
+        if "risk-off" in str(regime).lower()
+        else "Regime neutrale: direzione guidata soprattutto da sorprese macro."
+    )
+
+    if upcoming:
+        lead = upcoming[0]
+        lead_line = f"Prossimo dato: {lead.get('title', 'evento macro')} ({lead.get('countdown', 'N/A')}). {lead.get('summary', '')}"
+    else:
+        lead_line = "Nessun nuovo rilascio imminente nelle prossime ore."
+
+    if released:
+        latest = released[-1]
+        release_line = f"Ultimo rilascio: {latest.get('title', 'evento macro')}. {latest.get('summary', '')}"
+    else:
+        release_line = "Nessun rilascio gia pubblicato nella finestra corrente."
+
+    window_line = (
+        "Finestra ad alta intensita: attese accelerazioni su USD e volatilita intraday."
+        if upcoming_high
+        else "Finestra ordinaria: probabile rotazione a bassa intensita fino al prossimo high impact."
+    )
+
+    return {
+        "three_hour": f"{regime_line} {lead_line} {release_line}",
+        "daily": f"{window_line} {release_line}",
+    }
 
 
 @api_router.get("/health")
@@ -4154,16 +4330,7 @@ async def get_news_briefing(current_user: str = Depends(get_current_user)):
         sentiment = "NEUTRAL"
 
     events = _build_news_events_payload(now)
-    summaries = {
-        "three_hour": (
-            f"Regime corrente {regime}. Focus su eventi macro ad alto impatto nelle prossime ore; "
-            "monitorare reazione su rendimento US10Y, VIX e breadth settoriale."
-        ),
-        "daily": (
-            "Sintesi giornaliera: scenario guidato da macro + volatilita implicita. "
-            "Conferme operative solo con allineamento bias/crowding/squeeze."
-        ),
-    }
+    summaries = _build_news_briefing_summaries(events, regime)
 
     return {
         "updated_at": now.isoformat(),
